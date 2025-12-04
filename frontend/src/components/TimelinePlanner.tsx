@@ -6,7 +6,7 @@ import {
   useSortable 
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash2, Clock, GripVertical } from 'lucide-react';
+import { Trash2, Clock, GripVertical, Plus, Minus, Zap } from 'lucide-react';
 import type { Drill } from '../types';
 
 interface TimelineDrill {

@@ -1,65 +1,126 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Library, Settings } from 'lucide-react';
+import { Calendar, Library, Settings, Menu, X } from 'lucide-react';
+import { useState } from 'react';
 
 export default function Layout() {
   const location = useLocation();
   const isMobileView = location.pathname.startsWith('/practice/');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Don't show nav on mobile practice view
   if (isMobileView) {
     return <Outlet />;
   }
 
+  const isActive = (path: string) => location.pathname === path;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-2xl font-bold text-primary-600">Co-Trainer</h1>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link
-                  to="/planner"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    location.pathname === '/planner'
-                      ? 'border-primary-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Practice Planner
-                </Link>
-                <Link
-                  to="/library"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    location.pathname === '/library'
-                      ? 'border-primary-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                  }`}
-                >
-                  <Library className="w-4 h-4 mr-2" />
-                  Plan Library
-                </Link>
-                <Link
-                  to="/settings"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    location.pathname === '/settings'
-                      ? 'border-primary-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                  }`}
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </Link>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Desktop Navigation */}
+      <nav className="bg-derby-black shadow-track border-b-4 border-primary-600">
+        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-20">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <div className="derby-star text-primary-500 text-4xl">★</div>
+              <h1 className="text-3xl font-display font-bold text-white tracking-wider">
+                CO-TRAINER
+              </h1>
             </div>
+
+            {/* Desktop Nav Links */}
+            <div className="hidden md:flex items-center space-x-2">
+              <Link
+                to="/planner"
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
+                  isActive('/planner')
+                    ? 'bg-primary-600 text-white shadow-derby'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Calendar className="w-5 h-5" />
+                Practice Planner
+              </Link>
+              <Link
+                to="/library"
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
+                  isActive('/library')
+                    ? 'bg-primary-600 text-white shadow-derby'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Library className="w-5 h-5" />
+                Plan Library
+              </Link>
+              <Link
+                to="/settings"
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
+                  isActive('/settings')
+                    ? 'bg-primary-600 text-white shadow-derby'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Settings className="w-5 h-5" />
+                Settings
+              </Link>
+            </div>
+
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-gray-900 border-t border-gray-800">
+            <div className="px-4 py-3 space-y-2">
+              <Link
+                to="/planner"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${
+                  isActive('/planner')
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <Calendar className="w-5 h-5" />
+                Practice Planner
+              </Link>
+              <Link
+                to="/library"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${
+                  isActive('/library')
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <Library className="w-5 h-5" />
+                Plan Library
+              </Link>
+              <Link
+                to="/settings"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${
+                  isActive('/settings')
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <Settings className="w-5 h-5" />
+                Settings
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
-      <main>
+      <main className="min-h-[calc(100vh-5rem)]">
         <Outlet />
       </main>
     </div>
