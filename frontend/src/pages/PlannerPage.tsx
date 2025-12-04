@@ -118,9 +118,23 @@ export default function PlannerPage() {
     }
   };
 
+  const getPracticeTypeColor = (type: PracticeType) => {
+    if (type === 'fundamentals') return 'bg-practice-fundamentals';
+    if (type === 'skills_and_drills') return 'bg-practice-skills';
+    if (type === 'scrimmage') return 'bg-practice-scrimmage';
+    return 'bg-gray-500';
+  };
+
+  const getPracticeTypeLabel = (type: PracticeType) => {
+    if (type === 'fundamentals') return 'Fundamentals';
+    if (type === 'skills_and_drills') return 'Skills & Drills';
+    if (type === 'scrimmage') return 'Scrimmage';
+    return type;
+  };
+
   return (
     <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
-      <div className="h-[calc(100vh-64px)] flex">
+      <div className="h-[calc(100vh-5rem)] flex gap-1">
         {/* Left: Filters */}
         <div className="w-80 flex-shrink-0">
           {filterOptions && (
@@ -134,19 +148,29 @@ export default function PlannerPage() {
         </div>
 
         {/* Middle: Drill Browser */}
-        <div className="flex-1 flex flex-col border-r border-gray-200">
-          <div className="bg-white border-b border-gray-200 p-4">
-            <h2 className="text-lg font-semibold text-gray-900">Available Drills</h2>
+        <div className="flex-1 flex flex-col bg-white shadow-md rounded-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6">
+            <h2 className="text-2xl font-display font-bold tracking-wide">DRILL LIBRARY</h2>
+            <p className="text-gray-300 text-sm mt-1">Drag drills to your timeline →</p>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white">
             {isLoading ? (
-              <div className="text-center text-gray-500 mt-8">Loading drills...</div>
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                  <div className="text-gray-600 font-semibold">Loading drills...</div>
+                </div>
+              </div>
             ) : drills.length === 0 ? (
-              <div className="text-center text-gray-500 mt-8">
-                No drills found matching your filters
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center max-w-md">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">No Drills Found</h3>
+                  <p className="text-gray-600">Try adjusting your filters to see more drills</p>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                 {drills.map((drill) => (
                   <DrillCard
                     key={drill.id}
@@ -160,21 +184,27 @@ export default function PlannerPage() {
         </div>
 
         {/* Right: Timeline */}
-        <div className="w-96 flex-shrink-0 flex flex-col">
+        <div className="w-[28rem] flex-shrink-0 flex flex-col gap-1">
           {/* Practice Type Selector */}
-          <div className="bg-white border-b border-gray-200 p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
               Practice Type
             </label>
-            <select
-              value={practiceType}
-              onChange={(e) => setPracticeType(e.target.value as PracticeType)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="fundamentals">Fundamentals (Non-Contact)</option>
-              <option value="skills_and_drills">Skills & Drills (Full Contact)</option>
-              <option value="scrimmage">Scrimmage (Full Contact)</option>
-            </select>
+            <div className="grid grid-cols-3 gap-2">
+              {(['fundamentals', 'skills_and_drills', 'scrimmage'] as PracticeType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setPracticeType(type)}
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    practiceType === type
+                      ? `${getPracticeTypeColor(type)} text-white shadow-lg scale-105`
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {getPracticeTypeLabel(type)}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
@@ -190,37 +220,38 @@ export default function PlannerPage() {
           </div>
 
           {/* Save buttons */}
-          <div className="bg-white border-t border-gray-200 p-4 space-y-2">
+          <div className="bg-white shadow-md rounded-lg p-6">
             {!showSaveDialog ? (
               <button
                 onClick={() => setShowSaveDialog(true)}
                 disabled={timelineDrills.length === 0}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full btn-primary flex items-center justify-center gap-2"
               >
-                <Save className="w-4 h-4" />
-                Save Plan
+                <Save className="w-5 h-5" />
+                Save Practice Plan
               </button>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <input
                   type="text"
                   value={planName}
                   onChange={(e) => setPlanName(e.target.value)}
                   placeholder="Enter plan name..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="input-derby"
+                  autoFocus
                 />
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleSavePlan(false)}
-                    className="flex-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
+                    className="btn-primary"
                   >
                     Save Plan
                   </button>
                   <button
                     onClick={() => handleSavePlan(true)}
-                    className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                    className="px-4 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 hover:shadow-lg transition-all duration-200 active:scale-95"
                   >
-                    Save as Template
+                    Save Template
                   </button>
                 </div>
                 <button
@@ -228,7 +259,7 @@ export default function PlannerPage() {
                     setShowSaveDialog(false);
                     setPlanName('');
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+                  className="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-all"
                 >
                   Cancel
                 </button>
