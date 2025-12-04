@@ -37,21 +37,20 @@ if [ ! -d "venv" ]; then
     fi
 fi
 
-# Activate virtual environment and install dependencies
+# Install dependencies using venv's pip directly
 echo "Installing backend dependencies..."
-if [ -f "venv/bin/activate" ]; then
-    source venv/bin/activate
-    # Verify we're in the venv
-    if [ "$VIRTUAL_ENV" != "" ]; then
-        echo "✓ Virtual environment activated: $VIRTUAL_ENV"
-        venv/bin/pip install --upgrade pip
-        venv/bin/pip install -r requirements.txt
+if [ -f "venv/bin/pip" ]; then
+    echo "✓ Virtual environment found"
+    ./venv/bin/pip install --upgrade pip -q
+    ./venv/bin/pip install -r requirements.txt
+    if [ $? -eq 0 ]; then
+        echo "✓ Dependencies installed successfully"
     else
-        echo "✗ Failed to activate virtual environment"
+        echo "✗ Failed to install dependencies"
         exit 1
     fi
 else
-    echo "✗ Virtual environment activation script not found"
+    echo "✗ Virtual environment pip not found"
     exit 1
 fi
 
