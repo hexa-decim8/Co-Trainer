@@ -1,269 +1,191 @@
 # Co-Trainer - Roller Derby Practice Planner
 
-A comprehensive web application for planning roller derby practices with Notion database integration. Build practice timelines by dragging and dropping drills, filter exercises by tags, and reference your plans on mobile during practice.
+A web application for planning roller derby practices with Notion database integration. Build practice timelines by dragging and dropping drills, filter exercises by multiple criteria, and reference your plans on mobile during practice.
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/hexa-decim8/Co-Trainer.git
-cd Co-Trainer
-
-# Make start script executable and run
 chmod +x start.sh
 ./start.sh
 ```
 
-Then:
-1. Open `http://localhost:3000` in your browser
-2. Click **Settings** and configure your Notion integration
-3. Start planning your roller derby practices!
+Open `http://localhost:3000` in your browser, navigate to Settings, and configure your Notion integration credentials.
 
 ## Features
 
-### 🎯 Core Features
-- **Web UI Configuration**: Configure Notion credentials directly in the Settings page - no manual .env editing required
-- **Notion Integration**: Connects to your Notion database of roller derby drills and exercises
-- **Advanced Filtering**: Multi-tag filtering system for Contact Level, Difficulty, Drill Type, Equipment, Position Focus, Skater Level, and more
-- **Visual Timeline Builder**: Drag-and-drop interface with 2-hour practice timeline
-- **Three Practice Types**: Support for Fundamentals (non-contact), Skills & Drills (full contact), and Scrimmage practices
-- **Resizable Drills**: Adjust drill durations directly on the timeline (10-min minimum, 5-min increments)
-- **Auto-Reflow**: Timeline automatically reorganizes when drills are added, removed, or resized
-- **Template System**: Save practice plans as reusable templates
-- **Mobile Reference**: Mobile-optimized view with built-in stopwatch for on-track use
+- Web-based configuration for Notion credentials (no manual .env editing)
+- Notion database integration for drill management
+- Multi-criteria filtering (contact level, difficulty, drill type, equipment, position focus, skater level)
+- Drag-and-drop timeline builder for 2-hour practice sessions
+- Three practice types: Fundamentals, Skills & Drills, and Scrimmage
+- Adjustable drill durations with automatic timeline reflow
+- Save practices as dated plans or reusable templates
+- Mobile-optimized view with stopwatch and progress tracking
 
-### 📋 Notion Database Schema
+## Notion Database Schema
 
-Your Notion database should have the following columns:
+Your Notion database requires the following properties:
 
-| Column Name | Type | Notes |
-|-------------|------|-------|
-| Exercise | Title | Drill name (required) |
-| Avg Time | Number | Average duration in minutes |
-| Contact Level | Select | Single selection (e.g., Non-Contact, Full Contact) |
-| Depends on | Multi-select | Prerequisites for this drill |
-| Description | Text | Detailed drill description |
-| Difficulty 1-5 | Number | Difficulty rating 1-5 |
-| Drill Type | Select | Single selection |
+| Property | Type | Description |
+|----------|------|-------------|
+| Exercise | Title | Drill name |
+| Avg Time | Number | Duration in minutes |
+| Contact Level | Select | Contact level classification |
+| Depends on | Multi-select | Prerequisite drills |
+| Description | Text | Drill instructions |
+| Difficulty 1-5 | Number | Rating from 1-5 |
+| Drill Type | Select | Drill category |
 | Equipment | Select | Required equipment |
-| Game Type | Select | Type of game/scrimmage |
-| Players | Number | Number of players |
-| Position Focus | Multi-select | Positions targeted (e.g., Blocker, Jammer) |
-| Skater Level | Multi-select | Skill levels (e.g., Beginner, Advanced) |
-| Skaters Needed | Number | Total skaters needed |
-| Type | Multi-select | Categories (e.g., Warm-up, Skills, Drills, Scrimmage) |
-| Video Link | URL | Link to demonstration video |
+| Game Type | Select | Game/scrimmage type |
+| Players | Number | Player count |
+| Position Focus | Multi-select | Target positions |
+| Skater Level | Multi-select | Appropriate skill levels |
+| Skaters Needed | Number | Total skaters required |
+| Type | Multi-select | Practice categories |
+| Video Link | URL | Demonstration video |
 
 ## Installation
 
 ### Prerequisites
+
 - Python 3.9+
-- Node.js 18+ and npm
-- Notion account (API integration optional - can be configured in Settings)
-
-### Quick Start (Linux/Mac/WSL)
-
-**1. Clone and Run:**
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-That's it! The script will:
-- Check for Python and Node.js
-- Create virtual environment
-- Install all dependencies
-- Start both backend and frontend servers
-
-**2. Configure Notion (via Web UI):**
-- Open your browser to `http://localhost:3000`
-- Click **Settings** in the navigation
-- Follow the setup instructions on the Settings page
-- Enter your Notion API key and Database ID
-- Click Save
-
-### Manual Setup (If Needed)
-
-#### 1. Set Up Notion Integration (Optional - can be done in Settings UI)
-
-1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
-2. Click "New integration"
-3. Name it "Co-Trainer" and grant it Read content permissions
-4. Copy the **Internal Integration Token**
-5. Open your Notion database
-6. Click the ••• menu → "Add connections" → Select "Co-Trainer"
-7. Copy the **Database ID** from the URL:
-   ```
-   https://notion.so/[workspace]/[DATABASE_ID]?v=...
-   ```
-
-#### 2. Backend Setup
+- Node.js 18+
+- Notion account with API access
 
 ```bash
 cd backend
 python3 -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\Activate
+source venv/bin/activate  # Windows: .\venv\Scripts\Activate
 pip install -r requirements.txt
-
-# Optional: Create .env file with credentials (or use Settings UI)
-cp .env.example .env
 ```
 
-#### 3. Frontend Setup
+**Frontend:**
 
 ```bash
 cd frontend
 npm install
 ```
 
+### Notion Integration
+
+1. Create an integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
+2. Grant "Read content" permissions
+3. Connect the integration to your drill database
+4. Copy the Integration Token and Database ID
+5. Enter credentials in the Settings page at `http://localhost:3000`
+
 ## Running the Application
 
-### Easy Start (Recommended)
+### Quick Start
 
 ```bash
 ./start.sh
 ```
 
-Then open `http://localhost:3000` and configure Notion in the Settings page.
-
 ### Manual Start
 
-**Terminal 1 - Backend:**
+**Backend (Terminal 1):**
+
 ```bash
 cd backend
-source venv/bin/activate  # On Windows: .\venv\Scripts\Activate
+source venv/bin/activate
 python main.py
 ```
-Backend will run on `http://localhost:8000`
 
-**Terminal 2 - Frontend:**
+Runs on `http://localhost:8000`
+
+**Frontend (Terminal 2):**
+
 ```bash
 cd frontend
 npm run dev
 ```
-Frontend will run on `http://localhost:3000`
 
-### First Time Setup
+Runs on `http://localhost:3000`
 
-1. **Open the application**: Navigate to `http://localhost:3000`
-2. **Go to Settings**: Click "Settings" in the top navigation
-3. **Configure Notion**:
-   - Create a Notion integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
-   - Copy your Integration Token and Database ID
-   - Paste them into the Settings page and click Save
-4. **Start Planning**: Navigate to "Practice Planner" to begin!
-
-## Usage Guide
+## Usage
 
 ### Planning a Practice
 
-1. **Select Practice Type**: Choose Fundamentals, Skills & Drills, or Scrimmage from the dropdown
-2. **Filter Drills**: Use the left sidebar to filter drills by:
-   - Contact Level (for safety-appropriate drills)
-   - Difficulty (skill progression)
-   - Type, Position Focus, Skater Level, Equipment, etc.
-3. **Search**: Use the search bar to find specific drills by name or description
-4. **Drag to Timeline**: Click and drag drill cards from the middle panel to the right timeline
-5. **Adjust Duration**: Click the +5/-5 buttons on timeline drills to adjust duration
-6. **Reorder**: Drag drills up/down within the timeline to reorder
-7. **Review**: Check the total duration (out of 120 minutes) and equipment list
-8. **Save**: Click "Save Plan" and choose:
-   - **Save Plan**: Save as a dated practice plan
-   - **Save as Template**: Save as a reusable template (no date)
+1. Select practice type (Fundamentals/Skills & Drills/Scrimmage)
+2. Filter drills using the sidebar filters
+3. Search for specific drills by name or description
+4. Drag drill cards to the timeline on the right
+5. Adjust durations using +5/-5 minute buttons
+6. Reorder drills by dragging within the timeline
+7. Save as a dated plan or reusable template
 
-### Using Templates
+### Mobile View
 
-1. Go to **Plan Library** tab
-2. Click **Templates** filter
-3. Click **View** on a template
-4. Use the mobile view or duplicate to create a new practice from the template
+Access saved practices from the Plan Library. The mobile view includes:
 
-### Mobile Reference During Practice
-
-1. From **Plan Library**, click **View** on a practice plan
-2. Mobile-optimized view shows:
-   - **Stopwatch**: Start/stop/reset timer
-   - **Equipment Checklist**: Collapsible list of needed equipment
-   - **Drill Timeline**: Sequential list with start/end times
-   - **Progress Tracking**: Check off completed drills
-   - **Drill Details**: Expand to see full description, video links
-   - **Current Drill Highlight**: Based on stopwatch time
+- Stopwatch with start/stop/reset controls
+- Equipment checklist
+- Drill timeline with start/end times
+- Progress tracking
+- Drill detail expansion with video links
+- Current drill highlighting based on elapsed time
 
 ## Project Structure
 
 ```
-Co-Trainer/
-├── backend/
-│   ├── main.py              # FastAPI application
-│   ├── models.py            # Pydantic data models
-│   ├── database.py          # SQLAlchemy database setup
-│   ├── notion_service.py    # Notion API integration
-│   ├── config.py            # Configuration management
-│   ├── requirements.txt     # Python dependencies
-│   └── .env.example         # Environment variables template
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   │   ├── Layout.tsx
-│   │   │   ├── FilterSidebar.tsx
-│   │   │   ├── DrillCard.tsx
-│   │   │   ├── DrillDetailModal.tsx
-│   │   │   └── TimelinePlanner.tsx
-│   │   ├── pages/           # Page components
-│   │   │   ├── PlannerPage.tsx
-│   │   │   ├── LibraryPage.tsx
-│   │   │   └── MobileViewPage.tsx
-│   │   ├── api.ts           # API client
-│   │   ├── types.ts         # TypeScript types
-│   │   ├── App.tsx          # Main app component
-│   │   └── main.tsx         # Entry point
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   └── tsconfig.json
-│
-├── .gitignore
-└── README.md
+backend/
+├── main.py              # FastAPI application entry point
+├── models.py            # Pydantic data models
+├── database.py          # SQLAlchemy ORM setup
+├── notion_service.py    # Notion API client
+├── config.py            # Configuration management
+└── requirements.txt
+
+frontend/
+├── src/
+│   ├── components/      # React components
+│   ├── pages/          # Route components
+│   ├── api.ts          # API client
+│   ├── types.ts        # TypeScript definitions
+│   ├── App.tsx
+│   └── main.tsx
+├── package.json
+├── vite.config.ts
+└── tailwind.config.js
 ```
 
 ## API Endpoints
 
-### Drills
-- `GET /api/drills` - Get all drills with optional filters
+**Drills:**
+- `GET /api/drills` - List drills with optional filters
 - `GET /api/filter-options` - Get available filter values
 
-### Practice Plans
-- `POST /api/plans` - Create a new practice plan
-- `GET /api/plans` - List all practice plans
-- `GET /api/plans/{id}` - Get practice plan with full drill details
-- `PUT /api/plans/{id}` - Update a practice plan
-- `PATCH /api/plans/{id}/rename` - Rename a practice plan
-- `DELETE /api/plans/{id}` - Delete a practice plan
-- `GET /api/templates` - Get all templates
+**Practice Plans:**
+- `POST /api/plans` - Create practice plan
+- `GET /api/plans` - List all plans
+- `GET /api/plans/{id}` - Get plan details
+- `PUT /api/plans/{id}` - Update plan
+- `PATCH /api/plans/{id}/rename` - Rename plan
+- `DELETE /api/plans/{id}` - Delete plan
+- `GET /api/templates` - List templates
 
 ## Technology Stack
 
-### Backend
-- **FastAPI**: Modern Python web framework
-- **SQLAlchemy**: ORM for practice plan storage
-- **Notion Client**: Official Notion API SDK
-- **Pydantic**: Data validation
-- **SQLite**: Lightweight database
+**Backend:**
+- FastAPI (web framework)
+- SQLAlchemy (ORM)
+- Notion SDK (API client)
+- Pydantic (validation)
+- SQLite (storage)
 
-### Frontend
-- **React 18**: UI library
-- **TypeScript**: Type-safe JavaScript
-- **Vite**: Fast build tool
-- **TanStack Query**: Data fetching and caching
-- **@dnd-kit**: Drag and drop functionality
-- **Tailwind CSS**: Utility-first styling
-- **Lucide React**: Icon library
-- **React Router**: Client-side routing
+**Frontend:**
+- React 18
+- TypeScript
+- Vite (build tool)
+- TanStack Query (data fetching)
+- dnd-kit (drag and drop)
+- Tailwind CSS (styling)
+- React Router (routing)
 
 ## Deployment
 
-### Docker Compose (Recommended)
+### Docker Compose
 
 ```yaml
 version: '3.8'
@@ -288,7 +210,9 @@ services:
 ```
 
 ### Environment Variables
-Create a `.env` file in the project root:
+
+Create `.env` in the backend directory:
+
 ```
 NOTION_API_KEY=secret_xxxxxxxxxxxxx
 NOTION_DATABASE_ID=xxxxxxxxxxxxx
@@ -297,36 +221,32 @@ DATABASE_URL=sqlite:///./cotrainer.db
 
 ## Troubleshooting
 
-### Notion API Issues
-- **401 Unauthorized**: Check your Notion API key is correct
-- **404 Database Not Found**: Ensure the integration has access to the database
-- **Empty results**: Verify database has content and proper column names
+**Notion API Issues:**
+- 401 Unauthorized: Verify API key
+- 404 Not Found: Confirm database access permissions
+- Empty results: Check database content and column names match schema
 
-### Build Errors
-- **Module not found**: Run `npm install` in frontend directory
-- **Python import errors**: Activate virtual environment and run `pip install -r requirements.txt`
+**Build Errors:**
+- Module not found: Run `npm install` in frontend directory
+- Python imports: Activate virtual environment and reinstall dependencies
 
-### Performance
-- The backend caches Notion responses to improve speed
-- Clear cache by restarting the backend server
-- For large databases (>500 drills), consider pagination
+**Performance:**
+- Backend caches Notion responses
+- Restart backend to clear cache
+- Large databases (500+ drills) may benefit from pagination
 
 ## Contributing
 
-Contributions are welcome! Please ensure:
-1. Code follows existing style conventions
-2. TypeScript types are properly defined
-3. API endpoints are documented
-4. Mobile responsive design is maintained
+Contributions welcome. Please maintain:
+- Existing code style
+- TypeScript type definitions
+- API documentation
+- Mobile responsive design
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT License
 
 ## Support
 
-For issues, feature requests, or questions, please open an issue on GitHub.
-
----
-
-Built with ❤️ for the roller derby community
+Submit issues or feature requests on GitHub.
