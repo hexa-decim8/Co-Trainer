@@ -30,17 +30,39 @@ cd backend
 if [ ! -d "venv" ]; then
     echo "Creating Python virtual environment..."
     python3 -m venv venv
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to create virtual environment"
+        echo "  Try: sudo apt install python3-venv python3-full"
+        exit 1
+    fi
 fi
 
 # Activate virtual environment and install dependencies
 echo "Installing backend dependencies..."
-source venv/bin/activate
-pip install -q -r requirements.txt
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+    # Verify we're in the venv
+    if [ "$VIRTUAL_ENV" != "" ]; then
+        echo "✓ Virtual environment activated: $VIRTUAL_ENV"
+        venv/bin/pip install --upgrade pip
+        venv/bin/pip install -r requirements.txt
+    else
+        echo "✗ Failed to activate virtual environment"
+        exit 1
+    fi
+else
+    echo "✗ Virtual environment activation script not found"
+    exit 1
+fi
 
 # Create .env if it doesn't exist
 if [ ! -f ".env" ]; then
     echo "Creating .env file from template..."
-    cp .env.example .env
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+    else
+        touch .env
+    fi
     echo "⚠  Configure Notion credentials in Settings page after startup"
 fi
 
@@ -107,8 +129,8 @@ trap cleanup SIGINT SIGTERM EXIT
 # Start backend in background
 echo "Starting backend server..."
 cd backend
-source venv/bin/activate
-python3 main.py &
+# Use the venv's python directly
+./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 cd ..
 
