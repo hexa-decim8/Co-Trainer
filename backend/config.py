@@ -19,3 +19,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Load persisted credentials on startup
+try:
+    from secure_config import secure_config
+    saved_creds = secure_config.load_credentials()
+    if saved_creds.get("notion_api_key"):
+        settings.notion_api_key = saved_creds["notion_api_key"]
+    if saved_creds.get("notion_database_id"):
+        settings.notion_database_id = saved_creds["notion_database_id"]
+except Exception:
+    pass  # If secure_config not available yet, skip
