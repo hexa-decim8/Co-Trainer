@@ -92,19 +92,6 @@ export default function DrillCard({ drill }: DrillCardProps) {
               {drill.contact_level}
             </span>
           )}
-          
-          {drill.difficulty && (
-            <span className="inline-flex items-center text-sm font-semibold px-3 py-1.5 rounded-full bg-purple-100 text-purple-800">
-              <div className="flex mr-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-3 h-3 ${i < drill.difficulty ? 'fill-purple-600 text-purple-600' : 'text-purple-300'}`}
-                  />
-                ))}
-              </div>
-            </span>
-          )}
         </div>
 
         {/* Drill Type and Equipment */}
