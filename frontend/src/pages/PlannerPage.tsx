@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
-import DrillDetailModal from '../components/DrillDetailModal';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
 import type { Drill, DrillFilters, PracticeType } from '../types';
@@ -17,13 +16,22 @@ interface TimelineDrill {
   startTime: number;
 }
 
+const dropAnimation = {
+  duration: 300,
+  easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: '0.5' } }
+  })
+};
+
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
-  const [selectedDrill, setSelectedDrill] = useState<Drill | null>(null);
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
+  const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
 
   // Fetch drills with filters
   const { data: drills = [], isLoading } = useQuery({
@@ -46,10 +54,34 @@ export default function PlannerPage() {
     });
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDrill(event.active.data.current as Drill);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (over && String(over.id).startsWith('timeline-slot-')) {
+      const timeSlot = parseInt(String(over.id).replace('timeline-slot-', ''));
+      setDropTimeSlot(timeSlot);
+    } else {
+      setDropTimeSlot(null);
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveDrill(null);
+    setDropTimeSlot(null);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setDropTimeSlot(null);
 
-    if (over?.id === 'timeline' && active.data.current) {
+    // Check if dragging an existing timeline drill
+    const isTimelineDrill = timelineDrills.some(d => d.id === active.id);
+
+    if (over?.id === 'timeline' && active.data.current && !isTimelineDrill) {
+      // Adding new drill from library to end of timeline
       const drill = active.data.current as Drill;
       const duration = Math.max(10, drill.avg_time || 15);
       
@@ -62,8 +94,56 @@ export default function PlannerPage() {
 
       const updatedDrills = calculateStartTimes([...timelineDrills, newDrill]);
       setTimelineDrills(updatedDrills);
-    } else if (over && active.id !== over.id) {
-      // Reordering within timeline
+    } else if (over && String(over.id).startsWith('timeline-slot-')) {
+      if (isTimelineDrill) {
+        // Reordering existing drill to specific time position
+        const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
+        const draggedDrill = timelineDrills.find(d => d.id === active.id);
+        
+        if (draggedDrill) {
+          // Remove the dragged drill
+          const withoutDragged = timelineDrills.filter(d => d.id !== active.id);
+          
+          // Find insertion index based on target time
+          let insertIndex = withoutDragged.findIndex(d => d.startTime >= targetTime);
+          if (insertIndex === -1) insertIndex = withoutDragged.length;
+          
+          // Insert at new position
+          const reordered = [
+            ...withoutDragged.slice(0, insertIndex),
+            draggedDrill,
+            ...withoutDragged.slice(insertIndex)
+          ];
+          
+          setTimelineDrills(calculateStartTimes(reordered));
+        }
+      } else if (active.data.current) {
+        // Dropping new drill from library at specific time slot
+        const drill = active.data.current as Drill;
+        const duration = Math.max(10, drill.avg_time || 15);
+        const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
+        
+        const newDrill = {
+          id: `timeline-${Date.now()}-${Math.random()}`,
+          drill,
+          duration,
+          startTime: targetTime,
+        };
+
+        // Find insertion index and handle overlaps by shifting drills
+        let insertIndex = timelineDrills.findIndex(d => d.startTime >= targetTime);
+        if (insertIndex === -1) insertIndex = timelineDrills.length;
+
+        const newDrills = [
+          ...timelineDrills.slice(0, insertIndex),
+          newDrill,
+          ...timelineDrills.slice(insertIndex)
+        ];
+        
+        setTimelineDrills(calculateStartTimes(newDrills));
+      }
+    } else if (over && active.id !== over.id && isTimelineDrill) {
+      // Reordering within timeline (drag onto another drill)
       const oldIndex = timelineDrills.findIndex(d => d.id === active.id);
       const newIndex = timelineDrills.findIndex(d => d.id === over.id);
       
@@ -72,6 +152,7 @@ export default function PlannerPage() {
         setTimelineDrills(calculateStartTimes(reordered));
       }
     }
+    setActiveDrill(null);
   };
 
   const handleRemoveDrill = (index: number) => {
@@ -133,7 +214,13 @@ export default function PlannerPage() {
   };
 
   return (
-    <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+    <DndContext 
+      onDragEnd={handleDragEnd} 
+      onDragStart={handleDragStart} 
+      onDragOver={handleDragOver}
+      onDragCancel={handleDragCancel} 
+      collisionDetection={rectIntersection}
+    >
       <div className="h-[calc(100vh-5rem)] flex gap-1">
         {/* Left: Filters */}
         <div className="w-80 flex-shrink-0">
@@ -175,7 +262,6 @@ export default function PlannerPage() {
                   <DrillCard
                     key={drill.id}
                     drill={drill}
-                    onShowDetails={setSelectedDrill}
                   />
                 ))}
               </div>
@@ -216,6 +302,8 @@ export default function PlannerPage() {
               onUpdateDuration={handleUpdateDuration}
               totalDuration={totalDuration}
               practiceType={practiceType}
+              dropTimeSlot={dropTimeSlot}
+              activeDrill={activeDrill}
             />
           </div>
 
@@ -269,10 +357,13 @@ export default function PlannerPage() {
         </div>
       </div>
 
-      {/* Drill Detail Modal */}
-      {selectedDrill && (
-        <DrillDetailModal drill={selectedDrill} onClose={() => setSelectedDrill(null)} />
-      )}
+      <DragOverlay dropAnimation={dropAnimation}>
+        {activeDrill ? (
+          <div className="rotate-3 scale-105 shadow-2xl">
+            <DrillCard drill={activeDrill} onShowDetails={() => {}} />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

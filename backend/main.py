@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
 import json
 import os
+import logging
 from datetime import datetime
 from notion_client import Client
 
@@ -17,6 +18,8 @@ from notion_service import notion_service
 from database import PracticePlanDB
 
 app = FastAPI(title="Co-Trainer API", version="1.0.0")
+
+logger = logging.getLogger(__name__)
 
 # Configure CORS
 app.add_middleware(
@@ -121,12 +124,15 @@ async def get_drills(
     position_focus: Optional[List[str]] = Query(None),
     skater_level: Optional[List[str]] = Query(None),
     type_filter: Optional[List[str]] = Query(None, alias="type"),
+    force_sync: bool = Query(False),
+    db: Session = Depends(get_db),
 ):
     """
     Get all drills with optional filtering.
     Filters use OR logic within a category and AND logic across categories.
+    Set force_sync=true to force refresh from Notion.
     """
-    drills = await notion_service.get_all_drills()
+    drills = await notion_service.get_all_drills(db=db, force_sync=force_sync)
     
     # Apply filters
     filtered_drills = drills
@@ -182,6 +188,28 @@ async def get_drills(
         ]
     
     return filtered_drills
+
+
+@app.post("/api/drills/sync")
+async def sync_drills(db: Session = Depends(get_db)):
+    """Force sync drills from Notion."""
+    try:
+        drills = await notion_service.get_all_drills(db=db, force_sync=True)
+        return {
+            "success": True,
+            "message": f"Successfully synced {len(drills)} drills from Notion",
+            "count": len(drills)
+        }
+    except Exception as e:
+        logger.error(f"Drill sync failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/drills/cache-info")
+async def get_cache_info(db: Session = Depends(get_db)):
+    """Get information about the drill cache."""
+    from drill_cache import drill_cache_manager
+    return drill_cache_manager.get_cache_info(db)
 
 
 @app.get("/api/filter-options", response_model=FilterOptions)
