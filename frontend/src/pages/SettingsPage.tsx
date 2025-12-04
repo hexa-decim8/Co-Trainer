@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Check, AlertCircle } from 'lucide-react';
+import { Save, Check, AlertCircle, Wifi } from 'lucide-react';
 import api from '../api';
 
 export default function SettingsPage() {
@@ -30,18 +30,39 @@ export default function SettingsPage() {
       setApiKey('');
       setTimeout(() => setMessage(null), 5000);
     },
-    onError: () => {
-      setMessage({ type: 'error', text: 'Failed to save settings. Please check your credentials.' });
+    onError: (error: any) => {
+      const errorMsg = error.response?.data?.detail || 'Failed to save settings. Please check your credentials.';
+      setMessage({ type: 'error', text: errorMsg });
       setTimeout(() => setMessage(null), 5000);
     },
   });
 
-  const handleSave = () => {
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/settings/test');
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setMessage({ type: 'success', text: `Connection successful! ${data.message}` });
+      setTimeout(() => setMessage(null), 5000);
+    },
+    onError: (error: any) => {
+      const errorMsg = error.response?.data?.detail || 'Connection failed. Please check your credentials.';
+      setMessage({ type: 'error', text: errorMsg });
+      setTimeout(() => setMessage(null), 5000);
+    },
+  });
+
+  const handleSave = async () => {
     if (!apiKey || !databaseId) {
       setMessage({ type: 'error', text: 'Please fill in both fields' });
       return;
     }
-    saveMutation.mutate({ notion_api_key: apiKey, notion_database_id: databaseId });
+    await saveMutation.mutateAsync({ notion_api_key: apiKey, notion_database_id: databaseId });
+  };
+
+  const handleTest = () => {
+    testMutation.mutate();
   };
 
   return (
@@ -124,14 +145,26 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          <button
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {saveMutation.isPending ? 'Saving...' : 'Save Settings'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saveMutation.isPending ? 'Saving...' : 'Save Settings'}
+            </button>
+            {settings?.notion_configured && (
+              <button
+                onClick={handleTest}
+                disabled={testMutation.isPending}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Wifi className="w-4 h-4" />
+                {testMutation.isPending ? 'Testing...' : 'Test Connection'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Instructions */}

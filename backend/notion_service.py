@@ -11,7 +11,9 @@ class NotionService:
     """Service for interacting with Notion API."""
     
     def __init__(self):
-        self.client = Client(auth=settings.notion_api_key)
+        self.client = None
+        if settings.notion_api_key:
+            self.client = Client(auth=settings.notion_api_key)
         self.database_id = settings.notion_database_id
         self._cache: Optional[List[Drill]] = None
     
@@ -75,6 +77,10 @@ class NotionService:
     
     async def get_all_drills(self, use_cache: bool = True) -> List[Drill]:
         """Fetch all drills from Notion database."""
+        if not self.client or not self.database_id:
+            logger.warning("Notion API not configured - API key or database ID missing")
+            return []
+        
         if use_cache and self._cache is not None:
             return self._cache
         
@@ -108,6 +114,10 @@ class NotionService:
     
     async def get_drill_by_id(self, drill_id: str) -> Optional[Drill]:
         """Get a single drill by ID."""
+        if not self.client:
+            logger.warning("Notion API not configured")
+            return None
+        
         try:
             page = self.client.pages.retrieve(page_id=drill_id)
             return self._parse_drill(page)

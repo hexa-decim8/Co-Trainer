@@ -62,11 +62,42 @@ async def update_settings(config: Dict[str, str]):
         os.environ["NOTION_DATABASE_ID"] = config["notion_database_id"]
     
     # Reinitialize Notion service with new credentials
-    notion_service.client = Client(auth=settings.notion_api_key)
+    if settings.notion_api_key:
+        notion_service.client = Client(auth=settings.notion_api_key)
     notion_service.database_id = settings.notion_database_id
     notion_service.clear_cache()
     
     return {"success": True, "message": "Settings updated successfully"}
+
+
+@app.post("/api/settings/test")
+async def test_notion_connection():
+    """Test Notion API connection."""
+    if not settings.notion_api_key:
+        raise HTTPException(status_code=400, detail="Notion API key not configured")
+    
+    if not settings.notion_database_id:
+        raise HTTPException(status_code=400, detail="Notion database ID not configured")
+    
+    try:
+        # Try to fetch just one page to test connection
+        test_client = Client(auth=settings.notion_api_key)
+        response = test_client.databases.query(
+            database_id=settings.notion_database_id,
+            page_size=1
+        )
+        
+        return {
+            "success": True,
+            "message": "Successfully connected to Notion",
+            "drill_count": len(response.get("results", []))
+        }
+    except Exception as e:
+        logger.error(f"Notion connection test failed: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to connect to Notion: {str(e)}"
+        )
 
 
 @app.get("/api/drills", response_model=List[Drill])
