@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict
 import json
+import os
 from datetime import datetime
+from notion_client import Client
 
 from config import settings
 from database import get_db, init_db
@@ -36,6 +38,35 @@ async def startup_event():
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "message": "Co-Trainer API is running"}
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """Get current settings (without exposing full API key)."""
+    return {
+        "notion_configured": bool(settings.notion_api_key and settings.notion_database_id),
+        "notion_api_key_preview": settings.notion_api_key[:10] + "..." if settings.notion_api_key else None,
+        "notion_database_id": settings.notion_database_id
+    }
+
+
+@app.post("/api/settings")
+async def update_settings(config: Dict[str, str]):
+    """Update Notion API credentials."""
+    if "notion_api_key" in config:
+        settings.notion_api_key = config["notion_api_key"]
+        os.environ["NOTION_API_KEY"] = config["notion_api_key"]
+    
+    if "notion_database_id" in config:
+        settings.notion_database_id = config["notion_database_id"]
+        os.environ["NOTION_DATABASE_ID"] = config["notion_database_id"]
+    
+    # Reinitialize Notion service with new credentials
+    notion_service.client = Client(auth=settings.notion_api_key)
+    notion_service.database_id = settings.notion_database_id
+    notion_service.clear_cache()
+    
+    return {"success": True, "message": "Settings updated successfully"}
 
 
 @app.get("/api/drills", response_model=List[Drill])

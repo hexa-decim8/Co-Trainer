@@ -2,9 +2,27 @@
 
 A comprehensive web application for planning roller derby practices with Notion database integration. Build practice timelines by dragging and dropping drills, filter exercises by tags, and reference your plans on mobile during practice.
 
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/hexa-decim8/Co-Trainer.git
+cd Co-Trainer
+
+# Make start script executable and run
+chmod +x start.sh
+./start.sh
+```
+
+Then:
+1. Open `http://localhost:3000` in your browser
+2. Click **Settings** and configure your Notion integration
+3. Start planning your roller derby practices!
+
 ## Features
 
 ### 🎯 Core Features
+- **Web UI Configuration**: Configure Notion credentials directly in the Settings page - no manual .env editing required
 - **Notion Integration**: Connects to your Notion database of roller derby drills and exercises
 - **Advanced Filtering**: Multi-tag filtering system for Contact Level, Difficulty, Drill Type, Equipment, Position Focus, Skater Level, and more
 - **Visual Timeline Builder**: Drag-and-drop interface with 2-hour practice timeline
@@ -41,9 +59,32 @@ Your Notion database should have the following columns:
 ### Prerequisites
 - Python 3.9+
 - Node.js 18+ and npm
-- Notion account with API integration
+- Notion account (API integration optional - can be configured in Settings)
 
-### 1. Set Up Notion Integration
+### Quick Start (Linux/Mac/WSL)
+
+**1. Clone and Run:**
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+That's it! The script will:
+- Check for Python and Node.js
+- Create virtual environment
+- Install all dependencies
+- Start both backend and frontend servers
+
+**2. Configure Notion (via Web UI):**
+- Open your browser to `http://localhost:3000`
+- Click **Settings** in the navigation
+- Follow the setup instructions on the Settings page
+- Enter your Notion API key and Database ID
+- Click Save
+
+### Manual Setup (If Needed)
+
+#### 1. Set Up Notion Integration (Optional - can be done in Settings UI)
 
 1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
 2. Click "New integration"
@@ -56,61 +97,61 @@ Your Notion database should have the following columns:
    https://notion.so/[workspace]/[DATABASE_ID]?v=...
    ```
 
-### 2. Backend Setup
+#### 2. Backend Setup
 
-```powershell
-# Navigate to backend directory
+```bash
 cd backend
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-.\venv\Scripts\Activate
-
-# Install dependencies
+python3 -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\Activate
 pip install -r requirements.txt
 
-# Create .env file
+# Optional: Create .env file with credentials (or use Settings UI)
 cp .env.example .env
-
-# Edit .env with your Notion credentials
-# NOTION_API_KEY=your_integration_token_here
-# NOTION_DATABASE_ID=your_database_id_here
 ```
 
-### 3. Frontend Setup
+#### 3. Frontend Setup
 
-```powershell
-# Navigate to frontend directory
-cd ../frontend
-
-# Install dependencies
+```bash
+cd frontend
 npm install
 ```
 
 ## Running the Application
 
-### Development Mode
+### Easy Start (Recommended)
+
+```bash
+./start.sh
+```
+
+Then open `http://localhost:3000` and configure Notion in the Settings page.
+
+### Manual Start
 
 **Terminal 1 - Backend:**
-```powershell
+```bash
 cd backend
-.\venv\Scripts\Activate
+source venv/bin/activate  # On Windows: .\venv\Scripts\Activate
 python main.py
 ```
 Backend will run on `http://localhost:8000`
 
 **Terminal 2 - Frontend:**
-```powershell
+```bash
 cd frontend
 npm run dev
 ```
 Frontend will run on `http://localhost:3000`
 
-### Access the Application
-- Open your browser to `http://localhost:3000`
-- The Practice Planner page will load with your Notion drills
+### First Time Setup
+
+1. **Open the application**: Navigate to `http://localhost:3000`
+2. **Go to Settings**: Click "Settings" in the top navigation
+3. **Configure Notion**:
+   - Create a Notion integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
+   - Copy your Integration Token and Database ID
+   - Paste them into the Settings page and click Save
+4. **Start Planning**: Navigate to "Practice Planner" to begin!
 
 ## Usage Guide
 

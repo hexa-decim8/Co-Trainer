@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Library } from 'lucide-react';
+import { Calendar, Library, Settings } from 'lucide-react';
 
 export default function Layout() {
   const location = useLocation();
@@ -41,6 +41,17 @@ export default function Layout() {
                 >
                   <Library className="w-4 h-4 mr-2" />
                   Plan Library
+                </Link>
+                <Link
+                  to="/settings"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    location.pathname === '/settings'
+                      ? 'border-primary-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
                 </Link>
               </div>
             </div>

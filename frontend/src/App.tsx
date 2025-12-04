@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PlannerPage from './pages/PlannerPage';
 import LibraryPage from './pages/LibraryPage';
 import MobileViewPage from './pages/MobileViewPage';
+import SettingsPage from './pages/SettingsPage';
 import Layout from './components/Layout';
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
           <Route index element={<Navigate to="/planner" replace />} />
           <Route path="planner" element={<PlannerPage />} />
           <Route path="library" element={<LibraryPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="practice/:id" element={<MobileViewPage />} />
         </Route>
       </Routes>
