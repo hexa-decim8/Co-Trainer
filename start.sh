@@ -30,17 +30,38 @@ cd backend
 if [ ! -d "venv" ]; then
     echo "Creating Python virtual environment..."
     python3 -m venv venv
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to create virtual environment"
+        echo "  Try: sudo apt install python3-venv python3-full"
+        exit 1
+    fi
 fi
 
-# Activate virtual environment and install dependencies
+# Install dependencies using venv's pip directly
 echo "Installing backend dependencies..."
-source venv/bin/activate
-pip install -q -r requirements.txt
+if [ -f "venv/bin/pip" ]; then
+    echo "✓ Virtual environment found"
+    ./venv/bin/pip install --upgrade pip -q
+    ./venv/bin/pip install -r requirements.txt
+    if [ $? -eq 0 ]; then
+        echo "✓ Dependencies installed successfully"
+    else
+        echo "✗ Failed to install dependencies"
+        exit 1
+    fi
+else
+    echo "✗ Virtual environment pip not found"
+    exit 1
+fi
 
 # Create .env if it doesn't exist
 if [ ! -f ".env" ]; then
     echo "Creating .env file from template..."
-    cp .env.example .env
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+    else
+        touch .env
+    fi
     echo "⚠  Configure Notion credentials in Settings page after startup"
 fi
 
@@ -68,28 +89,81 @@ echo ""
 echo "Press Ctrl+C to stop both servers"
 echo ""
 
-# Function to cleanup background processes
+# Store PIDs for cleanup
+BACKEND_PID=""
+FRONTEND_PID=""
+
+# Function to cleanup all processes
 cleanup() {
     echo ""
-    echo "Shutting down servers..."
-    kill $BACKEND_PID 2>/dev/null
+    echo "=== Shutting down Co-Trainer ==="
+    
+    # Kill frontend process and its children
+    if [ ! -z "$FRONTEND_PID" ]; then
+        echo "Stopping frontend..."
+        kill -TERM $FRONTEND_PID 2>/dev/null
+        # Kill any remaining npm/vite processes
+        pkill -P $FRONTEND_PID 2>/dev/null
+        wait $FRONTEND_PID 2>/dev/null
+    fi
+    
+    # Kill backend process
+    if [ ! -z "$BACKEND_PID" ]; then
+        echo "Stopping backend..."
+        kill -TERM $BACKEND_PID 2>/dev/null
+        wait $BACKEND_PID 2>/dev/null
+    fi
+    
+    # Extra cleanup: kill any remaining uvicorn or vite processes
+    pkill -f "uvicorn.*main:app" 2>/dev/null
+    pkill -f "vite.*--host 0.0.0.0" 2>/dev/null
+    
+    echo "✓ All servers stopped cleanly"
     exit 0
 }
 
-trap cleanup SIGINT SIGTERM
+# Set up trap for clean shutdown
+trap cleanup SIGINT SIGTERM EXIT
 
 # Start backend in background
+echo "Starting backend server..."
 cd backend
-source venv/bin/activate
-python3 main.py &
+# Use the venv's python directly
+./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
+cd ..
 
-# Wait a moment for backend to start
+# Wait for backend to start
+echo "Waiting for backend to initialize..."
 sleep 3
 
-# Start frontend (this runs in foreground)
-cd ../frontend
-npm run dev
+# Check if backend is still running
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "✗ Backend failed to start"
+    exit 1
+fi
+echo "✓ Backend running (PID: $BACKEND_PID)"
 
-# If frontend exits, kill backend
-kill $BACKEND_PID 2>/dev/null
+# Start frontend in background (so we can trap signals)
+echo "Starting frontend server..."
+cd frontend
+npm run dev &
+FRONTEND_PID=$!
+cd ..
+
+# Check if frontend started
+sleep 2
+if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    echo "✗ Frontend failed to start"
+    kill $BACKEND_PID 2>/dev/null
+    exit 1
+fi
+echo "✓ Frontend running (PID: $FRONTEND_PID)"
+
+echo ""
+echo "=== Co-Trainer is running ==="
+echo "Press Ctrl+C to stop all servers"
+echo ""
+
+# Wait for either process to exit
+wait $FRONTEND_PID $BACKEND_PID

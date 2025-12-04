@@ -1,19 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  line-height: 1.6;
   font-weight: 400;
+  
+  color-scheme: light;
+  color: #0a0a0a;
+  background-color: #f5f5f7;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Custom Derby Star Icon */
+.derby-star {
+  position: relative;
+  display: inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.derby-star::before {
+  content: "★";
+  position: absolute;
+  font-size: 1.5rem;
+  color: currentColor;
+  line-height: 1;
+}
+
+/* Track Border Pattern */
+.track-border {
+  border-image: repeating-linear-gradient(
+    90deg,
+    #e91e6f 0px,
+    #e91e6f 8px,
+    transparent 8px,
+    transparent 12px
+  ) 1;
+}
+
+/* Smooth transitions for interactive elements */
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold 
+           hover:bg-primary-700 hover:shadow-derby transition-all duration-200 
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-800 text-white px-6 py-3 rounded-lg font-semibold 
+           hover:bg-gray-900 hover:shadow-track transition-all duration-200 
+           active:scale-95;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white px-4 py-2 rounded-lg font-medium 
+           hover:bg-red-700 hover:shadow-lg transition-all duration-200 
+           active:scale-95;
+  }
+  
+  .card-derby {
+    @apply bg-white rounded-xl shadow-md hover:shadow-derby-lg 
+           transition-all duration-300 border-l-4;
+  }
+  
+  .input-derby {
+    @apply w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg 
+           focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100 
+           transition-all duration-200;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Drag and drop feedback */
+.dragging {
+  opacity: 0.5;
+  transform: rotate(3deg);
+  cursor: grabbing !important;
+}
+
+.drop-target {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(232, 30, 111, 0.05),
+    rgba(232, 30, 111, 0.05) 10px,
+    rgba(232, 30, 111, 0.1) 10px,
+    rgba(232, 30, 111, 0.1) 20px
+  );
+  border: 2px dashed #e91e6f;
 }
