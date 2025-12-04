@@ -53,13 +53,23 @@ async def get_settings():
 @app.post("/api/settings")
 async def update_settings(config: Dict[str, str]):
     """Update Notion API credentials."""
+    from secure_config import secure_config
+    
     if "notion_api_key" in config:
         settings.notion_api_key = config["notion_api_key"]
-        os.environ["NOTION_API_KEY"] = config["notion_api_key"]
     
     if "notion_database_id" in config:
         settings.notion_database_id = config["notion_database_id"]
-        os.environ["NOTION_DATABASE_ID"] = config["notion_database_id"]
+    
+    # Save credentials securely for persistence
+    try:
+        secure_config.save_credentials(
+            settings.notion_api_key or "",
+            settings.notion_database_id or ""
+        )
+    except Exception as e:
+        logger.error(f"Failed to save credentials: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save credentials securely")
     
     # Reinitialize Notion service with new credentials
     if settings.notion_api_key:
