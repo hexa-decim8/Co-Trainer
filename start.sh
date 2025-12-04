@@ -68,28 +68,81 @@ echo ""
 echo "Press Ctrl+C to stop both servers"
 echo ""
 
-# Function to cleanup background processes
+# Store PIDs for cleanup
+BACKEND_PID=""
+FRONTEND_PID=""
+
+# Function to cleanup all processes
 cleanup() {
     echo ""
-    echo "Shutting down servers..."
-    kill $BACKEND_PID 2>/dev/null
+    echo "=== Shutting down Co-Trainer ==="
+    
+    # Kill frontend process and its children
+    if [ ! -z "$FRONTEND_PID" ]; then
+        echo "Stopping frontend..."
+        kill -TERM $FRONTEND_PID 2>/dev/null
+        # Kill any remaining npm/vite processes
+        pkill -P $FRONTEND_PID 2>/dev/null
+        wait $FRONTEND_PID 2>/dev/null
+    fi
+    
+    # Kill backend process
+    if [ ! -z "$BACKEND_PID" ]; then
+        echo "Stopping backend..."
+        kill -TERM $BACKEND_PID 2>/dev/null
+        wait $BACKEND_PID 2>/dev/null
+    fi
+    
+    # Extra cleanup: kill any remaining uvicorn or vite processes
+    pkill -f "uvicorn.*main:app" 2>/dev/null
+    pkill -f "vite.*--host 0.0.0.0" 2>/dev/null
+    
+    echo "✓ All servers stopped cleanly"
     exit 0
 }
 
-trap cleanup SIGINT SIGTERM
+# Set up trap for clean shutdown
+trap cleanup SIGINT SIGTERM EXIT
 
 # Start backend in background
+echo "Starting backend server..."
 cd backend
 source venv/bin/activate
 python3 main.py &
 BACKEND_PID=$!
+cd ..
 
-# Wait a moment for backend to start
+# Wait for backend to start
+echo "Waiting for backend to initialize..."
 sleep 3
 
-# Start frontend (this runs in foreground)
-cd ../frontend
-npm run dev
+# Check if backend is still running
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "✗ Backend failed to start"
+    exit 1
+fi
+echo "✓ Backend running (PID: $BACKEND_PID)"
 
-# If frontend exits, kill backend
-kill $BACKEND_PID 2>/dev/null
+# Start frontend in background (so we can trap signals)
+echo "Starting frontend server..."
+cd frontend
+npm run dev &
+FRONTEND_PID=$!
+cd ..
+
+# Check if frontend started
+sleep 2
+if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    echo "✗ Frontend failed to start"
+    kill $BACKEND_PID 2>/dev/null
+    exit 1
+fi
+echo "✓ Frontend running (PID: $FRONTEND_PID)"
+
+echo ""
+echo "=== Co-Trainer is running ==="
+echo "Press Ctrl+C to stop all servers"
+echo ""
+
+# Wait for either process to exit
+wait $FRONTEND_PID $BACKEND_PID
