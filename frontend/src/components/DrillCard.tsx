@@ -44,13 +44,16 @@ export default function DrillCard({ drill, onShowDetails }: DrillCardProps) {
       {/* Drag Handle */}
       <div
         {...listeners}
-        className="flex-shrink-0 w-8 bg-gray-100 hover:bg-gray-200 cursor-grab active:cursor-grabbing flex items-start justify-center pt-3 transition-colors touch-none"
+        className="flex-shrink-0 w-8 bg-gray-100 hover:bg-gray-200 cursor-grab active:cursor-grabbing flex items-start justify-center pt-3 transition-colors"
       >
         <GripVertical className="w-5 h-5 text-gray-400" />
       </div>
 
       {/* Card Content */}
-      <div className="flex-1 p-5">
+      <div 
+        {...listeners}
+        className="flex-1 p-5 cursor-grab active:cursor-grabbing"
+      >
         <div className="flex items-start justify-between mb-3">
           <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight pr-2">
             {drill.exercise || 'Unnamed Drill'}
