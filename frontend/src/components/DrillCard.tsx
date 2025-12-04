@@ -52,8 +52,7 @@ export default function DrillCard({ drill }: DrillCardProps) {
 
       {/* Card Content */}
       <div 
-        {...listeners}
-        className="flex-1 p-5 cursor-grab active:cursor-grabbing"
+        className="flex-1 p-5"
       >
         <div className="flex items-start justify-between mb-3">
           <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight pr-2">
