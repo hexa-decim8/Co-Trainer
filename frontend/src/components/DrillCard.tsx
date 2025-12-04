@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { Info, Clock, Shield, Star, Users, Target, Zap } from 'lucide-react';
+import { Info, Clock, Shield, Star, Users, Target, Zap, GripVertical } from 'lucide-react';
 import type { Drill } from '../types';
 
 interface DrillCardProps {
@@ -36,26 +36,42 @@ export default function DrillCard({ drill, onShowDetails }: DrillCardProps) {
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
       {...attributes}
-      className={`card-derby ${getContactColor(drill.contact_level)} cursor-grab active:cursor-grabbing p-5 transition-all duration-200 ${
+      className={`card-derby ${getContactColor(drill.contact_level)} transition-all duration-200 flex overflow-hidden ${
         isDragging ? 'opacity-20 scale-105 rotate-2' : 'hover:scale-102 hover:-translate-y-1'
       }`}
     >
-      <div className="flex items-start justify-between mb-3">
-        <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight">
-          {drill.exercise || 'Unnamed Drill'}
-        </h3>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onShowDetails(drill);
-          }}
-          className="ml-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 p-2 rounded-lg transition-all"
-        >
-          <Info className="w-5 h-5" />
-        </button>
+      {/* Drag Handle */}
+      <div
+        {...listeners}
+        className="flex-shrink-0 w-8 bg-gray-100 hover:bg-gray-200 cursor-grab active:cursor-grabbing flex items-start justify-center pt-3 transition-colors touch-none"
+      >
+        <GripVertical className="w-5 h-5 text-gray-400" />
       </div>
+
+      {/* Card Content */}
+      <div className="flex-1 p-5">
+        <div className="flex items-start justify-between mb-3">
+          <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight pr-2">
+            {drill.exercise || 'Unnamed Drill'}
+          </h3>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onShowDetails(drill);
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onShowDetails(drill);
+            }}
+            className="flex-shrink-0 text-gray-400 hover:text-primary-600 hover:bg-primary-50 active:bg-primary-100 p-2.5 rounded-lg transition-all touch-manipulation"
+            type="button"
+          >
+            <Info className="w-5 h-5" />
+          </button>
+        </div>
 
       <div className="flex flex-wrap gap-2 mb-3">
         {drill.avg_time && (
@@ -168,12 +184,13 @@ export default function DrillCard({ drill, onShowDetails }: DrillCardProps) {
         </div>
       )}
 
-      {/* Description Preview */}
-      {drill.description && (
-        <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-          {drill.description}
-        </p>
-      )}
+        {/* Description Preview */}
+        {drill.description && (
+          <p className="text-xs text-gray-600 line-clamp-2">
+            {drill.description}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
