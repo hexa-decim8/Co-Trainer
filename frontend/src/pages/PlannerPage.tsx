@@ -5,7 +5,6 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { Save } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
-import DrillDetailModal from '../components/DrillDetailModal';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
 import type { Drill, DrillFilters, PracticeType } from '../types';
@@ -27,7 +26,6 @@ const dropAnimation = {
 
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
-  const [selectedDrill, setSelectedDrill] = useState<Drill | null>(null);
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
@@ -193,7 +191,6 @@ export default function PlannerPage() {
                   <DrillCard
                     key={drill.id}
                     drill={drill}
-                    onShowDetails={setSelectedDrill}
                   />
                 ))}
               </div>
@@ -286,11 +283,6 @@ export default function PlannerPage() {
           </div>
         </div>
       </div>
-
-      {/* Drill Detail Modal */}
-      {selectedDrill && (
-        <DrillDetailModal drill={selectedDrill} onClose={() => setSelectedDrill(null)} />
-      )}
 
       <DragOverlay dropAnimation={dropAnimation}>
         {activeDrill ? (
