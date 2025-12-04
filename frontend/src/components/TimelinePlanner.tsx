@@ -24,11 +24,32 @@ interface TimelinePlannerProps {
   onUpdateDuration: (index: number, newDuration: number) => void;
   totalDuration: number;
   practiceType: string;
+  dropTimeSlot: number | null;
+  activeDrill: Drill | null;
 }
 
 const PRACTICE_DURATION = 120; // 2 hours
 const MIN_DURATION = 5;
 const PIXELS_PER_MINUTE = 3; // Visual scaling for timeline
+
+// Droppable time slot component
+function TimelineSlot({ minutes, isActive }: { minutes: number; isActive: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `timeline-slot-${minutes}`,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`absolute left-16 right-0 h-[15px] border-b transition-colors ${
+        isOver || isActive
+          ? 'bg-primary-100 border-primary-400'
+          : 'border-transparent hover:bg-gray-100'
+      }`}
+      style={{ top: `${minutes * PIXELS_PER_MINUTE}px` }}
+    />
+  );
+}
 
 function TimelineDrillItem({ 
   drill, 
@@ -177,6 +198,8 @@ export default function TimelinePlanner({
   onUpdateDuration,
   totalDuration,
   practiceType,
+  dropTimeSlot,
+  activeDrill,
 }: TimelinePlannerProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: 'timeline',
@@ -242,6 +265,40 @@ export default function TimelinePlanner({
             );
           })}
         </div>
+
+        {/* Droppable time slots */}
+        <div className="absolute left-0 right-0 top-0 z-5">
+          {Array.from({ length: Math.ceil(PRACTICE_DURATION / 5) + 1 }, (_, i) => {
+            const minutes = i * 5;
+            if (minutes > PRACTICE_DURATION) return null;
+            return (
+              <TimelineSlot
+                key={minutes}
+                minutes={minutes}
+                isActive={dropTimeSlot === minutes}
+              />
+            );
+          })}
+        </div>
+
+        {/* Visual drop preview */}
+        {dropTimeSlot !== null && activeDrill && (
+          <div
+            className="absolute left-16 right-4 bg-primary-200 border-2 border-primary-400 rounded-lg p-3 opacity-75 z-20 pointer-events-none"
+            style={{
+              top: `${dropTimeSlot * PIXELS_PER_MINUTE}px`,
+              height: `${(activeDrill.avg_time || 15) * PIXELS_PER_MINUTE}px`,
+              minHeight: `${MIN_DURATION * PIXELS_PER_MINUTE}px`
+            }}
+          >
+            <div className="text-sm font-semibold text-primary-900">
+              {activeDrill.exercise}
+            </div>
+            <div className="text-xs text-primary-700 mt-1">
+              {activeDrill.avg_time || 15} minutes
+            </div>
+          </div>
+        )}
 
         {/* Droppable area with drills */}
         <div 
