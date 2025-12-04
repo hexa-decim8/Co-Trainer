@@ -77,7 +77,10 @@ export default function PlannerPage() {
     const { active, over } = event;
     setDropTimeSlot(null);
 
-    if (over?.id === 'timeline' && active.data.current) {
+    // Check if dragging an existing timeline drill
+    const isTimelineDrill = timelineDrills.some(d => d.id === active.id);
+
+    if (over?.id === 'timeline' && active.data.current && !isTimelineDrill) {
       // Adding new drill from library to end of timeline
       const drill = active.data.current as Drill;
       const duration = Math.max(10, drill.avg_time || 15);
@@ -91,32 +94,56 @@ export default function PlannerPage() {
 
       const updatedDrills = calculateStartTimes([...timelineDrills, newDrill]);
       setTimelineDrills(updatedDrills);
-    } else if (over && String(over.id).startsWith('timeline-slot-') && active.data.current) {
-      // Dropping at specific time slot
-      const drill = active.data.current as Drill;
-      const duration = Math.max(10, drill.avg_time || 15);
-      const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
-      
-      const newDrill = {
-        id: `timeline-${Date.now()}-${Math.random()}`,
-        drill,
-        duration,
-        startTime: targetTime,
-      };
+    } else if (over && String(over.id).startsWith('timeline-slot-')) {
+      if (isTimelineDrill) {
+        // Reordering existing drill to specific time position
+        const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
+        const draggedDrill = timelineDrills.find(d => d.id === active.id);
+        
+        if (draggedDrill) {
+          // Remove the dragged drill
+          const withoutDragged = timelineDrills.filter(d => d.id !== active.id);
+          
+          // Find insertion index based on target time
+          let insertIndex = withoutDragged.findIndex(d => d.startTime >= targetTime);
+          if (insertIndex === -1) insertIndex = withoutDragged.length;
+          
+          // Insert at new position
+          const reordered = [
+            ...withoutDragged.slice(0, insertIndex),
+            draggedDrill,
+            ...withoutDragged.slice(insertIndex)
+          ];
+          
+          setTimelineDrills(calculateStartTimes(reordered));
+        }
+      } else if (active.data.current) {
+        // Dropping new drill from library at specific time slot
+        const drill = active.data.current as Drill;
+        const duration = Math.max(10, drill.avg_time || 15);
+        const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
+        
+        const newDrill = {
+          id: `timeline-${Date.now()}-${Math.random()}`,
+          drill,
+          duration,
+          startTime: targetTime,
+        };
 
-      // Find insertion index and handle overlaps by shifting drills
-      let insertIndex = timelineDrills.findIndex(d => d.startTime >= targetTime);
-      if (insertIndex === -1) insertIndex = timelineDrills.length;
+        // Find insertion index and handle overlaps by shifting drills
+        let insertIndex = timelineDrills.findIndex(d => d.startTime >= targetTime);
+        if (insertIndex === -1) insertIndex = timelineDrills.length;
 
-      const newDrills = [
-        ...timelineDrills.slice(0, insertIndex),
-        newDrill,
-        ...timelineDrills.slice(insertIndex)
-      ];
-      
-      setTimelineDrills(calculateStartTimes(newDrills));
-    } else if (over && active.id !== over.id) {
-      // Reordering within timeline
+        const newDrills = [
+          ...timelineDrills.slice(0, insertIndex),
+          newDrill,
+          ...timelineDrills.slice(insertIndex)
+        ];
+        
+        setTimelineDrills(calculateStartTimes(newDrills));
+      }
+    } else if (over && active.id !== over.id && isTimelineDrill) {
+      // Reordering within timeline (drag onto another drill)
       const oldIndex = timelineDrills.findIndex(d => d.id === active.id);
       const newIndex = timelineDrills.findIndex(d => d.id === over.id);
       
