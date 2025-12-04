@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Any
 from notion_client import Client
 from config import settings
 from models import Drill
+from drill_cache import drill_cache_manager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -75,16 +76,39 @@ class NotionService:
             video_link=self._parse_property(props.get("Video Link"), "url")
         )
     
-    async def get_all_drills(self, use_cache: bool = True) -> List[Drill]:
-        """Fetch all drills from Notion database."""
-        if not self.client or not self.database_id:
-            logger.warning("Notion API not configured - API key or database ID missing")
-            return []
+    async def get_all_drills(self, db=None, force_sync: bool = False) -> List[Drill]:
+        """
+        Fetch all drills. Uses database cache if available and fresh.
         
-        if use_cache and self._cache is not None:
+        Args:
+            db: Database session (required for caching)
+            force_sync: Force sync from Notion even if cache is fresh
+        """
+        # Check memory cache first
+        if not force_sync and self._cache is not None:
             return self._cache
         
+        # Check database cache if db session provided
+        if db and not force_sync:
+            if not drill_cache_manager.should_sync(db):
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    self._cache = cached_drills
+                    return cached_drills
+        
+        # If no cache or force sync, fetch from Notion
+        if not self.client or not self.database_id:
+            logger.warning("Notion API not configured")
+            # Return cached data even if stale
+            if db:
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    logger.info("Returning stale cache (Notion not configured)")
+                    return cached_drills
+            return []
+        
         try:
+            logger.info("Syncing drills from Notion...")
             drills = []
             has_more = True
             start_cursor = None
@@ -106,10 +130,22 @@ class NotionService:
                 start_cursor = response.get("next_cursor")
             
             self._cache = drills
+            
+            # Save to database cache
+            if db:
+                drill_cache_manager.save_to_cache(drills, db)
+            
+            logger.info(f"Successfully synced {len(drills)} drills from Notion")
             return drills
         
         except Exception as e:
             logger.error(f"Error fetching drills from Notion: {e}")
+            # Try to return cached data on error
+            if db:
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    logger.info("Returning cached data due to Notion API error")
+                    return cached_drills
             raise
     
     async def get_drill_by_id(self, drill_id: str) -> Optional[Drill]:

@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { Info, Clock, Shield, Activity, Star } from 'lucide-react';
+import { Info, Clock, Shield, Star, Users, Target, Zap } from 'lucide-react';
 import type { Drill } from '../types';
 
 interface DrillCardProps {
@@ -39,12 +39,12 @@ export default function DrillCard({ drill, onShowDetails }: DrillCardProps) {
       {...listeners}
       {...attributes}
       className={`card-derby ${getContactColor(drill.contact_level)} cursor-grab active:cursor-grabbing p-5 transition-all duration-200 ${
-        isDragging ? 'opacity-50 scale-105 rotate-2' : 'hover:scale-102 hover:-translate-y-1'
+        isDragging ? 'opacity-20 scale-105 rotate-2' : 'hover:scale-102 hover:-translate-y-1'
       }`}
     >
       <div className="flex items-start justify-between mb-3">
         <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight">
-          {drill.exercise}
+          {drill.exercise || 'Unnamed Drill'}
         </h3>
         <button
           onClick={(e) => {
@@ -86,8 +86,75 @@ export default function DrillCard({ drill, onShowDetails }: DrillCardProps) {
         )}
       </div>
 
-      {drill.type.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+      {/* Drill Type and Equipment */}
+      {(drill.drill_type || drill.equipment) && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {drill.drill_type && (
+            <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800">
+              <Zap className="w-3 h-3 mr-1" />
+              {drill.drill_type}
+            </span>
+          )}
+          {drill.equipment && (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800">
+              {drill.equipment}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Players/Skaters Info */}
+      {(drill.skaters_needed || drill.players) && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {drill.skaters_needed && (
+            <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-cyan-100 text-cyan-800">
+              <Users className="w-3 h-3 mr-1" />
+              {drill.skaters_needed} skaters
+            </span>
+          )}
+          {drill.players && (
+            <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-teal-100 text-teal-800">
+              {drill.players} players
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Position Focus */}
+      {drill.position_focus && drill.position_focus.length > 0 && (
+        <div className="mb-3">
+          <div className="flex flex-wrap gap-1.5">
+            {drill.position_focus.slice(0, 2).map((pos) => (
+              <span key={pos} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-pink-100 text-pink-800">
+                <Target className="w-3 h-3 mr-1" />
+                {pos}
+              </span>
+            ))}
+            {drill.position_focus.length > 2 && (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-pink-50 text-pink-600">
+                +{drill.position_focus.length - 2}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Skater Level */}
+      {drill.skater_level && drill.skater_level.length > 0 && (
+        <div className="mb-3">
+          <div className="flex flex-wrap gap-1.5">
+            {drill.skater_level.map((level) => (
+              <span key={level} className="text-xs font-medium px-2.5 py-1 rounded-md bg-violet-100 text-violet-800">
+                {level}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Type Tags */}
+      {drill.type && drill.type.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {drill.type.slice(0, 3).map((t) => (
             <span key={t} className="text-xs font-medium px-2.5 py-1 rounded-md bg-gray-800 text-gray-100">
               {t}
@@ -101,12 +168,12 @@ export default function DrillCard({ drill, onShowDetails }: DrillCardProps) {
         </div>
       )}
 
-      {/* Drag indicator */}
-      <div className="mt-3 pt-3 border-t border-gray-200 text-center">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-          ⚡ Drag to Timeline
-        </span>
-      </div>
+      {/* Description Preview */}
+      {drill.description && (
+        <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+          {drill.description}
+        </p>
+      )}
     </div>
   );
 }

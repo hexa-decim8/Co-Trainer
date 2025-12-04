@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
@@ -17,6 +17,14 @@ interface TimelineDrill {
   startTime: number;
 }
 
+const dropAnimation = {
+  duration: 300,
+  easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: '0.5' } }
+  })
+};
+
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
   const [selectedDrill, setSelectedDrill] = useState<Drill | null>(null);
@@ -24,6 +32,7 @@ export default function PlannerPage() {
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
 
   // Fetch drills with filters
   const { data: drills = [], isLoading } = useQuery({
@@ -44,6 +53,14 @@ export default function PlannerPage() {
       currentTime += drill.duration;
       return drillWithTime;
     });
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDrill(event.active.data.current as Drill);
+  };
+
+  const handleDragCancel = () => {
+    setActiveDrill(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -72,6 +89,7 @@ export default function PlannerPage() {
         setTimelineDrills(calculateStartTimes(reordered));
       }
     }
+    setActiveDrill(null);
   };
 
   const handleRemoveDrill = (index: number) => {
@@ -133,7 +151,7 @@ export default function PlannerPage() {
   };
 
   return (
-    <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+    <DndContext onDragEnd={handleDragEnd} onDragStart={handleDragStart} onDragCancel={handleDragCancel} collisionDetection={closestCenter}>
       <div className="h-[calc(100vh-5rem)] flex gap-1">
         {/* Left: Filters */}
         <div className="w-80 flex-shrink-0">
@@ -273,6 +291,14 @@ export default function PlannerPage() {
       {selectedDrill && (
         <DrillDetailModal drill={selectedDrill} onClose={() => setSelectedDrill(null)} />
       )}
+
+      <DragOverlay dropAnimation={dropAnimation}>
+        {activeDrill ? (
+          <div className="rotate-3 scale-105 shadow-2xl">
+            <DrillCard drill={activeDrill} onShowDetails={() => {}} />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

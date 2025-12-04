@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -20,6 +20,24 @@ class PracticePlanDB(Base):
     timeline_json = Column(Text, nullable=False)  # JSON string
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DrillCache(Base):
+    """SQLAlchemy model for cached drills from Notion."""
+    __tablename__ = "drill_cache"
+    
+    id = Column(String, primary_key=True)  # Notion page ID
+    data = Column(JSON, nullable=False)  # Full drill data as JSON
+    last_synced = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+
+class SyncMetadata(Base):
+    """SQLAlchemy model for tracking sync status."""
+    __tablename__ = "sync_metadata"
+    
+    id = Column(Integer, primary_key=True)
+    last_full_sync = Column(DateTime, nullable=True)
+    drill_count = Column(Integer, default=0)
 
 
 # Create database engine
