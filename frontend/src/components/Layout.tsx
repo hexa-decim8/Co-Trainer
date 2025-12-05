@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Library, Settings, Menu, X, User, LogOut } from 'lucide-react';
+import { Calendar, Library, Settings, Menu, X, User, LogOut, Shield } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -88,6 +88,16 @@ export default function Layout() {
                       </p>
                       <p className="text-xs text-gray-500">{user?.email}</p>
                     </div>
+                    {user?.role === 'admin' && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Shield className="w-4 h-4" />
+                        Admin Panel
+                      </Link>
+                    )}
                     <Link
                       to="/settings"
                       onClick={() => setUserMenuOpen(false)}

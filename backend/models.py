@@ -139,6 +139,7 @@ class UserResponse(BaseModel):
     email: str
     username: Optional[str] = None
     derby_name: Optional[str] = None
+    role: str = "user"
     created_at: datetime
 
 
@@ -159,3 +160,23 @@ class PasswordChange(BaseModel):
     """Model for changing password."""
     current_password: str
     new_password: str
+
+
+class UserRoleUpdate(BaseModel):
+    """Model for admin updating user role."""
+    role: str
+
+
+class AdminPasswordReset(BaseModel):
+    """Model for admin resetting user password."""
+    new_password: str
+
+
+class UserListResponse(BaseModel):
+    """Model for user in admin list."""
+    id: int
+    email: str
+    username: Optional[str] = None
+    derby_name: Optional[str] = None
+    role: str
+    created_at: datetime

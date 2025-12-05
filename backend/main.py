@@ -14,13 +14,14 @@ from database import get_db, init_db, UserDB
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
-    UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange
+    UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange,
+    UserRoleUpdate, AdminPasswordReset, UserListResponse
 )
 from notion_service import notion_service
 from database import PracticePlanDB
 from auth import (
     get_password_hash, authenticate_user, create_access_token,
-    get_current_user, verify_password
+    get_current_user, verify_password, require_admin, require_coach_or_admin
 )
 
 app = FastAPI(title="Co-Trainer API", version="1.0.0")
@@ -134,11 +135,16 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
+    # Check if this is the first user (should be admin)
+    user_count = db.query(UserDB).count()
+    role = "admin" if user_count == 0 else "user"
+    
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     db_user = UserDB(
         email=user_data.email,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        role=role
     )
     
     db.add(db_user)
@@ -156,6 +162,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             email=db_user.email,
             username=db_user.username,
             derby_name=db_user.derby_name,
+            role=db_user.role,
             created_at=db_user.created_at
         )
     )
@@ -182,6 +189,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             email=user.email,
             username=user.username,
             derby_name=user.derby_name,
+            role=user.role,
             created_at=user.created_at
         )
     )
@@ -195,6 +203,7 @@ async def get_current_user_info(current_user: UserDB = Depends(get_current_user)
         email=current_user.email,
         username=current_user.username,
         derby_name=current_user.derby_name,
+        role=current_user.role,
         created_at=current_user.created_at
     )
 
@@ -219,6 +228,7 @@ async def update_profile(
         email=current_user.email,
         username=current_user.username,
         derby_name=current_user.derby_name,
+        role=current_user.role,
         created_at=current_user.created_at
     )
 
@@ -242,6 +252,123 @@ async def change_password(
     db.commit()
     
     return {"success": True, "message": "Password updated successfully"}
+
+
+# ============================================================================
+# Admin Endpoints
+# ============================================================================
+
+@app.get("/api/admin/users", response_model=List[UserListResponse])
+async def list_users(
+    admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get list of all users (admin only)."""
+    users = db.query(UserDB).all()
+    return [
+        UserListResponse(
+            id=user.id,
+            email=user.email,
+            username=user.username,
+            derby_name=user.derby_name,
+            role=user.role,
+            created_at=user.created_at
+        )
+        for user in users
+    ]
+
+
+@app.put("/api/admin/users/{user_id}/role")
+async def update_user_role(
+    user_id: int,
+    role_data: UserRoleUpdate,
+    admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a user's role (admin only)."""
+    # Validate role
+    if role_data.role not in ["user", "coach", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role. Must be 'user', 'coach', or 'admin'"
+        )
+    
+    # Get target user
+    target_user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prevent admin from demoting themselves if they're the only admin
+    if target_user.id == admin_user.id and role_data.role != "admin":
+        admin_count = db.query(UserDB).filter(UserDB.role == "admin").count()
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the only admin user"
+            )
+    
+    # Update role
+    target_user.role = role_data.role
+    db.commit()
+    
+    return {"success": True, "message": f"User role updated to {role_data.role}"}
+
+
+@app.post("/api/admin/users/{user_id}/reset-password")
+async def admin_reset_password(
+    user_id: int,
+    password_data: AdminPasswordReset,
+    admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Reset a user's password (admin only)."""
+    # Get target user
+    target_user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Update password
+    target_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+    
+    return {"success": True, "message": "Password reset successfully"}
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete a user (admin only)."""
+    # Get target user
+    target_user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prevent admin from deleting themselves if they're the only admin
+    if target_user.id == admin_user.id:
+        admin_count = db.query(UserDB).filter(UserDB.role == "admin").count()
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete the only admin user"
+            )
+    
+    # Delete user (cascade will delete related records)
+    db.delete(target_user)
+    db.commit()
+    
+    return {"success": True, "message": "User deleted successfully"}
 
 
 @app.get("/api/drills", response_model=List[Drill])

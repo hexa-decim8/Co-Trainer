@@ -16,6 +16,7 @@ class UserDB(Base):
     hashed_password = Column(String, nullable=False)
     username = Column(String, nullable=True)
     derby_name = Column(String, nullable=True)
+    role = Column(String, nullable=False, default="user", index=True)  # user, coach, admin
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

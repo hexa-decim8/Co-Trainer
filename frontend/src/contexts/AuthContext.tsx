@@ -6,6 +6,7 @@ interface User {
   email: string;
   username?: string;
   derby_name?: string;
+  role: string;
   created_at: string;
 }
 
