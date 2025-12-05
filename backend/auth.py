@@ -8,8 +8,15 @@ from sqlalchemy.orm import Session
 from database import get_db, UserDB
 from config import settings
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - configure bcrypt to truncate passwords at 72 bytes
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12,
+    bcrypt__ident="2b",
+    # This tells passlib to automatically truncate passwords
+    truncate_error=False
+)
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -22,21 +29,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    # Bcrypt has a 72 byte limit - truncate to 72 bytes (not characters)
-    password_bytes = plain_password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        plain_password = password_bytes.decode('utf-8', errors='ignore')
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password."""
-    # Bcrypt has a 72 byte limit - truncate to 72 bytes (not characters)
-    password_bytes = password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        password = password_bytes.decode('utf-8', errors='ignore')
+    """Hash a password. Passlib automatically handles bcrypt's 72-byte limit."""
     return pwd_context.hash(password)
 
 
