@@ -2,10 +2,12 @@ from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Co
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional, Dict
 import json
 import os
 import logging
+import math
 from datetime import datetime, timedelta
 from notion_client import Client
 
@@ -15,10 +17,11 @@ from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
     UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange,
-    UserRoleUpdate, AdminPasswordReset, UserListResponse
+    UserRoleUpdate, AdminPasswordReset, UserListResponse,
+    PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate
 )
 from notion_service import notion_service
-from database import PracticePlanDB
+from database import PracticePlanDB, PlanClone
 from auth import (
     get_password_hash, authenticate_user, create_access_token, create_refresh_token,
     get_current_user, verify_password, verify_refresh_token, require_admin, require_coach_or_admin
@@ -640,6 +643,12 @@ async def create_plan(
         timeline_json=json.dumps([item.dict() for item in plan.timeline])
     )
     
+    # Set new fields if they exist in the database
+    if hasattr(db_plan, 'is_public'):
+        db_plan.is_public = plan.is_public
+    if hasattr(db_plan, 'clone_count'):
+        db_plan.clone_count = 0
+    
     db.add(db_plan)
     db.commit()
     db.refresh(db_plan)
@@ -654,31 +663,77 @@ async def create_plan(
         date=db_plan.date,
         practice_type=PracticeType(db_plan.practice_type),
         is_template=db_plan.is_template,
+        is_public=getattr(db_plan, 'is_public', False),
         total_duration=total_duration,
         drill_count=len(timeline_data),
+        clone_count=getattr(db_plan, 'clone_count', 0),
         created_at=db_plan.created_at,
         updated_at=db_plan.updated_at
     )
 
 
-@app.get("/api/plans", response_model=List[PracticePlanSummary])
+@app.get("/api/plans", response_model=PaginatedPlansResponse)
 async def list_plans(
     is_template: Optional[bool] = Query(None),
+    is_public: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    """List all practice plans with optional template filter."""
-    query = db.query(PracticePlanDB).filter(PracticePlanDB.user_id == current_user.id)
+    """List practice plans with pagination, search, and optional filters."""
     
+    # Base query
+    if is_public:
+        # Query all public plans from any user
+        query = db.query(PracticePlanDB).filter(PracticePlanDB.is_public == True)
+    else:
+        # Query current user's plans
+        query = db.query(PracticePlanDB).filter(PracticePlanDB.user_id == current_user.id)
+    
+    # Apply template filter
     if is_template is not None:
         query = query.filter(PracticePlanDB.is_template == is_template)
     
-    plans = query.order_by(PracticePlanDB.updated_at.desc()).all()
+    # Apply search filter
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(PracticePlanDB.name.ilike(search_pattern))
     
+    # Get total count before pagination
+    total = query.count()
+    
+    # Apply pagination
+    offset = (page - 1) * page_size
+    plans = query.order_by(PracticePlanDB.updated_at.desc()).limit(page_size).offset(offset).all()
+    
+    # Build summaries
     summaries = []
     for plan in plans:
         timeline_data = json.loads(plan.timeline_json)
         total_duration = sum(item["duration_minutes"] for item in timeline_data)
+        
+        # Get creator info if this is a public plan view
+        creator_email = None
+        creator_derby_name = None
+        if is_public:
+            # Get the original creator - use plan.user_id for original plans, 
+            # or cloned_from_user_id if this is itself a clone
+            creator_id = plan.cloned_from_user_id if plan.cloned_from_user_id else plan.user_id
+            creator = db.query(UserDB).filter(UserDB.id == creator_id).first()
+            if creator:
+                creator_email = creator.email
+                creator_derby_name = creator.derby_name
+        
+        # Check if current user has cloned this plan
+        is_cloned_by_user = False
+        if is_public:
+            existing_clone = db.query(PlanClone).filter(
+                PlanClone.user_id == current_user.id,
+                PlanClone.original_plan_id == plan.id
+            ).first()
+            is_cloned_by_user = existing_clone is not None
         
         summaries.append(PracticePlanSummary(
             id=plan.id,
@@ -686,13 +741,27 @@ async def list_plans(
             date=plan.date,
             practice_type=PracticeType(plan.practice_type),
             is_template=plan.is_template,
+            is_public=plan.is_public,
             total_duration=total_duration,
             drill_count=len(timeline_data),
+            creator_email=creator_email,
+            creator_derby_name=creator_derby_name,
+            clone_count=plan.clone_count,
+            is_cloned_by_user=is_cloned_by_user,
             created_at=plan.created_at,
             updated_at=plan.updated_at
         ))
     
-    return summaries
+    # Calculate total pages
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
+    
+    return PaginatedPlansResponse(
+        items=summaries,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
 
 
 @app.get("/api/plans/{plan_id}", response_model=PracticePlanWithDrills)
@@ -765,6 +834,7 @@ async def update_plan(
     db_plan.date = plan.date
     db_plan.practice_type = plan.practice_type.value
     db_plan.is_template = plan.is_template
+    db_plan.is_public = plan.is_public
     db_plan.notes = plan.notes
     db_plan.timeline_json = json.dumps([item.dict() for item in plan.timeline])
     db_plan.updated_at = datetime.utcnow()
@@ -781,8 +851,10 @@ async def update_plan(
         date=db_plan.date,
         practice_type=PracticeType(db_plan.practice_type),
         is_template=db_plan.is_template,
+        is_public=db_plan.is_public,
         total_duration=total_duration,
         drill_count=len(timeline_data),
+        clone_count=db_plan.clone_count,
         created_at=db_plan.created_at,
         updated_at=db_plan.updated_at
     )
@@ -804,12 +876,130 @@ async def rename_plan(
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     
+    new_name = data.get("new_name")
     db_plan.name = new_name
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
     
     return {"success": True, "name": new_name}
+
+
+@app.patch("/api/plans/{plan_id}/visibility")
+async def update_plan_visibility(
+    plan_id: int,
+    visibility: PlanVisibilityUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Toggle practice plan public visibility."""
+    db_plan = db.query(PracticePlanDB).filter(
+        PracticePlanDB.id == plan_id,
+        PracticePlanDB.user_id == current_user.id
+    ).first()
+    
+    if not db_plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    
+    db_plan.is_public = visibility.is_public
+    db_plan.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(db_plan)
+    
+    timeline_data = json.loads(db_plan.timeline_json)
+    total_duration = sum(item["duration_minutes"] for item in timeline_data)
+    
+    return PracticePlanSummary(
+        id=db_plan.id,
+        name=db_plan.name,
+        date=db_plan.date,
+        practice_type=PracticeType(db_plan.practice_type),
+        is_template=db_plan.is_template,
+        is_public=db_plan.is_public,
+        total_duration=total_duration,
+        drill_count=len(timeline_data),
+        clone_count=db_plan.clone_count,
+        created_at=db_plan.created_at,
+        updated_at=db_plan.updated_at
+    )
+
+
+@app.post("/api/plans/{plan_id}/clone", response_model=PracticePlanSummary)
+async def clone_plan(
+    plan_id: int,
+    clone_request: PlanCloneRequest,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Clone a public practice plan to current user's library."""
+    # Get the source plan
+    source_plan = db.query(PracticePlanDB).filter(PracticePlanDB.id == plan_id).first()
+    
+    if not source_plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    
+    # Verify plan is public (unless it's the user's own plan)
+    if not source_plan.is_public and source_plan.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot clone private plan")
+    
+    # Check if user has already cloned this plan
+    existing_clone = db.query(PlanClone).filter(
+        PlanClone.user_id == current_user.id,
+        PlanClone.original_plan_id == plan_id
+    ).first()
+    
+    if existing_clone:
+        raise HTTPException(status_code=409, detail="You have already cloned this plan")
+    
+    # Create the cloned plan
+    cloned_plan = PracticePlanDB(
+        user_id=current_user.id,
+        name=clone_request.new_name,
+        date=None,  # Reset date for cloned plan
+        practice_type=source_plan.practice_type,
+        is_template=False,  # Cloned plans are not templates by default
+        is_public=False,  # Cloned plans are private by default
+        notes=source_plan.notes,
+        timeline_json=source_plan.timeline_json,
+        original_plan_id=plan_id,
+        cloned_from_user_id=source_plan.user_id
+    )
+    
+    db.add(cloned_plan)
+    db.flush()  # Get the ID before committing
+    
+    # Increment clone count on source plan
+    source_plan.clone_count += 1
+    
+    # Record the clone relationship
+    clone_record = PlanClone(
+        user_id=current_user.id,
+        original_plan_id=plan_id,
+        cloned_plan_id=cloned_plan.id
+    )
+    db.add(clone_record)
+    
+    db.commit()
+    db.refresh(cloned_plan)
+    
+    # Build response
+    timeline_data = json.loads(cloned_plan.timeline_json)
+    total_duration = sum(item["duration_minutes"] for item in timeline_data)
+    
+    return PracticePlanSummary(
+        id=cloned_plan.id,
+        name=cloned_plan.name,
+        date=cloned_plan.date,
+        practice_type=PracticeType(cloned_plan.practice_type),
+        is_template=cloned_plan.is_template,
+        is_public=cloned_plan.is_public,
+        total_duration=total_duration,
+        drill_count=len(timeline_data),
+        clone_count=cloned_plan.clone_count,
+        created_at=cloned_plan.created_at,
+        updated_at=cloned_plan.updated_at
+    )
 
 
 @app.delete("/api/plans/{plan_id}")
@@ -833,13 +1023,15 @@ async def delete_plan(
     return {"success": True}
 
 
-@app.get("/api/templates", response_model=List[PracticePlanSummary])
+@app.get("/api/templates", response_model=PaginatedPlansResponse)
 async def list_templates(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
     """List all practice plan templates."""
-    return await list_plans(is_template=True, db=db, current_user=current_user)
+    return await list_plans(is_template=True, page=page, page_size=page_size, db=db, current_user=current_user)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,10 @@ import type {
   FilterOptions, 
   PracticePlan, 
   PracticePlanSummary, 
-  PracticePlanWithDrills 
+  PracticePlanWithDrills,
+  PaginatedPlansResponse,
+  PlanCloneRequest,
+  PlanVisibilityUpdate
 } from './types';
 
 const api = axios.create({
@@ -109,9 +112,21 @@ export const plansApi = {
     return response.data;
   },
 
-  getAll: async (isTemplate?: boolean): Promise<PracticePlanSummary[]> => {
-    const params = isTemplate !== undefined ? { is_template: isTemplate } : {};
-    const response = await api.get<PracticePlanSummary[]>('/plans', { params });
+  getAll: async (
+    isTemplate?: boolean, 
+    isPublic?: boolean, 
+    search?: string,
+    page?: number,
+    pageSize?: number
+  ): Promise<PaginatedPlansResponse> => {
+    const params: Record<string, any> = {};
+    if (isTemplate !== undefined) params.is_template = isTemplate;
+    if (isPublic !== undefined) params.is_public = isPublic;
+    if (search) params.search = search;
+    if (page) params.page = page;
+    if (pageSize) params.page_size = pageSize;
+    
+    const response = await api.get<PaginatedPlansResponse>('/plans', { params });
     return response.data;
   },
 
@@ -126,9 +141,17 @@ export const plansApi = {
   },
 
   rename: async (id: number, newName: string): Promise<{ success: boolean; name: string }> => {
-    const response = await api.patch(`/plans/${id}/rename`, null, {
-      params: { new_name: newName }
-    });
+    const response = await api.patch(`/plans/${id}/rename`, { new_name: newName });
+    return response.data;
+  },
+
+  setVisibility: async (id: number, isPublic: boolean): Promise<PracticePlanSummary> => {
+    const response = await api.patch<PracticePlanSummary>(`/plans/${id}/visibility`, { is_public: isPublic });
+    return response.data;
+  },
+
+  clone: async (id: number, newName: string): Promise<PracticePlanSummary> => {
+    const response = await api.post<PracticePlanSummary>(`/plans/${id}/clone`, { new_name: newName });
     return response.data;
   },
 
@@ -136,8 +159,11 @@ export const plansApi = {
     await api.delete(`/plans/${id}`);
   },
 
-  getTemplates: async (): Promise<PracticePlanSummary[]> => {
-    const response = await api.get<PracticePlanSummary[]>('/templates');
+  getTemplates: async (page?: number, pageSize?: number): Promise<PaginatedPlansResponse> => {
+    const params: Record<string, any> = {};
+    if (page) params.page = page;
+    if (pageSize) params.page_size = pageSize;
+    const response = await api.get<PaginatedPlansResponse>('/templates', { params });
     return response.data;
   },
 };

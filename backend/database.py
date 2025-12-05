@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -52,8 +52,14 @@ class PracticePlanDB(Base):
     is_template = Column(Boolean, default=False, index=True)
     notes = Column(Text, nullable=True)
     timeline_json = Column(Text, nullable=False)  # JSON string
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Sharing and cloning fields
+    is_public = Column(Boolean, default=False, nullable=False, index=True)
+    original_plan_id = Column(Integer, nullable=True, index=True)
+    cloned_from_user_id = Column(Integer, nullable=True)
+    clone_count = Column(Integer, default=0, nullable=False)
     
     # Relationships
     user = relationship("UserDB", back_populates="practice_plans")
@@ -66,6 +72,21 @@ class DrillCache(Base):
     id = Column(String, primary_key=True)  # Notion page ID
     data = Column(JSON, nullable=False)  # Full drill data as JSON
     last_synced = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PlanClone(Base):
+    """SQLAlchemy model for tracking plan clones (prevents duplicate clones)."""
+    __tablename__ = "plan_clones"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    original_plan_id = Column(Integer, ForeignKey("practice_plans.id"), nullable=False, index=True)
+    cloned_plan_id = Column(Integer, ForeignKey("practice_plans.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'original_plan_id', name='unique_user_plan_clone'),
+    )
     
 
 class SyncMetadata(Base):

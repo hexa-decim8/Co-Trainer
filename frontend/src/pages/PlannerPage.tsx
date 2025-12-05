@@ -207,9 +207,10 @@ export default function PlannerPage() {
       alert(isTemplate ? 'Template saved!' : 'Practice plan saved!');
       setShowSaveDialog(false);
       setPlanName('');
-    } catch (error) {
-      alert('Failed to save plan');
-      console.error(error);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
+      alert(errorMessage);
+      console.error('Save plan error:', error);
     }
   };
 
