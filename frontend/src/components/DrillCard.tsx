@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Info, Clock, Shield, Star, Users, Target, Zap, GripVertical, ChevronUp, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Info, Clock, Shield, Users, Target, Zap, GripVertical, ChevronUp, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
 import type { Drill } from '../types';
 
 interface DrillCardProps {
@@ -184,24 +184,29 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
     <div
       ref={setNodeRef}
       {...attributes}
-      className={`card-derby ${getContactColor(drill.contact_level)} ${getDrillTypeBorderColor(drill.drill_type)} transition-all duration-200 flex overflow-hidden ${
+      className={`card-derby ${getContactColor(drill.contact_level)} ${getDrillTypeBorderColor(drill.drill_type)} transition-all duration-200 flex overflow-hidden relative ${
         isDragging ? 'opacity-20 scale-105 rotate-2' : 'hover:scale-102 hover:-translate-y-1'
       }`}
-      style={{
-        background: `linear-gradient(to right, ${getDrillTypeGradientColor(drill.drill_type)} 0%, ${getDrillTypeGradientColor(drill.drill_type)} 30%, transparent 60%, transparent 100%)`
-      }}
     >
+      {/* Gradient Overlay */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          background: `linear-gradient(to right, ${getDrillTypeGradientColor(drill.drill_type)} 0%, ${getDrillTypeGradientColor(drill.drill_type)} 30%, transparent 60%, transparent 100%)`
+        }}
+      />
+      
       {/* Drag Handle */}
       <div
         {...listeners}
-        className="flex-shrink-0 w-8 bg-gray-100 hover:bg-gray-200 cursor-grab active:cursor-grabbing flex items-start justify-center pt-3 transition-colors"
+        className="flex-shrink-0 w-8 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-grab active:cursor-grabbing flex items-start justify-center pt-3 transition-colors relative z-10"
       >
-        <GripVertical className="w-5 h-5 text-gray-400" />
+        <GripVertical className="w-5 h-5 text-gray-400 dark:text-gray-500" />
       </div>
 
       {/* Card Content */}
       <div 
-        className="flex-1 p-5"
+        className="flex-1 p-5 relative z-10"
       >
         <div className="flex items-start justify-between mb-3">
           <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight pr-2">
@@ -448,13 +453,6 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Watch Video Tutorial
               </a>
-            )}
-
-            {/* Notion ID */}
-            {drill.id && (
-              <p className="text-xs text-gray-400 font-mono pt-2 border-t border-gray-100">
-                ID: {drill.id}
-              </p>
             )}
           </div>
         )}

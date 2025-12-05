@@ -57,22 +57,19 @@ class NotionService:
                 # Fetch the related page to get its name/title
                 try:
                     page_id = prop_data[0].get("id")
-                    print(f"  Fetching related page: {page_id}")
                     if page_id and self.client:
                         related_page = self.client.pages.retrieve(page_id=page_id)
                         related_props = related_page.get("properties", {})
-                        print(f"  Related page properties: {list(related_props.keys())}")
                         # Try common title property names (including "Tag Name" for Global Tags)
                         for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
                             if title_prop in related_props:
                                 title_data = related_props[title_prop].get("title", [])
                                 if title_data and len(title_data) > 0:
                                     tag_name = title_data[0].get("plain_text")
-                                    print(f"  ✓ Found tag name: {tag_name}")
+                                    logger.debug(f"Found tag name '{tag_name}' from related page {page_id}")
                                     return tag_name
-                        print(f"  ✗ No title found in related page")
+                        logger.debug(f"No title found in related page {page_id}")
                 except Exception as e:
-                    print(f"  ✗ Error fetching related page: {e}")
                     logger.error(f"Error fetching related page: {e}")
             return None
         
@@ -101,23 +98,11 @@ class NotionService:
         """Parse a Notion page into a Drill model."""
         props = page.get("properties", {})
         
-        # Debug: Check Drill Type specifically - using print so it ALWAYS shows
-        print("\n" + "="*80)
-        if "Drill Type" in props:
-            drill_type_prop = props["Drill Type"]
-            print(f"✓ Drill Type FOUND")
-            print(f"  Type: {drill_type_prop.get('type')}")
-            print(f"  Full structure: {drill_type_prop}")
-        else:
-            print(f"✗ Drill Type NOT FOUND")
-            print(f"  Available properties: {list(props.keys())}")
-        print("="*80 + "\n")
-        
         return Drill(
             id=page["id"],
             exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
             avg_time=self._parse_property(props.get("Avg Time"), "number"),
-            contact_level=self._parse_property(props.get("Contact Level"), "rollup"),
+            contact_level=self._parse_property(props.get("Contact Level"), "relation"),
             depends_on=self._parse_property(props.get("Depends on"), "multi_select") or [],
             description=self._parse_property(props.get("Description"), "rich_text"),
             difficulty=self._parse_property(props.get("Difficulty 1-5"), "number"),
