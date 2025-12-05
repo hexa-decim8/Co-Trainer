@@ -56,14 +56,14 @@ class PracticePlanDB(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Sharing and cloning fields
-    is_public = Column(Boolean, default=False, index=True)
+    is_public = Column(Boolean, default=False, nullable=False, index=True)
     original_plan_id = Column(Integer, ForeignKey("practice_plans.id"), nullable=True, index=True)
     cloned_from_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    clone_count = Column(Integer, default=0)
+    clone_count = Column(Integer, default=0, nullable=False)
     
     # Relationships
-    user = relationship("UserDB", back_populates="practice_plans", foreign_keys=[user_id])
-    created_by_user = relationship("UserDB", foreign_keys=[cloned_from_user_id])
+    user = relationship("UserDB", back_populates="practice_plans", foreign_keys=[user_id], overlaps="created_by_user")
+    created_by_user = relationship("UserDB", foreign_keys=[cloned_from_user_id], overlaps="user")
 
 
 class DrillCache(Base):
