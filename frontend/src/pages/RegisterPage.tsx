@@ -39,11 +39,6 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length > 72) {
-      setError('Password is too long (maximum 72 characters)');
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -111,9 +106,8 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
-                maxLength={72}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="8-72 characters"
+                placeholder="At least 8 characters"
               />
             </div>
 
@@ -127,7 +121,6 @@ export default function RegisterPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={8}
-                maxLength={72}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Re-enter your password"
               />

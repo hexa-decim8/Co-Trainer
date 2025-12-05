@@ -8,15 +8,9 @@ from sqlalchemy.orm import Session
 from database import get_db, UserDB
 from config import settings
 
-# Password hashing - configure bcrypt to truncate passwords at 72 bytes
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12,
-    bcrypt__ident="2b",
-    # This tells passlib to automatically truncate passwords
-    truncate_error=False
-)
+# Password hashing - use argon2 instead of bcrypt to avoid 72-byte limitation
+# Argon2 is more secure and has no password length restrictions
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -33,7 +27,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password. Passlib automatically handles bcrypt's 72-byte limit."""
+    """Hash a password. Argon2 has no password length restrictions."""
     return pwd_context.hash(password)
 
 

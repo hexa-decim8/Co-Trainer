@@ -123,8 +123,7 @@ class UserCreate(BaseModel):
     def validate_password(cls, v):
         if not v or len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
-        if len(v.encode('utf-8')) > 72:
-            raise ValueError('Password is too long (maximum 72 characters)')
+        # No upper limit with argon2
         return v
 
 
