@@ -51,12 +51,16 @@ export default function PlannerPage() {
   const { data: drills = [], isLoading } = useQuery({
     queryKey: ['drills', activeFilters],
     queryFn: () => drillsApi.getAll(activeFilters),
+    staleTime: 5 * 60 * 1000, // 5 minutes - drills don't change often
+    gcTime: 15 * 60 * 1000, // 15 minutes
   });
 
   // Fetch filter options
   const { data: filterOptions } = useQuery({
     queryKey: ['filter-options'],
     queryFn: () => drillsApi.getFilterOptions(),
+    staleTime: 10 * 60 * 1000, // 10 minutes - filter options rarely change
+    gcTime: 30 * 60 * 1000, // 30 minutes
   });
 
   const calculateStartTimes = (drills: Omit<TimelineDrill, 'startTime'>[]): TimelineDrill[] => {

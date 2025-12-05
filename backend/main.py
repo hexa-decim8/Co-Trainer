@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import List, Optional, Dict
 import json
@@ -684,12 +684,14 @@ async def list_plans(
 ):
     """List practice plans with pagination, search, and optional filters."""
     
-    # Base query
+    # Base query with eager loading
     if is_public:
-        # Query all public plans from any user
-        query = db.query(PracticePlanDB).filter(PracticePlanDB.is_public == True)
+        # Query all public plans from any user with eager loading of user relationship
+        query = db.query(PracticePlanDB).options(
+            joinedload(PracticePlanDB.user)
+        ).filter(PracticePlanDB.is_public == True)
     else:
-        # Query current user's plans
+        # Query current user's plans (no need for eager loading since we already have current_user)
         query = db.query(PracticePlanDB).filter(PracticePlanDB.user_id == current_user.id)
     
     # Apply template filter
@@ -708,6 +710,16 @@ async def list_plans(
     offset = (page - 1) * page_size
     plans = query.order_by(PracticePlanDB.updated_at.desc()).limit(page_size).offset(offset).all()
     
+    # Batch fetch clone information if viewing public plans
+    cloned_plan_ids = set()
+    if is_public and plans:
+        plan_ids = [p.id for p in plans]
+        clones = db.query(PlanClone.original_plan_id).filter(
+            PlanClone.user_id == current_user.id,
+            PlanClone.original_plan_id.in_(plan_ids)
+        ).all()
+        cloned_plan_ids = {c.original_plan_id for c in clones}
+    
     # Build summaries
     summaries = []
     for plan in plans:
@@ -718,22 +730,14 @@ async def list_plans(
         creator_email = None
         creator_derby_name = None
         if is_public:
-            # Get the original creator - use plan.user_id for original plans, 
-            # or cloned_from_user_id if this is itself a clone
-            creator_id = plan.cloned_from_user_id if plan.cloned_from_user_id else plan.user_id
-            creator = db.query(UserDB).filter(UserDB.id == creator_id).first()
+            # Use eager-loaded user relationship
+            creator = plan.user
             if creator:
                 creator_email = creator.email
                 creator_derby_name = creator.derby_name
         
-        # Check if current user has cloned this plan
-        is_cloned_by_user = False
-        if is_public:
-            existing_clone = db.query(PlanClone).filter(
-                PlanClone.user_id == current_user.id,
-                PlanClone.original_plan_id == plan.id
-            ).first()
-            is_cloned_by_user = existing_clone is not None
+        # Check if current user has cloned this plan (using batch-fetched data)
+        is_cloned_by_user = plan.id in cloned_plan_ids if is_public else False
         
         summaries.append(PracticePlanSummary(
             id=plan.id,

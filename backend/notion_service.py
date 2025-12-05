@@ -204,14 +204,32 @@ class NotionService:
             logger.error(f"Error fetching drill {drill_id}: {e}")
             return None
     
-    async def get_drills_by_ids(self, drill_ids: List[str]) -> Dict[str, Drill]:
-        """Get multiple drills by their IDs."""
-        drills = {}
-        for drill_id in drill_ids:
-            drill = await self.get_drill_by_id(drill_id)
-            if drill:
-                drills[drill_id] = drill
-        return drills
+    async def get_drills_by_ids(self, drill_ids: List[str], db=None) -> Dict[str, Drill]:
+        """Get multiple drills by their IDs efficiently using cache."""
+        if not drill_ids:
+            return {}
+        
+        # First try to get from cache
+        all_drills = await self.get_all_drills(db=db, force_sync=False)
+        drills_dict = {drill.id: drill for drill in all_drills if drill.id in drill_ids}
+        
+        # If all drills found in cache, return them
+        if len(drills_dict) == len(drill_ids):
+            return drills_dict
+        
+        # If some drills are missing and we have a client, fetch them individually
+        # This is a fallback for drills not in cache
+        if self.client:
+            missing_ids = set(drill_ids) - set(drills_dict.keys())
+            for drill_id in missing_ids:
+                try:
+                    drill = await self.get_drill_by_id(drill_id)
+                    if drill:
+                        drills_dict[drill_id] = drill
+                except Exception as e:
+                    logger.warning(f"Could not fetch drill {drill_id}: {e}")
+        
+        return drills_dict
     
     def clear_cache(self):
         """Clear the cached drills."""
