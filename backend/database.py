@@ -57,13 +57,12 @@ class PracticePlanDB(Base):
     
     # Sharing and cloning fields
     is_public = Column(Boolean, default=False, nullable=False, index=True)
-    original_plan_id = Column(Integer, ForeignKey("practice_plans.id"), nullable=True, index=True)
-    cloned_from_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    original_plan_id = Column(Integer, nullable=True, index=True)
+    cloned_from_user_id = Column(Integer, nullable=True)
     clone_count = Column(Integer, default=0, nullable=False)
     
     # Relationships
-    user = relationship("UserDB", back_populates="practice_plans", foreign_keys=[user_id])
-    created_by_user = relationship("UserDB", foreign_keys=[cloned_from_user_id], viewonly=True)
+    user = relationship("UserDB", back_populates="practice_plans")
 
 
 class DrillCache(Base):
