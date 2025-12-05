@@ -35,11 +35,15 @@ class SecureConfigManager:
         key = self.key_file.read_bytes()
         return Fernet(key)
     
-    def save_credentials(self, notion_api_key: str, notion_database_id: str):
+    def save_credentials(self, notion_api_key: str, notion_database_id: str, jwt_secret_key: Optional[str] = None):
         """Encrypt and save credentials."""
+        # Load existing credentials to preserve jwt_secret_key if not provided
+        existing = self.load_credentials()
+        
         data = {
             "notion_api_key": notion_api_key,
-            "notion_database_id": notion_database_id
+            "notion_database_id": notion_database_id,
+            "jwt_secret_key": jwt_secret_key or existing.get("jwt_secret_key")
         }
         
         try:
@@ -61,7 +65,7 @@ class SecureConfigManager:
     def load_credentials(self) -> Dict[str, Optional[str]]:
         """Decrypt and load credentials."""
         if not self.config_file.exists():
-            return {"notion_api_key": None, "notion_database_id": None}
+            return {"notion_api_key": None, "notion_database_id": None, "jwt_secret_key": None}
         
         try:
             cipher = self._get_cipher()
@@ -73,7 +77,7 @@ class SecureConfigManager:
         except Exception as e:
             logger.error(f"Error loading credentials: {e}")
             # If decryption fails, return empty credentials
-            return {"notion_api_key": None, "notion_database_id": None}
+            return {"notion_api_key": None, "notion_database_id": None, "jwt_secret_key": None}
     
     def clear_credentials(self):
         """Delete stored credentials."""

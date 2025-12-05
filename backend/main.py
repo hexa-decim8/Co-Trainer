@@ -75,7 +75,8 @@ async def update_settings(config: Dict[str, str]):
     try:
         secure_config.save_credentials(
             settings.notion_api_key or "",
-            settings.notion_database_id or ""
+            settings.notion_database_id or "",
+            settings.secret_key  # Preserve JWT secret key
         )
     except Exception as e:
         logger.error(f"Failed to save credentials: {e}")
