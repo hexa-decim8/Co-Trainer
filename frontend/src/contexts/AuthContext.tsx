@@ -4,8 +4,8 @@ import api from '../api';
 interface User {
   id: number;
   email: string;
-  username?: string;
   derby_name?: string;
+  role: string;
   created_at: string;
 }
 
@@ -15,7 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (data: { username?: string; derby_name?: string }) => Promise<void>;
+  updateProfile: (data: { derby_name?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const updateProfile = async (data: { username?: string; derby_name?: string }) => {
+  const updateProfile = async (data: { derby_name?: string }) => {
     const response = await api.put('/auth/profile', data);
     setUser(response.data);
   };

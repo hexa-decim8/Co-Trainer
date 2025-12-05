@@ -7,7 +7,6 @@ import { useAuth } from '../contexts/AuthContext';
 export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('');
   const [databaseId, setDatabaseId] = useState('');
-  const [username, setUsername] = useState('');
   const [derbyName, setDerbyName] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -104,19 +103,6 @@ export default function SettingsPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Username (Optional)
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder={user?.username || 'Enter your username'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
               Derby Name
             </label>
             <input
@@ -133,11 +119,9 @@ export default function SettingsPage() {
             onClick={async () => {
               try {
                 await updateProfile({
-                  username: username || undefined,
                   derby_name: derbyName || undefined,
                 });
                 setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
-                setUsername('');
                 setDerbyName('');
                 setTimeout(() => setProfileMessage(null), 5000);
               } catch (error: any) {

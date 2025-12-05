@@ -7,6 +7,7 @@ import MobileViewPage from './pages/MobileViewPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import AdminPage from './pages/AdminPage';
 import Layout from './components/Layout';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
             <Route path="planner" element={<PlannerPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
             <Route path="practice/:id" element={<MobileViewPage />} />
           </Route>
         </Routes>

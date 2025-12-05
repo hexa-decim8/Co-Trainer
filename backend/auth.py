@@ -75,3 +75,23 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[UserDB
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+async def require_admin(current_user: UserDB = Depends(get_current_user)) -> UserDB:
+    """Dependency to require admin role."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+
+async def require_coach_or_admin(current_user: UserDB = Depends(get_current_user)) -> UserDB:
+    """Dependency to require coach or admin role."""
+    if current_user.role not in ["coach", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Coach or admin access required"
+        )
+    return current_user
