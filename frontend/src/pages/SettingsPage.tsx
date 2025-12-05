@@ -18,32 +18,33 @@ export default function SettingsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Appearance</h2>
         
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Toggle dark mode for reduced eye strain
             </p>
           </div>
-          <button
-            onClick={toggleDarkMode}
-            className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${
-              darkMode ? 'bg-primary-600' : 'bg-gray-200'
-            }`}
-            aria-label="Toggle dark mode"
-          >
-            <span
-              className={`inline-flex items-center justify-center w-4 h-4 transform transition-transform bg-white rounded-full shadow ${
-                darkMode ? 'translate-x-6' : 'translate-x-1'
+          <div className="flex items-center gap-3">
+            <Sun className="w-5 h-5 text-amber-500" />
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              className={`relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 z-10 ${
+                darkMode ? 'bg-indigo-600' : 'bg-amber-400'
               }`}
+              role="switch"
+              aria-checked={darkMode}
+              aria-label="Toggle dark mode"
             >
-              {darkMode ? (
-                <Moon className="w-3 h-3 text-primary-600" />
-              ) : (
-                <Sun className="w-3 h-3 text-gray-400" />
-              )}
-            </span>
-          </button>
+              <span
+                className={`inline-flex h-6 w-6 items-center justify-center transform transition-transform bg-white rounded-full shadow-lg ${
+                  darkMode ? 'translate-x-7' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <Moon className="w-5 h-5 text-indigo-500" />
+          </div>
         </div>
       </div>
 
