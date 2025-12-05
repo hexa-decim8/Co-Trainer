@@ -57,17 +57,22 @@ class NotionService:
                 # Fetch the related page to get its name/title
                 try:
                     page_id = prop_data[0].get("id")
+                    print(f"  Fetching related page: {page_id}")
                     if page_id and self.client:
                         related_page = self.client.pages.retrieve(page_id=page_id)
-                        # Get the title from the related page (usually in a "Name" or "Title" property)
                         related_props = related_page.get("properties", {})
+                        print(f"  Related page properties: {list(related_props.keys())}")
                         # Try common title property names
                         for title_prop in ["Name", "Title", "Tag"]:
                             if title_prop in related_props:
                                 title_data = related_props[title_prop].get("title", [])
                                 if title_data and len(title_data) > 0:
-                                    return title_data[0].get("plain_text")
+                                    tag_name = title_data[0].get("plain_text")
+                                    print(f"  ✓ Found tag name: {tag_name}")
+                                    return tag_name
+                        print(f"  ✗ No title found in related page")
                 except Exception as e:
+                    print(f"  ✗ Error fetching related page: {e}")
                     logger.error(f"Error fetching related page: {e}")
             return None
         
