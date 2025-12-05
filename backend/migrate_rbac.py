@@ -4,19 +4,40 @@ Run this once to upgrade existing database.
 """
 import sqlite3
 import os
-from datetime import datetime
+import sys
+from pathlib import Path
 
 def migrate():
-    # Determine database path
-    db_path = os.getenv('DATABASE_URL', 'sqlite:///./co_trainer.db').replace('sqlite:///', '')
+    # Import settings to get the correct database path
+    try:
+        from config import settings
+        db_url = settings.database_url
+    except ImportError:
+        print("❌ Could not import config. Make sure you're in the backend directory.")
+        sys.exit(1)
+    
+    # Extract path from SQLite URL
+    db_path = db_url.replace('sqlite:///', '')
+    
+    # Make path absolute if relative
+    if not os.path.isabs(db_path):
+        db_path = os.path.abspath(db_path)
     
     print(f"Database path: {db_path}")
     
     # Check if database exists
     if not os.path.exists(db_path):
         print(f"❌ Database not found at {db_path}")
-        print("Please initialize the database first by starting the backend server.")
-        return
+        print("\nInitializing database...")
+        
+        # Create database by initializing tables
+        try:
+            from database import init_db
+            init_db()
+            print("✓ Database initialized")
+        except Exception as e:
+            print(f"❌ Failed to initialize database: {e}")
+            sys.exit(1)
     
     # Connect to database
     conn = sqlite3.connect(db_path)
