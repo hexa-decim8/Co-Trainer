@@ -6,7 +6,6 @@ import api from '../api';
 interface User {
   id: number;
   email: string;
-  username: string | null;
   derby_name: string | null;
   role: string;
   created_at: string;
@@ -26,7 +25,7 @@ export default function AdminPage() {
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['admin', 'users'],
     queryFn: async () => {
-      const response = await api.get('/api/admin/users');
+      const response = await api.get('/admin/users');
       return response.data;
     },
   });
@@ -34,7 +33,7 @@ export default function AdminPage() {
   // Update role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
-      const response = await api.put(`/api/admin/users/${userId}/role`, { role });
+      const response = await api.put(`/admin/users/${userId}/role`, { role });
       return response.data;
     },
     onSuccess: () => {
@@ -48,7 +47,7 @@ export default function AdminPage() {
   // Reset password mutation
   const resetPasswordMutation = useMutation({
     mutationFn: async ({ userId, password }: { userId: number; password: string }) => {
-      const response = await api.post(`/api/admin/users/${userId}/reset-password`, {
+      const response = await api.post(`/admin/users/${userId}/reset-password`, {
         new_password: password,
       });
       return response.data;
@@ -64,7 +63,7 @@ export default function AdminPage() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const response = await api.delete(`/api/admin/users/${userId}`);
+      const response = await api.delete(`/admin/users/${userId}`);
       return response.data;
     },
     onSuccess: () => {
@@ -166,7 +165,7 @@ export default function AdminPage() {
                     <div className="flex items-center">
                       <Users className="w-5 h-5 text-gray-400 mr-2" />
                       <div className="text-sm font-medium text-gray-900">
-                        {user.derby_name || user.username || 'No name set'}
+                        {user.derby_name || 'No name set'}
                       </div>
                     </div>
                   </td>
@@ -226,7 +225,7 @@ export default function AdminPage() {
               </button>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Update role for {selectedUser.derby_name || selectedUser.username || selectedUser.email}
+              Update role for {selectedUser.derby_name || selectedUser.email}
             </p>
             <div className="space-y-3 mb-6">
               <label className="flex items-center">
@@ -298,7 +297,7 @@ export default function AdminPage() {
               </button>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Set new password for {selectedUser.derby_name || selectedUser.username || selectedUser.email}
+              Set new password for {selectedUser.derby_name || selectedUser.email}
             </p>
             <div className="space-y-4 mb-6">
               <div>
@@ -365,7 +364,7 @@ export default function AdminPage() {
               </button>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete {selectedUser.derby_name || selectedUser.username || selectedUser.email}?
+              Are you sure you want to delete {selectedUser.derby_name || selectedUser.email}?
               This action cannot be undone and will delete all their practice plans.
             </p>
             {deleteUserMutation.isError && (

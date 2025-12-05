@@ -137,7 +137,6 @@ class UserResponse(BaseModel):
     """Model for user data returned to client (no password)."""
     id: int
     email: str
-    username: Optional[str] = None
     derby_name: Optional[str] = None
     role: str = "user"
     created_at: datetime
@@ -152,7 +151,6 @@ class Token(BaseModel):
 
 class UserUpdate(BaseModel):
     """Model for updating user profile."""
-    username: Optional[str] = None
     derby_name: Optional[str] = None
 
 
@@ -176,7 +174,6 @@ class UserListResponse(BaseModel):
     """Model for user in admin list."""
     id: int
     email: str
-    username: Optional[str] = None
     derby_name: Optional[str] = None
     role: str
     created_at: datetime

@@ -160,7 +160,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         user=UserResponse(
             id=db_user.id,
             email=db_user.email,
-            username=db_user.username,
             derby_name=db_user.derby_name,
             role=db_user.role,
             created_at=db_user.created_at
@@ -187,7 +186,6 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         user=UserResponse(
             id=user.id,
             email=user.email,
-            username=user.username,
             derby_name=user.derby_name,
             role=user.role,
             created_at=user.created_at
@@ -201,7 +199,6 @@ async def get_current_user_info(current_user: UserDB = Depends(get_current_user)
     return UserResponse(
         id=current_user.id,
         email=current_user.email,
-        username=current_user.username,
         derby_name=current_user.derby_name,
         role=current_user.role,
         created_at=current_user.created_at
@@ -215,8 +212,6 @@ async def update_profile(
     db: Session = Depends(get_db)
 ):
     """Update user profile information."""
-    if profile_data.username is not None:
-        current_user.username = profile_data.username
     if profile_data.derby_name is not None:
         current_user.derby_name = profile_data.derby_name
     
@@ -226,7 +221,6 @@ async def update_profile(
     return UserResponse(
         id=current_user.id,
         email=current_user.email,
-        username=current_user.username,
         derby_name=current_user.derby_name,
         role=current_user.role,
         created_at=current_user.created_at
@@ -269,7 +263,6 @@ async def list_users(
         UserListResponse(
             id=user.id,
             email=user.email,
-            username=user.username,
             derby_name=user.derby_name,
             role=user.role,
             created_at=user.created_at

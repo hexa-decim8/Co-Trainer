@@ -122,7 +122,9 @@ class NotionService:
                 for page in response.get("results", []):
                     try:
                         drill = self._parse_drill(page)
-                        drills.append(drill)
+                        # Only include drills with an Exercise name
+                        if drill.exercise and drill.exercise != "Untitled":
+                            drills.append(drill)
                     except Exception as e:
                         logger.error(f"Error parsing drill {page.get('id')}: {e}")
                 
