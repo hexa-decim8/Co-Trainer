@@ -91,6 +91,10 @@ export default function AdminPage() {
       const response = await api.post('/drills/sync');
       return response.data;
     },
+    onSuccess: () => {
+      // Invalidate drills cache so they reload with fresh data
+      queryClient.invalidateQueries({ queryKey: ['drills'] });
+    },
   });
 
   // Save Notion settings mutation
