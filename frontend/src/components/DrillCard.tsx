@@ -209,7 +209,7 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
         className="flex-1 p-5 relative z-10"
       >
         <div className="flex items-start justify-between mb-3">
-          <h3 className="font-bold text-gray-900 text-base flex-1 leading-tight pr-2">
+          <h3 className="font-bold text-gray-900 dark:text-white text-base flex-1 leading-tight pr-2">
             {drill.exercise || 'Unnamed Drill'}
           </h3>
           <button
@@ -223,8 +223,8 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
               e.preventDefault();
               setIsExpanded(!isExpanded);
             }}
-            className={`flex-shrink-0 hover:bg-primary-50 active:bg-primary-100 p-2.5 rounded-lg transition-all touch-manipulation ${
-              isExpanded ? 'text-primary-600 bg-primary-50' : 'text-gray-400 hover:text-primary-600'
+            className={`flex-shrink-0 hover:bg-primary-50 dark:hover:bg-primary-900/20 active:bg-primary-100 dark:active:bg-primary-900/30 p-2.5 rounded-lg transition-all touch-manipulation ${
+              isExpanded ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400'
             }`}
             type="button"
           >
@@ -234,7 +234,7 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
 
         <div className="flex flex-wrap gap-2 mb-3">
           {drill.avg_time && (
-            <span className="inline-flex items-center text-sm font-semibold px-3 py-1.5 rounded-full bg-blue-100 text-blue-800">
+            <span className="inline-flex items-center text-sm font-semibold px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
               <Clock className="w-4 h-4 mr-1.5" />
               {drill.avg_time} min
             </span>
@@ -270,7 +270,7 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
               </button>
             )}
             {drill.equipment && (
-              <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800">
+              <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300">
                 {drill.equipment}
               </span>
             )}
@@ -344,7 +344,7 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
 
         {/* Description Preview (when collapsed) */}
         {!isExpanded && drill.description && (
-          <p className="text-xs text-gray-600 line-clamp-2">
+          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
             {drill.description}
           </p>
         )}
@@ -359,18 +359,18 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
                   <AlertCircle className="w-3 h-3 mr-1" />
                   Description
                 </h4>
-                <p className="text-xs text-gray-700 leading-relaxed">{drill.description}</p>
+                <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{drill.description}</p>
               </div>
             )}
 
             {/* Game Type */}
             {drill.game_type && (
-              <div className="bg-gray-50 rounded-lg p-2.5">
-                <div className="text-xs font-semibold text-gray-700 mb-1 flex items-center">
+              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2.5">
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center">
                   <Target className="w-3 h-3 mr-1 text-orange-600" />
                   Game Type
                 </div>
-                <p className="text-xs text-gray-900 font-medium">{drill.game_type}</p>
+                <p className="text-xs text-gray-900 dark:text-gray-100 font-medium">{drill.game_type}</p>
               </div>
             )}
 

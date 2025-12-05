@@ -235,7 +235,7 @@ export default function PlannerPage() {
       onDragCancel={handleDragCancel} 
       collisionDetection={rectIntersection}
     >
-      <div className="h-[calc(100vh-5rem)] flex gap-1">
+      <div className="h-[calc(100vh-5rem)] flex gap-1 dark:bg-gray-900">
         {/* Left: Filters */}
         <div className="w-80 flex-shrink-0">
           {filterOptions && (

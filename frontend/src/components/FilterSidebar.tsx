@@ -65,16 +65,16 @@ export default function FilterSidebar({
     const isExpanded = expandedSections.has(id);
     
     return (
-      <div className="mb-4 border-b border-gray-200 pb-4 last:border-b-0">
+      <div className="mb-4 border-b border-gray-200 dark:border-gray-700 pb-4 last:border-b-0">
         <button
           onClick={() => toggleSection(id)}
           className="flex items-center justify-between w-full text-left mb-3 group"
         >
-          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">{title}</h3>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">{title}</h3>
           {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-500 group-hover:text-primary-600" />
+            <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-primary-600" />
+            <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
           )}
         </button>
         
@@ -83,19 +83,19 @@ export default function FilterSidebar({
             {options.map(option => (
               <label 
                 key={option} 
-                className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors group"
+                className="flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors group"
               >
                 <input
                   type="checkbox"
                   checked={activeValues.includes(option)}
                   onChange={() => toggleFilter(category, option)}
-                  className="w-5 h-5 rounded border-2 border-gray-300 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 cursor-pointer"
+                  className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 dark:bg-gray-700 cursor-pointer"
                 />
-                <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">
+                <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
                   {option}
                 </span>
                 {activeValues.includes(option) && (
-                  <span className="ml-auto text-primary-600 font-bold">✓</span>
+                  <span className="ml-auto text-primary-600 dark:text-primary-400 font-bold">✓</span>
                 )}
               </label>
             ))}
@@ -108,7 +108,7 @@ export default function FilterSidebar({
   const activeFilterCount = Object.values(activeFilters).filter(v => v).length;
 
   return (
-    <div className="h-full flex flex-col bg-white shadow-elevated overflow-hidden">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800 shadow-elevated overflow-hidden">
       {/* Header */}
       <div className="p-6 bg-gradient-to-br from-primary-600 to-primary-700 text-white">
         <div className="flex items-center justify-between mb-4">
@@ -134,7 +134,7 @@ export default function FilterSidebar({
             value={searchText}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search drills..."
-            className="w-full pl-11 pr-4 py-3 bg-white/20 border-2 border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:bg-white/30 focus:border-white transition-all"
+            className="w-full pl-11 pr-4 py-3 bg-white/20 dark:bg-white/10 border-2 border-white/30 dark:border-white/20 rounded-lg text-white placeholder-white/70 dark:placeholder-white/60 focus:outline-none focus:bg-white/30 dark:focus:bg-white/20 focus:border-white transition-all"
           />
         </div>
 
