@@ -225,7 +225,6 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
             dark_mode=user.dark_mode,
             created_at=user.created_at
         )
-    )   )
     )
 
 
