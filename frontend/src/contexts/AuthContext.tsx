@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import axios from 'axios';
 import api from '../api';
 
 interface User {
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Try to refresh using HTTP-only cookie
       try {
-        const response = await api.post('/auth/refresh', {}, {
+        const response = await axios.post('/api/auth/refresh', {}, {
           withCredentials: true  // Include cookies
         });
         const { access_token, user: userData } = response.data;
