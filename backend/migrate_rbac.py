@@ -3,14 +3,32 @@ Database migration script to add role column to users table.
 Run this once to upgrade existing database.
 """
 import sqlite3
+import os
 from datetime import datetime
 
 def migrate():
+    # Determine database path
+    db_path = os.getenv('DATABASE_URL', 'sqlite:///./co_trainer.db').replace('sqlite:///', '')
+    
+    print(f"Database path: {db_path}")
+    
+    # Check if database exists
+    if not os.path.exists(db_path):
+        print(f"❌ Database not found at {db_path}")
+        print("Please initialize the database first by starting the backend server.")
+        return
+    
     # Connect to database
-    conn = sqlite3.connect('co_trainer.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     try:
+        # Check if users table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if not cursor.fetchone():
+            print("❌ Users table not found. Please initialize the database first.")
+            return
+        
         # Check if role column already exists
         cursor.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in cursor.fetchall()]
