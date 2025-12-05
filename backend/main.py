@@ -717,8 +717,11 @@ async def list_plans(
         # Get creator info if this is a public plan view
         creator_email = None
         creator_derby_name = None
-        if is_public and plan.cloned_from_user_id:
-            creator = db.query(UserDB).filter(UserDB.id == plan.cloned_from_user_id).first()
+        if is_public:
+            # Get the original creator - use plan.user_id for original plans, 
+            # or cloned_from_user_id if this is itself a clone
+            creator_id = plan.cloned_from_user_id if plan.cloned_from_user_id else plan.user_id
+            creator = db.query(UserDB).filter(UserDB.id == creator_id).first()
             if creator:
                 creator_email = creator.email
                 creator_derby_name = creator.derby_name
