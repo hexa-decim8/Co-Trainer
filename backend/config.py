@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+import secrets
 
 
 class Settings(BaseSettings):
@@ -10,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./cotrainer.db"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    secret_key: str = secrets.token_urlsafe(32)  # JWT signing key
     
     model_config = SettingsConfigDict(
         env_file=".env",

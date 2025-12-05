@@ -1,10 +1,41 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 from config import settings
 
 Base = declarative_base()
+
+
+class UserDB(Base):
+    """SQLAlchemy model for users."""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    username = Column(String, nullable=True)
+    derby_name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    practice_plans = relationship("PracticePlanDB", back_populates="user", cascade="all, delete-orphan")
+    notion_config = relationship("UserNotionConfig", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+
+class UserNotionConfig(Base):
+    """SQLAlchemy model for per-user Notion configuration."""
+    __tablename__ = "user_notion_configs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    notion_api_key = Column(String, nullable=False)  # Encrypted
+    notion_database_id = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("UserDB", back_populates="notion_config")
 
 
 class PracticePlanDB(Base):
@@ -12,6 +43,7 @@ class PracticePlanDB(Base):
     __tablename__ = "practice_plans"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     date = Column(DateTime, nullable=True)
     practice_type = Column(String, nullable=False)
@@ -20,6 +52,9 @@ class PracticePlanDB(Base):
     timeline_json = Column(Text, nullable=False)  # JSON string
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("UserDB", back_populates="practice_plans")
 
 
 class DrillCache(Base):

@@ -1,23 +1,38 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import PlannerPage from './pages/PlannerPage';
 import LibraryPage from './pages/LibraryPage';
 import MobileViewPage from './pages/MobileViewPage';
 import SettingsPage from './pages/SettingsPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import Layout from './components/Layout';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/planner" replace />} />
-          <Route path="planner" element={<PlannerPage />} />
-          <Route path="library" element={<LibraryPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="practice/:id" element={<MobileViewPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Protected routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/planner" replace />} />
+            <Route path="planner" element={<PlannerPage />} />
+            <Route path="library" element={<LibraryPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="practice/:id" element={<MobileViewPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
