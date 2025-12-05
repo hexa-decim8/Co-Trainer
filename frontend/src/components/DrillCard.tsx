@@ -5,6 +5,8 @@ import type { Drill } from '../types';
 
 interface DrillCardProps {
   drill: Drill;
+  onContactLevelClick?: (level: string) => void;
+  onDrillTypeClick?: (type: string) => void;
 }
 
 const getContactColor = (level: string | undefined) => {
@@ -171,7 +173,7 @@ const getDrillTypeGradientColor = (type: string | undefined) => {
   return 'rgba(156, 163, 175, 0.15)'; // gray-400
 };
 
-export default function DrillCard({ drill }: DrillCardProps) {
+export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick }: DrillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: drill.id,
@@ -234,10 +236,16 @@ export default function DrillCard({ drill }: DrillCardProps) {
           )}
           
           {drill.contact_level && (
-            <span className={`inline-flex items-center text-sm font-semibold px-3 py-1.5 rounded-full ${getContactBadgeColor(drill.contact_level)}`}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onContactLevelClick?.(drill.contact_level!);
+              }}
+              className={`inline-flex items-center text-sm font-semibold px-3 py-1.5 rounded-full ${getContactBadgeColor(drill.contact_level)} border-2 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer`}
+            >
               <Shield className="w-4 h-4 mr-1.5" />
               {drill.contact_level}
-            </span>
+            </button>
           )}
         </div>
 
@@ -245,10 +253,16 @@ export default function DrillCard({ drill }: DrillCardProps) {
         {(drill.drill_type || drill.equipment) && (
           <div className="flex flex-wrap gap-2 mb-3">
             {drill.drill_type && (
-              <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getDrillTypeBadgeColor(drill.drill_type)}`}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDrillTypeClick?.(drill.drill_type!);
+                }}
+                className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getDrillTypeBadgeColor(drill.drill_type)} border-2 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer`}
+              >
                 <Zap className="w-3 h-3 mr-1" />
                 {drill.drill_type}
-              </span>
+              </button>
             )}
             {drill.equipment && (
               <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800">

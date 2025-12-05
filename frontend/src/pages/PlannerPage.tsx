@@ -27,6 +27,20 @@ const dropAnimation = {
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
+
+  const handleContactLevelClick = (level: string) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      contact_level: [level]
+    }));
+  };
+
+  const handleDrillTypeClick = (type: string) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      drill_type: [type]
+    }));
+  };
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -262,6 +276,8 @@ export default function PlannerPage() {
                   <DrillCard
                     key={drill.id}
                     drill={drill}
+                    onContactLevelClick={handleContactLevelClick}
+                    onDrillTypeClick={handleDrillTypeClick}
                   />
                 ))}
               </div>
