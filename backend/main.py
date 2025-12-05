@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -20,8 +20,8 @@ from models import (
 from notion_service import notion_service
 from database import PracticePlanDB
 from auth import (
-    get_password_hash, authenticate_user, create_access_token,
-    get_current_user, verify_password, require_admin, require_coach_or_admin
+    get_password_hash, authenticate_user, create_access_token, create_refresh_token,
+    get_current_user, verify_password, verify_refresh_token, require_admin, require_coach_or_admin
 )
 
 app = FastAPI(title="Co-Trainer API", version="1.0.0")
@@ -125,7 +125,7 @@ async def test_notion_connection():
 # ============================================================================
 
 @app.post("/api/auth/register", response_model=Token)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Register a new user."""
     # Check if user already exists
     existing_user = db.query(UserDB).filter(UserDB.email == user_data.email).first()
@@ -151,11 +151,27 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    # Create access token
+    # Create tokens
     access_token = create_access_token(data={"sub": db_user.email})
+    refresh_token = create_refresh_token(data={"sub": db_user.email})
+    
+    # Store refresh token in database
+    db_user.refresh_token = refresh_token
+    db.commit()
+    
+    # Set refresh token as HTTP-only cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30  # 30 days
+    )
     
     return Token(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         user=UserResponse(
             id=db_user.id,
@@ -168,7 +184,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/api/auth/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with email and password."""
     user = authenticate_user(db, form_data.username, form_data.password)  # username field contains email
     if not user:
@@ -178,10 +194,27 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Create tokens
     access_token = create_access_token(data={"sub": user.email})
+    refresh_token = create_refresh_token(data={"sub": user.email})
+    
+    # Store refresh token in database
+    user.refresh_token = refresh_token
+    db.commit()
+    
+    # Set refresh token as HTTP-only cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30  # 30 days
+    )
     
     return Token(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         user=UserResponse(
             id=user.id,
@@ -191,6 +224,74 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             created_at=user.created_at
         )
     )
+
+
+@app.post("/api/auth/refresh", response_model=Token)
+async def refresh_token(
+    response: Response,
+    refresh_token: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    """Refresh access token using cookie-based refresh token."""
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided"
+        )
+    
+    user = verify_refresh_token(db, refresh_token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+    
+    # Create new tokens
+    new_access_token = create_access_token(data={"sub": user.email})
+    new_refresh_token = create_refresh_token(data={"sub": user.email})
+    
+    # Update refresh token in database
+    user.refresh_token = new_refresh_token
+    db.commit()
+    
+    # Update cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30  # 30 days
+    )
+    
+    return Token(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            derby_name=user.derby_name,
+            role=user.role,
+            created_at=user.created_at
+        )
+    )
+
+
+@app.post("/api/auth/logout")
+async def logout(
+    response: Response,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Logout user by invalidating refresh token."""
+    current_user.refresh_token = None
+    db.commit()
+    
+    # Clear cookie
+    response.delete_cookie(key="refresh_token")
+    
+    return {"message": "Successfully logged out"}
 
 
 @app.get("/api/auth/me", response_model=UserResponse)

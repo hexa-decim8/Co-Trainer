@@ -19,6 +19,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 days
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -38,7 +39,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def create_refresh_token(data: dict) -> str:
+    """Create a JWT refresh token with longer expiration."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -75,6 +85,25 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[UserDB
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+def verify_refresh_token(db: Session, refresh_token: str) -> Optional[UserDB]:
+    """Verify a refresh token and return the user."""
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        token_type: str = payload.get("type")
+        
+        if email is None or token_type != "refresh":
+            return None
+            
+        user = db.query(UserDB).filter(UserDB.email == email).first()
+        if user is None or user.refresh_token != refresh_token:
+            return None
+            
+        return user
+    except JWTError:
+        return None
 
 
 async def require_admin(current_user: UserDB = Depends(get_current_user)) -> UserDB:

@@ -26,23 +26,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check if user is logged in on mount
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      // Verify token and get user info
-      api.get('/auth/me')
-        .then(response => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      
+      if (token) {
+        // Try to verify existing token
+        try {
+          const response = await api.get('/auth/me');
           setUser(response.data);
-        })
-        .catch(() => {
-          // Token invalid, clear it
-          localStorage.removeItem('auth_token');
-        })
-        .finally(() => {
           setLoading(false);
+          return;
+        } catch (error) {
+          // Token might be expired, try refresh
+          console.log('Access token expired, attempting refresh');
+        }
+      }
+      
+      // Try to refresh using HTTP-only cookie
+      try {
+        const response = await api.post('/auth/refresh', {}, {
+          withCredentials: true  // Include cookies
         });
-    } else {
-      setLoading(false);
-    }
+        const { access_token, user: userData } = response.data;
+        localStorage.setItem('auth_token', access_token);
+        setUser(userData);
+      } catch (error) {
+        // No valid session
+        localStorage.removeItem('auth_token');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -55,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
+      withCredentials: true  // Include cookies
     });
 
     const { access_token, user: userData } = response.data;
@@ -66,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await api.post('/auth/register', {
       email,
       password,
+    }, {
+      withCredentials: true  // Include cookies
     });
 
     const { access_token, user: userData } = response.data;
@@ -73,9 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   };
 
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout', {}, { withCredentials: true });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('auth_token');
+      setUser(null);
+    }
   };
 
   const updateProfile = async (data: { derby_name?: string }) => {
