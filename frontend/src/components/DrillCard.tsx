@@ -123,6 +123,54 @@ const getDrillTypeBorderColor = (type: string | undefined) => {
   return 'border-l-4 border-l-gray-400';
 };
 
+const getDrillTypeGradientColor = (type: string | undefined) => {
+  if (!type) return 'rgba(156, 163, 175, 0.15)'; // gray-400
+  const lower = type.toLowerCase();
+  
+  // Warm-up / Conditioning
+  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
+    return 'rgba(250, 204, 21, 0.15)'; // yellow-400
+  }
+  
+  // Skills / Technique / Drills
+  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
+    return 'rgba(96, 165, 250, 0.15)'; // blue-400
+  }
+  
+  // Strategy / Tactics / Game Play
+  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
+    return 'rgba(192, 132, 252, 0.15)'; // purple-400
+  }
+  
+  // Blocking
+  if (lower.includes('block')) {
+    return 'rgba(251, 146, 60, 0.15)'; // orange-400
+  }
+  
+  // Jamming / Offense
+  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
+    return 'rgba(244, 114, 182, 0.15)'; // pink-400
+  }
+  
+  // Defense
+  if (lower.includes('defense') || lower.includes('defence')) {
+    return 'rgba(148, 163, 184, 0.15)'; // slate-400
+  }
+  
+  // Scrimmage / Game
+  if (lower.includes('scrimmage') || lower.includes('game')) {
+    return 'rgba(248, 113, 113, 0.15)'; // red-400
+  }
+  
+  // Cool Down
+  if (lower.includes('cool') || lower.includes('recovery')) {
+    return 'rgba(45, 212, 191, 0.15)'; // teal-400
+  }
+  
+  // Default fallback - gray for unknown types
+  return 'rgba(156, 163, 175, 0.15)'; // gray-400
+};
+
 export default function DrillCard({ drill }: DrillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -137,6 +185,9 @@ export default function DrillCard({ drill }: DrillCardProps) {
       className={`card-derby ${getContactColor(drill.contact_level)} ${getDrillTypeBorderColor(drill.drill_type)} transition-all duration-200 flex overflow-hidden ${
         isDragging ? 'opacity-20 scale-105 rotate-2' : 'hover:scale-102 hover:-translate-y-1'
       }`}
+      style={{
+        background: `linear-gradient(to right, ${getDrillTypeGradientColor(drill.drill_type)} 0%, ${getDrillTypeGradientColor(drill.drill_type)} 30%, transparent 60%, transparent 100%)`
+      }}
     >
       {/* Drag Handle */}
       <div
