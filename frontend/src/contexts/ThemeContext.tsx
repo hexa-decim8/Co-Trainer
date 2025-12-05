@@ -21,7 +21,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [darkMode]);
 
   const toggleDarkMode = async () => {
-    await updateProfile({ dark_mode: !darkMode });
+    // Optimistically update UI immediately for instant feedback
+    const newDarkMode = !darkMode;
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
+    // Then update in background
+    try {
+      await updateProfile({ dark_mode: newDarkMode });
+    } catch (error) {
+      // Revert on error
+      if (newDarkMode) {
+        document.documentElement.classList.remove('dark');
+      } else {
+        document.documentElement.classList.add('dark');
+      }
+      console.error('Failed to update dark mode preference:', error);
+    }
   };
 
   return (
