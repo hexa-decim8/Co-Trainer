@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tantml:query/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi } from 'lucide-react';
 import api from '../api';
 
