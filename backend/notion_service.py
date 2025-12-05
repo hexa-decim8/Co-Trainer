@@ -52,11 +52,23 @@ class NotionService:
             return prop_data
         
         elif prop_type == "relation":
-            # Handle relation properties (links to other database pages)
+            # Handle relation properties (links to other database pages like Global Tags)
             if prop_data and len(prop_data) > 0:
-                # For now, just return the first relation ID
-                # TODO: Fetch the actual page to get the name/title
-                return prop_data[0].get("id")
+                # Fetch the related page to get its name/title
+                try:
+                    page_id = prop_data[0].get("id")
+                    if page_id and self.client:
+                        related_page = self.client.pages.retrieve(page_id=page_id)
+                        # Get the title from the related page (usually in a "Name" or "Title" property)
+                        related_props = related_page.get("properties", {})
+                        # Try common title property names
+                        for title_prop in ["Name", "Title", "Tag"]:
+                            if title_prop in related_props:
+                                title_data = related_props[title_prop].get("title", [])
+                                if title_data and len(title_data) > 0:
+                                    return title_data[0].get("plain_text")
+                except Exception as e:
+                    logger.error(f"Error fetching related page: {e}")
             return None
         
         elif prop_type == "rollup":
