@@ -15,6 +15,8 @@ export default function MobileViewPage() {
     queryKey: ['plan', id],
     queryFn: () => plansApi.getById(Number(id)),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes - plan details don't change during practice
+    gcTime: 15 * 60 * 1000, // 15 minutes
   });
 
   useEffect(() => {

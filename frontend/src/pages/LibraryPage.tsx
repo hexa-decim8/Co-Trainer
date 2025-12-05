@@ -33,6 +33,8 @@ export default function LibraryPage() {
       const isTemplate = filter === 'templates' ? true : filter === 'plans' ? false : undefined;
       return plansApi.getAll(isTemplate, isPublic, debouncedSearch, page, pageSize);
     },
+    staleTime: 30 * 1000, // 30 seconds - plans list updates moderately
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const plans = data?.items || [];

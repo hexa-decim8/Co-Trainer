@@ -31,6 +31,8 @@ export default function AdminPage() {
       const response = await api.get('/admin/users');
       return response.data;
     },
+    staleTime: 30 * 1000, // 30 seconds - users don't change frequently in admin view
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Fetch Notion settings
@@ -40,6 +42,8 @@ export default function AdminPage() {
       const response = await api.get('/settings');
       return response.data;
     },
+    staleTime: 60 * 1000, // 1 minute - settings rarely change
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   // Update role mutation
