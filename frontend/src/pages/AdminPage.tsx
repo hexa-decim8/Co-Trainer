@@ -115,6 +115,10 @@ export default function AdminPage() {
     }
   };
 
+  // Check if there's only one admin
+  const adminCount = users?.filter(u => u.role === 'admin').length || 0;
+  const isOnlyAdmin = (user: User) => user.role === 'admin' && adminCount === 1;
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'admin':
@@ -263,6 +267,7 @@ export default function AdminPage() {
                   value="user"
                   checked={newRole === 'user'}
                   onChange={(e) => setNewRole(e.target.value)}
+                  disabled={isOnlyAdmin(selectedUser)}
                   className="mr-2"
                 />
                 <span className="text-sm font-medium">User</span>
@@ -274,6 +279,7 @@ export default function AdminPage() {
                   value="coach"
                   checked={newRole === 'coach'}
                   onChange={(e) => setNewRole(e.target.value)}
+                  disabled={isOnlyAdmin(selectedUser)}
                   className="mr-2"
                 />
                 <span className="text-sm font-medium">Coach</span>
@@ -290,6 +296,11 @@ export default function AdminPage() {
                 <span className="text-sm font-medium">Admin</span>
               </label>
             </div>
+            {isOnlyAdmin(selectedUser) && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+                Cannot change role - this is the only admin user
+              </div>
+            )}
             {updateRoleMutation.isError && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
                 {(updateRoleMutation.error as any)?.response?.data?.detail || 'Failed to update role'}
@@ -304,7 +315,7 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={handleRoleUpdate}
-                disabled={updateRoleMutation.isPending}
+                disabled={updateRoleMutation.isPending || isOnlyAdmin(selectedUser)}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
                 {updateRoleMutation.isPending ? 'Updating...' : 'Update Role'}
