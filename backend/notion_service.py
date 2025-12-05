@@ -76,6 +76,12 @@ class NotionService:
         """Parse a Notion page into a Drill model."""
         props = page.get("properties", {})
         
+        # Debug: Log the actual structure of Contact Level and Drill Type
+        if "Contact Level" in props:
+            logger.info(f"Contact Level property: {props['Contact Level']}")
+        if "Drill Type" in props:
+            logger.info(f"Drill Type property: {props['Drill Type']}")
+        
         return Drill(
             id=page["id"],
             exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
