@@ -53,8 +53,10 @@ export interface PracticePlan {
   date?: string;
   practice_type: PracticeType;
   is_template: boolean;
+  is_public?: boolean;
   notes?: string;
   timeline: TimelineItem[];
+  original_plan_id?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -65,10 +67,31 @@ export interface PracticePlanSummary {
   date: string | null;
   practice_type: PracticeType;
   is_template: boolean;
+  is_public?: boolean;
   total_duration: number;
   drill_count: number;
+  creator_email?: string;
+  creator_derby_name?: string;
+  clone_count?: number;
+  is_cloned_by_user?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface PaginatedPlansResponse {
+  items: PracticePlanSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface PlanCloneRequest {
+  newName: string;
+}
+
+export interface PlanVisibilityUpdate {
+  isPublic: boolean;
 }
 
 export interface TimelineItemWithDrill {
