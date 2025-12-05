@@ -179,6 +179,7 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
             email=db_user.email,
             derby_name=db_user.derby_name,
             role=db_user.role,
+            dark_mode=db_user.dark_mode,
             created_at=db_user.created_at
         )
     )
@@ -222,6 +223,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
             email=user.email,
             derby_name=user.derby_name,
             role=user.role,
+            dark_mode=user.dark_mode,
             created_at=user.created_at
         )
     )
@@ -274,6 +276,7 @@ async def refresh_token(
             email=user.email,
             derby_name=user.derby_name,
             role=user.role,
+            dark_mode=user.dark_mode,
             created_at=user.created_at
         )
     )
@@ -303,6 +306,7 @@ async def get_current_user_info(current_user: UserDB = Depends(get_current_user)
         email=current_user.email,
         derby_name=current_user.derby_name,
         role=current_user.role,
+        dark_mode=current_user.dark_mode,
         created_at=current_user.created_at
     )
 
@@ -317,6 +321,9 @@ async def update_profile(
     if profile_data.derby_name is not None:
         current_user.derby_name = profile_data.derby_name
     
+    if profile_data.dark_mode is not None:
+        current_user.dark_mode = profile_data.dark_mode
+    
     db.commit()
     db.refresh(current_user)
     
@@ -325,6 +332,7 @@ async def update_profile(
         email=current_user.email,
         derby_name=current_user.derby_name,
         role=current_user.role,
+        dark_mode=current_user.dark_mode,
         created_at=current_user.created_at
     )
 

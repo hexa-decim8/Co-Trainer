@@ -139,6 +139,7 @@ class UserResponse(BaseModel):
     email: str
     derby_name: Optional[str] = None
     role: str = "user"
+    dark_mode: bool = False
     created_at: datetime
 
 
@@ -153,6 +154,7 @@ class Token(BaseModel):
 class UserUpdate(BaseModel):
     """Model for updating user profile."""
     derby_name: Optional[str] = None
+    dark_mode: Optional[bool] = None
 
 
 class PasswordChange(BaseModel):
@@ -177,4 +179,5 @@ class UserListResponse(BaseModel):
     email: str
     derby_name: Optional[str] = None
     role: str
+    dark_mode: bool = False
     created_at: datetime

@@ -49,19 +49,19 @@ export default function LibraryPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Practice Plan Library</h1>
-        <p className="text-gray-600 mt-2">View and manage your saved practice plans and templates</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Practice Plan Library</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">View and manage your saved practice plans and templates</p>
       </div>
 
       {/* Filter tabs */}
-      <div className="mb-6 border-b border-gray-200">
+      <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setFilter('all')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               filter === 'all'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
             All Plans
@@ -91,11 +91,11 @@ export default function LibraryPage() {
 
       {/* Plans grid */}
       {isLoading ? (
-        <div className="text-center text-gray-500 mt-12">Loading plans...</div>
+        <div className="text-center text-gray-500 dark:text-gray-400 mt-12">Loading plans...</div>
       ) : plans.length === 0 ? (
-        <div className="text-center text-gray-500 mt-12">
+        <div className="text-center text-gray-500 dark:text-gray-400 mt-12">
           <p className="text-lg">No plans found</p>
-          <Link to="/planner" className="text-primary-600 hover:text-primary-700 mt-2 inline-block">
+          <Link to="/planner" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 mt-2 inline-block">
             Create your first practice plan
           </Link>
         </div>
@@ -104,13 +104,13 @@ export default function LibraryPage() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+              className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
                   {plan.is_template && (
-                    <span className="inline-block mt-1 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700">
+                    <span className="inline-block mt-1 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
                       Template
                     </span>
                   )}
@@ -118,20 +118,20 @@ export default function LibraryPage() {
               </div>
 
               <div className="space-y-2 mb-4">
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                   <span className={`px-2 py-1 rounded-full text-xs ${getPracticeTypeColor(plan.practice_type)}`}>
                     {getPracticeTypeLabel(plan.practice_type)}
                   </span>
                 </div>
 
                 {plan.date && (
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                     <Calendar className="w-4 h-4 mr-2" />
                     {new Date(plan.date).toLocaleDateString()}
                   </div>
                 )}
 
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                   <Clock className="w-4 h-4 mr-2" />
                   {plan.total_duration} min ({plan.drill_count} drills)
                 </div>
@@ -140,13 +140,13 @@ export default function LibraryPage() {
               <div className="flex gap-2">
                 <Link
                   to={`/practice/${plan.id}`}
-                  className="flex-1 px-3 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 text-center"
+                  className="flex-1 px-3 py-2 bg-primary-600 dark:bg-primary-700 text-white text-sm rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 text-center"
                 >
                   View
                 </Link>
                 <button
                   onClick={() => handleDelete(plan.id)}
-                  className="px-3 py-2 border border-red-300 text-red-600 text-sm rounded-lg hover:bg-red-50"
+                  className="px-3 py-2 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

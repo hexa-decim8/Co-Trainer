@@ -17,6 +17,7 @@ class UserDB(Base):
     derby_name = Column(String, nullable=True)
     role = Column(String, nullable=False, default="user", index=True)  # user, coach, admin
     refresh_token = Column(String, nullable=True)  # Store active refresh token
+    dark_mode = Column(Boolean, nullable=False, default=False)  # Dark mode preference
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
