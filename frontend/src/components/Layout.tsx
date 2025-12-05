@@ -55,17 +55,6 @@ export default function Layout() {
                 <Library className="w-5 h-5" />
                 Plan Library
               </Link>
-              <Link
-                to="/settings"
-                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
-                  isActive('/settings')
-                    ? 'bg-primary-600 text-white shadow-derby'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <Settings className="w-5 h-5" />
-                Settings
-              </Link>
 
               {/* User Menu */}
               <div className="relative">
@@ -101,7 +90,7 @@ export default function Layout() {
                     <Link
                       to="/settings"
                       onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <Settings className="w-4 h-4" />
                       Settings
@@ -111,7 +100,7 @@ export default function Layout() {
                         setUserMenuOpen(false);
                         logout();
                       }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       <LogOut className="w-4 h-4" />
                       Sign Out
