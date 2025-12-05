@@ -639,10 +639,15 @@ async def create_plan(
         date=plan.date,
         practice_type=plan.practice_type.value,
         is_template=plan.is_template,
-        is_public=plan.is_public,
         notes=plan.notes,
         timeline_json=json.dumps([item.dict() for item in plan.timeline])
     )
+    
+    # Set new fields if they exist in the database
+    if hasattr(db_plan, 'is_public'):
+        db_plan.is_public = plan.is_public
+    if hasattr(db_plan, 'clone_count'):
+        db_plan.clone_count = 0
     
     db.add(db_plan)
     db.commit()
@@ -658,10 +663,10 @@ async def create_plan(
         date=db_plan.date,
         practice_type=PracticeType(db_plan.practice_type),
         is_template=db_plan.is_template,
-        is_public=db_plan.is_public,
+        is_public=getattr(db_plan, 'is_public', False),
         total_duration=total_duration,
         drill_count=len(timeline_data),
-        clone_count=db_plan.clone_count,
+        clone_count=getattr(db_plan, 'clone_count', 0),
         created_at=db_plan.created_at,
         updated_at=db_plan.updated_at
     )

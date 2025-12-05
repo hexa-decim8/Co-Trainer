@@ -305,14 +305,14 @@ function TimelineDrillItem({
       <div
         ref={resizeRef}
         onMouseDown={handleResizeStart}
-        className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize ${
+        className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-30 ${
           isResizing 
             ? 'bg-primary-500' 
-            : 'bg-transparent hover:bg-primary-200 group-hover:bg-primary-100'
+            : 'bg-transparent hover:bg-primary-200 dark:hover:bg-primary-700 group-hover:bg-primary-100 dark:group-hover:bg-primary-800'
         } transition-colors flex items-center justify-center`}
       >
         <div className={`w-12 h-1 rounded-full ${
-          isResizing ? 'bg-white' : 'bg-gray-400 opacity-0 group-hover:opacity-100'
+          isResizing ? 'bg-white' : 'bg-gray-400 dark:bg-gray-500 opacity-0 group-hover:opacity-100'
         }`} />
       </div>
     </div>
