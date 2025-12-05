@@ -62,8 +62,8 @@ class NotionService:
                         related_page = self.client.pages.retrieve(page_id=page_id)
                         related_props = related_page.get("properties", {})
                         print(f"  Related page properties: {list(related_props.keys())}")
-                        # Try common title property names
-                        for title_prop in ["Name", "Title", "Tag"]:
+                        # Try common title property names (including "Tag Name" for Global Tags)
+                        for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
                             if title_prop in related_props:
                                 title_data = related_props[title_prop].get("title", [])
                                 if title_data and len(title_data) > 0:
