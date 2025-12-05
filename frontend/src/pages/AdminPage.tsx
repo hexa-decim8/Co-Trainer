@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, Trash2, Key, X, RefreshCw } from 'lucide-react';
+import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi } from 'lucide-react';
 import api from '../api';
 
 interface User {
@@ -20,12 +20,24 @@ export default function AdminPage() {
   const [newRole, setNewRole] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [databaseId, setDatabaseId] = useState('');
+  const [notionMessage, setNotionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch all users
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['admin', 'users'],
     queryFn: async () => {
       const response = await api.get('/admin/users');
+      return response.data;
+    },
+  });
+
+  // Fetch Notion settings
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const response = await api.get('/settings');
       return response.data;
     },
   });
@@ -79,6 +91,48 @@ export default function AdminPage() {
       const response = await api.post('/drills/sync');
       return response.data;
     },
+    onSuccess: () => {
+      // Invalidate drills cache so they reload with fresh data
+      queryClient.invalidateQueries({ queryKey: ['drills'] });
+    },
+  });
+
+  // Save Notion settings mutation
+  const saveNotionMutation = useMutation({
+    mutationFn: async (config: { notion_api_key: string; notion_database_id: string }) => {
+      const response = await api.post('/settings', config);
+      return response.data;
+    },
+    onSuccess: () => {
+      setNotionMessage({ type: 'success', text: 'Settings saved successfully! Notion connection established.' });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['drills'] });
+      setApiKey('');
+      setDatabaseId('');
+      setTimeout(() => setNotionMessage(null), 5000);
+    },
+    onError: (error: any) => {
+      const errorMsg = error.response?.data?.detail || 'Failed to save settings. Please check your credentials.';
+      setNotionMessage({ type: 'error', text: errorMsg });
+      setTimeout(() => setNotionMessage(null), 5000);
+    },
+  });
+
+  // Test Notion connection mutation
+  const testNotionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/settings/test');
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setNotionMessage({ type: 'success', text: `Connection successful! ${data.message}` });
+      setTimeout(() => setNotionMessage(null), 5000);
+    },
+    onError: (error: any) => {
+      const errorMsg = error.response?.data?.detail || 'Connection failed. Please check your credentials.';
+      setNotionMessage({ type: 'error', text: errorMsg });
+      setTimeout(() => setNotionMessage(null), 5000);
+    },
   });
 
   const openRoleModal = (user: User) => {
@@ -113,6 +167,18 @@ export default function AdminPage() {
     if (selectedUser) {
       deleteUserMutation.mutate(selectedUser.id);
     }
+  };
+
+  const handleNotionSave = async () => {
+    if (!apiKey || !databaseId) {
+      setNotionMessage({ type: 'error', text: 'Please fill in both fields' });
+      return;
+    }
+    await saveNotionMutation.mutateAsync({ notion_api_key: apiKey, notion_database_id: databaseId });
+  };
+
+  const handleNotionTest = () => {
+    testNotionMutation.mutate();
   };
 
   // Check if there's only one admin
@@ -167,6 +233,119 @@ export default function AdminPage() {
         )}
         <p className="text-gray-600">Manage users, roles, and permissions</p>
       </div>
+
+      {/* Notion Configuration Section */}
+      <div className="mb-8 bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Notion Integration</h2>
+
+        {/* Current Status */}
+        <div className="mb-6">
+          {settings?.notion_configured ? (
+            <div className="flex items-center text-green-600">
+              <Check className="w-5 h-5 mr-2" />
+              <span>Connected to Notion</span>
+            </div>
+          ) : (
+            <div className="flex items-center text-yellow-600">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              <span>Not configured - Please enter credentials below</span>
+            </div>
+          )}
+          {settings?.notion_database_id && (
+            <p className="text-sm text-gray-600 mt-2">
+              Database ID: <code className="bg-gray-100 px-2 py-1 rounded">{settings.notion_database_id}</code>
+            </p>
+          )}
+        </div>
+
+        {notionMessage && (
+          <div
+            className={`mb-4 p-4 rounded-lg ${
+              notionMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            }`}
+          >
+            {notionMessage.text}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Notion API Key (Integration Token)
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="secret_xxxxxxxxxxxxx"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Get your integration token from{' '}
+              <a
+                href="https://www.notion.so/my-integrations"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:underline"
+              >
+                notion.so/my-integrations
+              </a>
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Notion Database ID
+            </label>
+            <input
+              type="text"
+              value={databaseId}
+              onChange={(e) => setDatabaseId(e.target.value)}
+              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Find the database ID in your Notion database URL after the workspace name
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleNotionSave}
+              disabled={saveNotionMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saveNotionMutation.isPending ? 'Saving...' : 'Save Settings'}
+            </button>
+            {settings?.notion_configured && (
+              <button
+                onClick={handleNotionTest}
+                disabled={testNotionMutation.isPending}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Wifi className="w-4 h-4" />
+                {testNotionMutation.isPending ? 'Testing...' : 'Test Connection'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <h3 className="text-sm font-semibold text-blue-900 mb-2">Setup Instructions:</h3>
+          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+            <li>Go to notion.so/my-integrations and create a new integration</li>
+            <li>Copy the "Internal Integration Token"</li>
+            <li>Open your Notion database and click "•••" → "Add connections" → Select your integration</li>
+            <li>Copy the database ID from the URL</li>
+            <li>Paste both values above and click Save</li>
+          </ol>
+        </div>
+      </div>
+
+      {/* User Management Section */}
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">User Management</h2>
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">

@@ -6,7 +6,7 @@ import {
   useSortable 
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash2, Clock, GripVertical } from 'lucide-react';
+import { Trash2, Clock, GripVertical, Shield, Zap } from 'lucide-react';
 import type { Drill } from '../types';
 
 interface TimelineDrill {
@@ -31,6 +31,120 @@ interface TimelinePlannerProps {
 const PRACTICE_DURATION = 120; // 2 hours
 const MIN_DURATION = 5;
 const PIXELS_PER_MINUTE = 3; // Visual scaling for timeline
+
+// Color coding functions
+const getContactColor = (level: string | undefined) => {
+  if (!level) return 'border-gray-300';
+  const lower = level.toLowerCase();
+  if (lower.includes('no') || lower.includes('none')) return 'border-contact-none';
+  if (lower.includes('light') || lower.includes('some')) return 'border-contact-light';
+  if (lower.includes('medium')) return 'border-contact-medium';
+  if (lower.includes('full')) return 'border-contact-full';
+  return 'border-gray-300';
+};
+
+const getContactBadgeColor = (level: string | undefined) => {
+  if (!level) return 'bg-gray-100 text-gray-700';
+  const lower = level.toLowerCase();
+  if (lower.includes('no') || lower.includes('none')) return 'bg-green-100 text-green-800';
+  if (lower.includes('light') || lower.includes('some')) return 'bg-amber-100 text-amber-800';
+  if (lower.includes('medium')) return 'bg-orange-100 text-orange-800';
+  if (lower.includes('full')) return 'bg-red-100 text-red-800';
+  return 'bg-gray-100 text-gray-700';
+};
+
+const getDrillTypeBadgeColor = (type: string | undefined) => {
+  if (!type) return 'bg-indigo-100 text-indigo-800';
+  const lower = type.toLowerCase();
+  
+  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
+    return 'bg-yellow-100 text-yellow-800';
+  }
+  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
+    return 'bg-blue-100 text-blue-800';
+  }
+  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
+    return 'bg-purple-100 text-purple-800';
+  }
+  if (lower.includes('block')) {
+    return 'bg-orange-100 text-orange-800';
+  }
+  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
+    return 'bg-pink-100 text-pink-800';
+  }
+  if (lower.includes('defense') || lower.includes('defence')) {
+    return 'bg-slate-100 text-slate-800';
+  }
+  if (lower.includes('scrimmage') || lower.includes('game')) {
+    return 'bg-red-100 text-red-800';
+  }
+  if (lower.includes('cool') || lower.includes('recovery')) {
+    return 'bg-teal-100 text-teal-800';
+  }
+  return 'bg-gray-100 text-gray-700';
+};
+
+const getDrillTypeBorderColor = (type: string | undefined) => {
+  if (!type) return '';
+  const lower = type.toLowerCase();
+  
+  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
+    return 'border-l-4 border-l-yellow-400';
+  }
+  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
+    return 'border-l-4 border-l-blue-400';
+  }
+  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
+    return 'border-l-4 border-l-purple-400';
+  }
+  if (lower.includes('block')) {
+    return 'border-l-4 border-l-orange-400';
+  }
+  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
+    return 'border-l-4 border-l-pink-400';
+  }
+  if (lower.includes('defense') || lower.includes('defence')) {
+    return 'border-l-4 border-l-slate-400';
+  }
+  if (lower.includes('scrimmage') || lower.includes('game')) {
+    return 'border-l-4 border-l-red-400';
+  }
+  if (lower.includes('cool') || lower.includes('recovery')) {
+    return 'border-l-4 border-l-teal-400';
+  }
+  return 'border-l-4 border-l-gray-400';
+};
+
+const getDrillTypeGradientColor = (type: string | undefined) => {
+  if (!type) return 'rgba(156, 163, 175, 0.15)';
+  const lower = type.toLowerCase();
+  
+  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
+    return 'rgba(250, 204, 21, 0.15)';
+  }
+  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
+    return 'rgba(96, 165, 250, 0.15)';
+  }
+  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
+    return 'rgba(192, 132, 252, 0.15)';
+  }
+  if (lower.includes('block')) {
+    return 'rgba(251, 146, 60, 0.15)';
+  }
+  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
+    return 'rgba(244, 114, 182, 0.15)';
+  }
+  if (lower.includes('defense') || lower.includes('defence')) {
+    return 'rgba(148, 163, 184, 0.15)';
+  }
+  if (lower.includes('scrimmage') || lower.includes('game')) {
+    return 'rgba(248, 113, 113, 0.15)';
+  }
+  if (lower.includes('cool') || lower.includes('recovery')) {
+    return 'rgba(45, 212, 191, 0.15)';
+  }
+  return 'rgba(156, 163, 175, 0.15)';
+};
 
 // Droppable time slot component
 function TimelineSlot({ minutes, isActive }: { minutes: number; isActive: boolean }) {
@@ -128,9 +242,17 @@ function TimelineDrillItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-white border-2 border-gray-300 rounded-lg overflow-hidden relative group"
+      className={`bg-white border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type)} rounded-lg overflow-hidden relative group`}
     >
-      <div className="flex items-start gap-3 p-3 h-full">
+      {/* Gradient Overlay */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          background: `linear-gradient(to right, ${getDrillTypeGradientColor(drill.drill.drill_type)} 0%, ${getDrillTypeGradientColor(drill.drill.drill_type)} 30%, transparent 60%, transparent 100%)`
+        }}
+      />
+      
+      <div className="flex items-start gap-3 p-3 h-full relative z-10">
         {/* Drag handle */}
         <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mt-1 flex-shrink-0">
           <GripVertical className="w-5 h-5 text-gray-400" />
@@ -146,15 +268,17 @@ function TimelineDrillItem({
               <h4 className="font-semibold text-gray-900 text-sm">{drill.drill.exercise}</h4>
               <div className="flex flex-wrap gap-1 mt-1">
                 {drill.drill.contact_level && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                  <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded ${getContactBadgeColor(drill.drill.contact_level)}`}>
+                    <Shield className="w-3 h-3 mr-1" />
                     {drill.drill.contact_level}
                   </span>
                 )}
-                {drill.drill.type.slice(0, 2).map((t) => (
-                  <span key={t} className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                    {t}
+                {drill.drill.drill_type && (
+                  <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded ${getDrillTypeBadgeColor(drill.drill.drill_type)}`}>
+                    <Zap className="w-3 h-3 mr-1" />
+                    {drill.drill.drill_type}
                   </span>
-                ))}
+                )}
               </div>
             </div>
 
