@@ -51,6 +51,25 @@ class NotionService:
         elif prop_type == "url":
             return prop_data
         
+        elif prop_type == "rollup":
+            # Handle rollup properties (aggregated data from relations)
+            if prop_data:
+                rollup_type = prop_data.get("type")
+                if rollup_type == "array":
+                    array = prop_data.get("array", [])
+                    if not array:
+                        return None
+                    # Get first item's select name (for single-select rollup)
+                    first_item = array[0]
+                    if first_item.get("type") == "select":
+                        select_obj = first_item.get("select")
+                        return select_obj.get("name") if select_obj else None
+                elif rollup_type == "select":
+                    select_data = prop_data.get("select")
+                    if select_data:
+                        return select_data.get("name")
+            return None
+        
         return None
     
     def _parse_drill(self, page: Dict[str, Any]) -> Drill:
@@ -61,11 +80,11 @@ class NotionService:
             id=page["id"],
             exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
             avg_time=self._parse_property(props.get("Avg Time"), "number"),
-            contact_level=self._parse_property(props.get("Contact Level"), "select"),
+            contact_level=self._parse_property(props.get("Contact Level"), "rollup"),
             depends_on=self._parse_property(props.get("Depends on"), "multi_select") or [],
             description=self._parse_property(props.get("Description"), "rich_text"),
             difficulty=self._parse_property(props.get("Difficulty 1-5"), "number"),
-            drill_type=self._parse_property(props.get("Drill Type"), "select"),
+            drill_type=self._parse_property(props.get("Drill Type"), "rollup"),
             equipment=self._parse_property(props.get("Equipment"), "select"),
             game_type=self._parse_property(props.get("Game Type"), "select"),
             players=self._parse_property(props.get("Players"), "number"),
