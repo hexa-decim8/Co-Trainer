@@ -76,12 +76,17 @@ class NotionService:
         """Parse a Notion page into a Drill model."""
         props = page.get("properties", {})
         
-        # Debug: Check Drill Type specifically
+        # Debug: Check Drill Type specifically - using print so it ALWAYS shows
+        print("\n" + "="*80)
         if "Drill Type" in props:
             drill_type_prop = props["Drill Type"]
-            logger.info(f"Drill Type found - Type: {drill_type_prop.get('type')}, Full structure: {drill_type_prop}")
+            print(f"✓ Drill Type FOUND")
+            print(f"  Type: {drill_type_prop.get('type')}")
+            print(f"  Full structure: {drill_type_prop}")
         else:
-            logger.warning(f"Drill Type NOT FOUND. Available properties: {list(props.keys())}")
+            print(f"✗ Drill Type NOT FOUND")
+            print(f"  Available properties: {list(props.keys())}")
+        print("="*80 + "\n")
         
         return Drill(
             id=page["id"],
