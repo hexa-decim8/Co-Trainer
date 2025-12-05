@@ -17,13 +17,35 @@ export default function RegisterPage() {
     setError('');
 
     // Validation
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    if (!email || !email.trim()) {
+      setError('Email is required');
+      return;
+    }
+
+    // Basic email validation
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailPattern.test(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (!password) {
+      setError('Password is required');
       return;
     }
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    if (password.length > 72) {
+      setError('Password is too long (maximum 72 characters)');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
@@ -89,8 +111,9 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
+                maxLength={72}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="At least 8 characters"
+                placeholder="8-72 characters"
               />
             </div>
 
@@ -104,6 +127,7 @@ export default function RegisterPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={8}
+                maxLength={72}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Re-enter your password"
               />

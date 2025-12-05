@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, validator
 from datetime import datetime
 from enum import Enum
 
@@ -107,6 +107,25 @@ class UserCreate(BaseModel):
     """Model for user registration."""
     email: str
     password: str
+    
+    @validator('email')
+    def validate_email(cls, v):
+        import re
+        if not v or not v.strip():
+            raise ValueError('Email is required')
+        # Basic email validation
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, v):
+            raise ValueError('Invalid email format')
+        return v.strip().lower()
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if not v or len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password is too long (maximum 72 characters)')
+        return v
 
 
 class UserLogin(BaseModel):
