@@ -51,6 +51,14 @@ class NotionService:
         elif prop_type == "url":
             return prop_data
         
+        elif prop_type == "relation":
+            # Handle relation properties (links to other database pages)
+            if prop_data and len(prop_data) > 0:
+                # For now, just return the first relation ID
+                # TODO: Fetch the actual page to get the name/title
+                return prop_data[0].get("id")
+            return None
+        
         elif prop_type == "rollup":
             # Handle rollup properties (aggregated data from relations)
             if prop_data:
@@ -96,7 +104,7 @@ class NotionService:
             depends_on=self._parse_property(props.get("Depends on"), "multi_select") or [],
             description=self._parse_property(props.get("Description"), "rich_text"),
             difficulty=self._parse_property(props.get("Difficulty 1-5"), "number"),
-            drill_type=self._parse_property(props.get("Drill Type"), "rollup"),
+            drill_type=self._parse_property(props.get("Drill Type"), "relation"),
             equipment=self._parse_property(props.get("Equipment"), "select"),
             game_type=self._parse_property(props.get("Game Type"), "select"),
             players=self._parse_property(props.get("Players"), "number"),
