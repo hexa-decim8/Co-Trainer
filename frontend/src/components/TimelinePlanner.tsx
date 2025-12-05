@@ -242,7 +242,7 @@ function TimelineDrillItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type)} rounded-lg overflow-hidden relative group`}
+      className={`bg-white dark:bg-gray-800 border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type)} rounded-lg overflow-hidden relative group`}
     >
       {/* Gradient Overlay */}
       <div 
@@ -259,17 +259,17 @@ function TimelineDrillItem({
           {...listeners} 
           className="cursor-grab active:cursor-grabbing mt-1 flex-shrink-0 relative z-20 touch-none"
         >
-          <GripVertical className="w-5 h-5 text-gray-400" />
+          <GripVertical className="w-5 h-5 text-gray-400 dark:text-gray-500" />
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col relative z-10">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <div className="text-xs text-gray-500 mb-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                 {formatTime(drill.startTime)} - {formatTime(drill.startTime + drill.duration)}
               </div>
-              <h4 className="font-semibold text-gray-900 text-sm">{drill.drill.exercise}</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{drill.drill.exercise}</h4>
               <div className="flex flex-wrap gap-1 mt-1">
                 {drill.drill.contact_level && (
                   <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded ${getContactBadgeColor(drill.drill.contact_level)}`}>
@@ -288,14 +288,14 @@ function TimelineDrillItem({
 
             <button
               onClick={onRemove}
-              className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
+              className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0 ml-2"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
 
           {/* Duration indicator */}
-          <div className="mt-auto pt-2 text-xs text-gray-600 font-medium">
+          <div className="mt-auto pt-2 text-xs text-gray-600 dark:text-gray-400 font-medium">
             {drill.duration} minutes
           </div>
         </div>
@@ -337,21 +337,21 @@ export default function TimelinePlanner({
   const isOverTime = totalDuration > PRACTICE_DURATION;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Practice Timeline</h2>
-            <p className="text-sm text-gray-600 mt-1 capitalize">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Practice Timeline</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 capitalize">
               {practiceType.replace('_', ' & ')}
             </p>
           </div>
           <div className="text-right">
-            <div className={`text-2xl font-bold ${isOverTime ? 'text-red-600' : 'text-gray-900'}`}>
+            <div className={`text-2xl font-bold ${isOverTime ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
               {totalDuration} / {PRACTICE_DURATION} min
             </div>
-            <div className={`text-sm ${isOverTime ? 'text-red-600' : 'text-gray-600'}`}>
+            <div className={`text-sm ${isOverTime ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
               {isOverTime ? `${Math.abs(remainingTime)} min over` : `${remainingTime} min remaining`}
             </div>
           </div>
@@ -361,7 +361,7 @@ export default function TimelinePlanner({
       {/* Timeline */}
       <div className="flex-1 overflow-y-auto relative">
         {/* Timeline ruler on left edge */}
-        <div className="absolute left-0 top-0 bottom-0 w-16 bg-gray-50 border-r border-gray-200 z-10">
+        <div className="absolute left-0 top-0 bottom-0 w-16 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-10">
           {Array.from({ length: Math.ceil(PRACTICE_DURATION / 5) + 1 }, (_, i) => {
             const minutes = i * 5;
             if (minutes > PRACTICE_DURATION) return null;
@@ -377,17 +377,17 @@ export default function TimelinePlanner({
               >
                 {isMajor && (
                   <>
-                    <span className="text-xs font-medium text-gray-700 mr-1">
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300 mr-1">
                       {minutes}
                     </span>
-                    <div className="w-3 h-0.5 bg-gray-700" />
+                    <div className="w-3 h-0.5 bg-gray-700 dark:bg-gray-300" />
                   </>
                 )}
                 {isMedium && !isMajor && (
-                  <div className="w-2 h-0.5 bg-gray-400" />
+                  <div className="w-2 h-0.5 bg-gray-400 dark:bg-gray-500" />
                 )}
                 {!isMajor && !isMedium && (
-                  <div className="w-1.5 h-0.5 bg-gray-300" />
+                  <div className="w-1.5 h-0.5 bg-gray-300 dark:bg-gray-600" />
                 )}
               </div>
             );
