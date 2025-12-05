@@ -62,8 +62,8 @@ class PracticePlanDB(Base):
     clone_count = Column(Integer, default=0, nullable=False)
     
     # Relationships
-    user = relationship("UserDB", back_populates="practice_plans", foreign_keys=[user_id], overlaps="created_by_user")
-    created_by_user = relationship("UserDB", foreign_keys=[cloned_from_user_id], overlaps="user")
+    user = relationship("UserDB", back_populates="practice_plans", foreign_keys=[user_id])
+    created_by_user = relationship("UserDB", foreign_keys=[cloned_from_user_id], viewonly=True)
 
 
 class DrillCache(Base):

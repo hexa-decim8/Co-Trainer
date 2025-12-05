@@ -661,6 +661,7 @@ async def create_plan(
         is_public=db_plan.is_public,
         total_duration=total_duration,
         drill_count=len(timeline_data),
+        clone_count=db_plan.clone_count,
         created_at=db_plan.created_at,
         updated_at=db_plan.updated_at
     )
@@ -845,6 +846,7 @@ async def update_plan(
         is_public=db_plan.is_public,
         total_duration=total_duration,
         drill_count=len(timeline_data),
+        clone_count=db_plan.clone_count,
         created_at=db_plan.created_at,
         updated_at=db_plan.updated_at
     )
