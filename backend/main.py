@@ -179,6 +179,7 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
             email=db_user.email,
             derby_name=db_user.derby_name,
             role=db_user.role,
+            dark_mode=db_user.dark_mode,
             created_at=db_user.created_at
         )
     )
