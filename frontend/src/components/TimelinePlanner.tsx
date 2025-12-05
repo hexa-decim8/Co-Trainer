@@ -46,10 +46,10 @@ const getContactColor = (level: string | undefined) => {
 const getContactBadgeColor = (level: string | undefined) => {
   if (!level) return 'bg-gray-100 text-gray-700';
   const lower = level.toLowerCase();
-  if (lower.includes('no') || lower.includes('none')) return 'bg-green-100 text-green-800';
-  if (lower.includes('light') || lower.includes('some')) return 'bg-amber-100 text-amber-800';
-  if (lower.includes('medium')) return 'bg-orange-100 text-orange-800';
-  if (lower.includes('full')) return 'bg-red-100 text-red-800';
+  if (lower.includes('no') || lower.includes('none')) return 'bg-green-100 text-green-800 ring-2 ring-green-500/20';
+  if (lower.includes('light') || lower.includes('some')) return 'bg-amber-100 text-amber-800 ring-2 ring-amber-500/20';
+  if (lower.includes('medium')) return 'bg-orange-100 text-orange-800 ring-2 ring-orange-500/20';
+  if (lower.includes('full')) return 'bg-red-100 text-red-800 ring-2 ring-red-500/20';
   return 'bg-gray-100 text-gray-700';
 };
 
@@ -58,28 +58,28 @@ const getDrillTypeBadgeColor = (type: string | undefined) => {
   const lower = type.toLowerCase();
   
   if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
-    return 'bg-yellow-100 text-yellow-800';
+    return 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-500/20';
   }
   if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
-    return 'bg-blue-100 text-blue-800';
+    return 'bg-blue-100 text-blue-800 ring-2 ring-blue-500/20';
   }
   if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
-    return 'bg-purple-100 text-purple-800';
+    return 'bg-purple-100 text-purple-800 ring-2 ring-purple-500/20';
   }
   if (lower.includes('block')) {
-    return 'bg-orange-100 text-orange-800';
+    return 'bg-orange-100 text-orange-800 ring-2 ring-orange-500/20';
   }
   if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
-    return 'bg-pink-100 text-pink-800';
+    return 'bg-pink-100 text-pink-800 ring-2 ring-pink-500/20';
   }
   if (lower.includes('defense') || lower.includes('defence')) {
-    return 'bg-slate-100 text-slate-800';
+    return 'bg-slate-100 text-slate-800 ring-2 ring-slate-500/20';
   }
   if (lower.includes('scrimmage') || lower.includes('game')) {
-    return 'bg-red-100 text-red-800';
+    return 'bg-red-100 text-red-800 ring-2 ring-red-500/20';
   }
   if (lower.includes('cool') || lower.includes('recovery')) {
-    return 'bg-teal-100 text-teal-800';
+    return 'bg-teal-100 text-teal-800 ring-2 ring-teal-500/20';
   }
   return 'bg-gray-100 text-gray-700';
 };
@@ -254,12 +254,16 @@ function TimelineDrillItem({
       
       <div className="flex items-start gap-3 p-3 h-full relative z-10">
         {/* Drag handle */}
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mt-1 flex-shrink-0">
+        <div 
+          {...attributes} 
+          {...listeners} 
+          className="cursor-grab active:cursor-grabbing mt-1 flex-shrink-0 relative z-20 touch-none"
+        >
           <GripVertical className="w-5 h-5 text-gray-400" />
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col relative z-10">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="text-xs text-gray-500 mb-1">

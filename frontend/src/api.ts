@@ -13,6 +13,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,  // Include cookies in all requests
 });
 
 // Add authentication token to requests
@@ -24,15 +25,38 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 unauthorized responses
+// Handle 401 unauthorized responses with auto-refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Don't retry the refresh endpoint itself or already retried requests
+    if (error.response?.status === 401 && 
+        !originalRequest._retry && 
+        !originalRequest.url?.includes('/auth/refresh')) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        const { data } = await axios.post('/api/auth/refresh', {}, {
+          withCredentials: true
+        });
+        
+        // Update stored token
+        localStorage.setItem('auth_token', data.access_token);
+        
+        // Retry original request with new token
+        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        return axios(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
     }
+    
     return Promise.reject(error);
   }
 );

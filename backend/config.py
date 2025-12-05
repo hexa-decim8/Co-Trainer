@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./cotrainer.db"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    secret_key: str = secrets.token_urlsafe(32)  # JWT signing key
+    secret_key: str = ""  # JWT signing key - will be loaded or generated
     
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -22,13 +22,29 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Load persisted credentials on startup
+# Load or generate JWT secret key
 try:
     from secure_config import secure_config
     saved_creds = secure_config.load_credentials()
+    
+    # Load JWT secret key or generate if missing
+    if saved_creds.get("jwt_secret_key"):
+        settings.secret_key = saved_creds["jwt_secret_key"]
+    else:
+        # Generate new secret key and save it
+        settings.secret_key = secrets.token_urlsafe(32)
+        secure_config.save_credentials(
+            notion_api_key=saved_creds.get("notion_api_key") or "",
+            notion_database_id=saved_creds.get("notion_database_id") or "",
+            jwt_secret_key=settings.secret_key
+        )
+    
+    # Load Notion credentials
     if saved_creds.get("notion_api_key"):
         settings.notion_api_key = saved_creds["notion_api_key"]
     if saved_creds.get("notion_database_id"):
         settings.notion_database_id = saved_creds["notion_database_id"]
 except Exception:
-    pass  # If secure_config not available yet, skip
+    # If secure_config not available yet, generate temporary key
+    if not settings.secret_key:
+        settings.secret_key = secrets.token_urlsafe(32)
