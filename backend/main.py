@@ -1,21 +1,27 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
 import json
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from notion_client import Client
 
 from config import settings
-from database import get_db, init_db
+from database import get_db, init_db, UserDB
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
-    PracticePlanSummary, PracticePlanWithDrills, PracticeType
+    PracticePlanSummary, PracticePlanWithDrills, PracticeType,
+    UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange
 )
 from notion_service import notion_service
 from database import PracticePlanDB
+from auth import (
+    get_password_hash, authenticate_user, create_access_token,
+    get_current_user, verify_password
+)
 
 app = FastAPI(title="Co-Trainer API", version="1.0.0")
 
@@ -113,6 +119,131 @@ async def test_notion_connection():
         )
 
 
+# ============================================================================
+# Authentication Endpoints
+# ============================================================================
+
+@app.post("/api/auth/register", response_model=Token)
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user."""
+    # Check if user already exists
+    existing_user = db.query(UserDB).filter(UserDB.email == user_data.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create new user
+    hashed_password = get_password_hash(user_data.password)
+    db_user = UserDB(
+        email=user_data.email,
+        hashed_password=hashed_password
+    )
+    
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    # Create access token
+    access_token = create_access_token(data={"sub": db_user.email})
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=db_user.id,
+            email=db_user.email,
+            username=db_user.username,
+            derby_name=db_user.derby_name,
+            created_at=db_user.created_at
+        )
+    )
+
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Login with email and password."""
+    user = authenticate_user(db, form_data.username, form_data.password)  # username field contains email
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(data={"sub": user.email})
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            username=user.username,
+            derby_name=user.derby_name,
+            created_at=user.created_at
+        )
+    )
+
+
+@app.get("/api/auth/me", response_model=UserResponse)
+async def get_current_user_info(current_user: UserDB = Depends(get_current_user)):
+    """Get current authenticated user information."""
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        derby_name=current_user.derby_name,
+        created_at=current_user.created_at
+    )
+
+
+@app.put("/api/auth/profile", response_model=UserResponse)
+async def update_profile(
+    profile_data: UserUpdate,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user profile information."""
+    if profile_data.username is not None:
+        current_user.username = profile_data.username
+    if profile_data.derby_name is not None:
+        current_user.derby_name = profile_data.derby_name
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        derby_name=current_user.derby_name,
+        created_at=current_user.created_at
+    )
+
+
+@app.post("/api/auth/change-password")
+async def change_password(
+    password_data: PasswordChange,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Change user password."""
+    # Verify current password
+    if not verify_password(password_data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+    
+    # Update password
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+    
+    return {"success": True, "message": "Password updated successfully"}
+
+
 @app.get("/api/drills", response_model=List[Drill])
 async def get_drills(
     search: Optional[str] = Query(None),
@@ -126,6 +257,7 @@ async def get_drills(
     type_filter: Optional[List[str]] = Query(None, alias="type"),
     force_sync: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
 ):
     """
     Get all drills with optional filtering.
@@ -191,7 +323,10 @@ async def get_drills(
 
 
 @app.post("/api/drills/sync")
-async def sync_drills(db: Session = Depends(get_db)):
+async def sync_drills(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Force sync drills from Notion."""
     try:
         drills = await notion_service.get_all_drills(db=db, force_sync=True)
@@ -206,14 +341,17 @@ async def sync_drills(db: Session = Depends(get_db)):
 
 
 @app.get("/api/drills/cache-info")
-async def get_cache_info(db: Session = Depends(get_db)):
+async def get_cache_info(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Get information about the drill cache."""
     from drill_cache import drill_cache_manager
     return drill_cache_manager.get_cache_info(db)
 
 
 @app.get("/api/filter-options", response_model=FilterOptions)
-async def get_filter_options():
+async def get_filter_options(current_user: UserDB = Depends(get_current_user)):
     """Get all available filter options from drills."""
     drills = await notion_service.get_all_drills()
     
@@ -256,9 +394,14 @@ async def get_filter_options():
 
 
 @app.post("/api/plans", response_model=PracticePlanSummary)
-async def create_plan(plan: PracticePlan, db: Session = Depends(get_db)):
+async def create_plan(
+    plan: PracticePlan,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Create a new practice plan."""
     db_plan = PracticePlanDB(
+        user_id=current_user.id,
         name=plan.name,
         date=plan.date,
         practice_type=plan.practice_type.value,
@@ -291,10 +434,11 @@ async def create_plan(plan: PracticePlan, db: Session = Depends(get_db)):
 @app.get("/api/plans", response_model=List[PracticePlanSummary])
 async def list_plans(
     is_template: Optional[bool] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
 ):
     """List all practice plans with optional template filter."""
-    query = db.query(PracticePlanDB)
+    query = db.query(PracticePlanDB).filter(PracticePlanDB.user_id == current_user.id)
     
     if is_template is not None:
         query = query.filter(PracticePlanDB.is_template == is_template)
@@ -372,9 +516,17 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/api/plans/{plan_id}", response_model=PracticePlanSummary)
-async def update_plan(plan_id: int, plan: PracticePlan, db: Session = Depends(get_db)):
+async def update_plan(
+    plan_id: int,
+    plan: PracticePlan,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Update an existing practice plan."""
-    db_plan = db.query(PracticePlanDB).filter(PracticePlanDB.id == plan_id).first()
+    db_plan = db.query(PracticePlanDB).filter(
+        PracticePlanDB.id == plan_id,
+        PracticePlanDB.user_id == current_user.id
+    ).first()
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -407,9 +559,17 @@ async def update_plan(plan_id: int, plan: PracticePlan, db: Session = Depends(ge
 
 
 @app.patch("/api/plans/{plan_id}/rename")
-async def rename_plan(plan_id: int, new_name: str, db: Session = Depends(get_db)):
+async def rename_plan(
+    plan_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Rename a practice plan."""
-    db_plan = db.query(PracticePlanDB).filter(PracticePlanDB.id == plan_id).first()
+    db_plan = db.query(PracticePlanDB).filter(
+        PracticePlanDB.id == plan_id,
+        PracticePlanDB.user_id == current_user.id
+    ).first()
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -423,9 +583,16 @@ async def rename_plan(plan_id: int, new_name: str, db: Session = Depends(get_db)
 
 
 @app.delete("/api/plans/{plan_id}")
-async def delete_plan(plan_id: int, db: Session = Depends(get_db)):
+async def delete_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Delete a practice plan."""
-    db_plan = db.query(PracticePlanDB).filter(PracticePlanDB.id == plan_id).first()
+    db_plan = db.query(PracticePlanDB).filter(
+        PracticePlanDB.id == plan_id,
+        PracticePlanDB.user_id == current_user.id
+    ).first()
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -437,9 +604,12 @@ async def delete_plan(plan_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/templates", response_model=List[PracticePlanSummary])
-async def list_templates(db: Session = Depends(get_db)):
+async def list_templates(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """List all practice plan templates."""
-    return await list_plans(is_template=True, db=db)
+    return await list_plans(is_template=True, db=db, current_user=current_user)
 
 
 if __name__ == "__main__":

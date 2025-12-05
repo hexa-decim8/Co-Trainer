@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, validator
 from datetime import datetime
 from enum import Enum
 
@@ -100,3 +100,62 @@ class PracticePlanWithDrills(BaseModel):
     total_duration: int
     created_at: datetime
     updated_at: datetime
+
+
+# Authentication Models
+class UserCreate(BaseModel):
+    """Model for user registration."""
+    email: str
+    password: str
+    
+    @validator('email')
+    def validate_email(cls, v):
+        import re
+        if not v or not v.strip():
+            raise ValueError('Email is required')
+        # Basic email validation
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, v):
+            raise ValueError('Invalid email format')
+        return v.strip().lower()
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if not v or len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        # No upper limit with argon2
+        return v
+
+
+class UserLogin(BaseModel):
+    """Model for user login."""
+    email: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    """Model for user data returned to client (no password)."""
+    id: int
+    email: str
+    username: Optional[str] = None
+    derby_name: Optional[str] = None
+    created_at: datetime
+
+
+class Token(BaseModel):
+    """JWT token response."""
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+
+class UserUpdate(BaseModel):
+    """Model for updating user profile."""
+    username: Optional[str] = None
+    derby_name: Optional[str] = None
+
+
+class PasswordChange(BaseModel):
+    """Model for changing password."""
+    current_password: str
+    new_password: str
