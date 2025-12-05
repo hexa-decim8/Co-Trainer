@@ -130,6 +130,21 @@ export default function DrillCard({ drill }: DrillCardProps) {
     data: drill,
   });
 
+  // Debug logging - log 5% of drills to check data
+  if (Math.random() < 0.05) {
+    console.log('DrillCard Debug:', {
+      exercise: drill.exercise,
+      contact_level: drill.contact_level,
+      drill_type: drill.drill_type,
+      has_contact: !!drill.contact_level,
+      has_drill_type: !!drill.drill_type,
+      contact_color: getContactColor(drill.contact_level),
+      contact_badge: getContactBadgeColor(drill.contact_level),
+      drill_type_border: getDrillTypeBorderColor(drill.drill_type),
+      drill_type_badge: getDrillTypeBadgeColor(drill.drill_type),
+    });
+  }
+
   return (
     <div
       ref={setNodeRef}
