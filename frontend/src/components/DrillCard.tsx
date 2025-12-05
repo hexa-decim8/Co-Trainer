@@ -27,6 +27,102 @@ const getContactBadgeColor = (level: string | undefined) => {
   return 'bg-gray-100 text-gray-700';
 };
 
+const getDrillTypeBadgeColor = (type: string | undefined) => {
+  if (!type) return 'bg-indigo-100 text-indigo-800';
+  const lower = type.toLowerCase();
+  
+  // Warm-up / Conditioning
+  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
+    return 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-500/20';
+  }
+  
+  // Skills / Technique / Drills
+  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
+    return 'bg-blue-100 text-blue-800 ring-2 ring-blue-500/20';
+  }
+  
+  // Strategy / Tactics / Game Play
+  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
+    return 'bg-purple-100 text-purple-800 ring-2 ring-purple-500/20';
+  }
+  
+  // Blocking
+  if (lower.includes('block')) {
+    return 'bg-orange-100 text-orange-800 ring-2 ring-orange-500/20';
+  }
+  
+  // Jamming / Offense
+  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
+    return 'bg-pink-100 text-pink-800 ring-2 ring-pink-500/20';
+  }
+  
+  // Defense
+  if (lower.includes('defense') || lower.includes('defence')) {
+    return 'bg-slate-100 text-slate-800 ring-2 ring-slate-500/20';
+  }
+  
+  // Scrimmage / Game
+  if (lower.includes('scrimmage') || lower.includes('game')) {
+    return 'bg-red-100 text-red-800 ring-2 ring-red-500/20';
+  }
+  
+  // Cool Down
+  if (lower.includes('cool') || lower.includes('recovery')) {
+    return 'bg-teal-100 text-teal-800 ring-2 ring-teal-500/20';
+  }
+  
+  // Default fallback - gray for unknown types
+  return 'bg-gray-100 text-gray-700';
+};
+
+const getDrillTypeBorderColor = (type: string | undefined) => {
+  if (!type) return '';
+  const lower = type.toLowerCase();
+  
+  // Warm-up / Conditioning
+  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
+    return 'border-l-4 border-l-yellow-400';
+  }
+  
+  // Skills / Technique / Drills
+  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
+    return 'border-l-4 border-l-blue-400';
+  }
+  
+  // Strategy / Tactics / Game Play
+  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
+    return 'border-l-4 border-l-purple-400';
+  }
+  
+  // Blocking
+  if (lower.includes('block')) {
+    return 'border-l-4 border-l-orange-400';
+  }
+  
+  // Jamming / Offense
+  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
+    return 'border-l-4 border-l-pink-400';
+  }
+  
+  // Defense
+  if (lower.includes('defense') || lower.includes('defence')) {
+    return 'border-l-4 border-l-slate-400';
+  }
+  
+  // Scrimmage / Game
+  if (lower.includes('scrimmage') || lower.includes('game')) {
+    return 'border-l-4 border-l-red-400';
+  }
+  
+  // Cool Down
+  if (lower.includes('cool') || lower.includes('recovery')) {
+    return 'border-l-4 border-l-teal-400';
+  }
+  
+  // Default fallback - gray for unknown types
+  return 'border-l-4 border-l-gray-400';
+};
+
 export default function DrillCard({ drill }: DrillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -38,7 +134,7 @@ export default function DrillCard({ drill }: DrillCardProps) {
     <div
       ref={setNodeRef}
       {...attributes}
-      className={`card-derby ${getContactColor(drill.contact_level)} transition-all duration-200 flex overflow-hidden ${
+      className={`card-derby ${getContactColor(drill.contact_level)} ${getDrillTypeBorderColor(drill.drill_type)} transition-all duration-200 flex overflow-hidden ${
         isDragging ? 'opacity-20 scale-105 rotate-2' : 'hover:scale-102 hover:-translate-y-1'
       }`}
     >
@@ -98,7 +194,7 @@ export default function DrillCard({ drill }: DrillCardProps) {
         {(drill.drill_type || drill.equipment) && (
           <div className="flex flex-wrap gap-2 mb-3">
             {drill.drill_type && (
-              <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800">
+              <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getDrillTypeBadgeColor(drill.drill_type)}`}>
                 <Zap className="w-3 h-3 mr-1" />
                 {drill.drill_type}
               </span>
