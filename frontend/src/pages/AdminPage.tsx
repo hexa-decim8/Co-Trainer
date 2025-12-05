@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, Trash2, Key, X } from 'lucide-react';
+import { Users, Shield, Trash2, Key, X, RefreshCw } from 'lucide-react';
 import api from '../api';
 
 interface User {
@@ -73,6 +73,14 @@ export default function AdminPage() {
     },
   });
 
+  // Clear cache mutation
+  const clearCacheMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/drills/sync');
+      return response.data;
+    },
+  });
+
   const openRoleModal = (user: User) => {
     setSelectedUser(user);
     setNewRole(user.role);
@@ -129,10 +137,30 @@ export default function AdminPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Shield className="w-8 h-8 text-primary-600" />
-          <h1 className="text-3xl font-display font-bold text-gray-900">Admin Panel</h1>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Shield className="w-8 h-8 text-primary-600" />
+            <h1 className="text-3xl font-display font-bold text-gray-900">Admin Panel</h1>
+          </div>
+          <button
+            onClick={() => clearCacheMutation.mutate()}
+            disabled={clearCacheMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${clearCacheMutation.isPending ? 'animate-spin' : ''}`} />
+            {clearCacheMutation.isPending ? 'Clearing...' : 'Clear Drill Cache'}
+          </button>
         </div>
+        {clearCacheMutation.isSuccess && (
+          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+            Cache cleared! Drills resynced from Notion.
+          </div>
+        )}
+        {clearCacheMutation.isError && (
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            Failed to clear cache. Please try again.
+          </div>
+        )}
         <p className="text-gray-600">Manage users, roles, and permissions</p>
       </div>
 
