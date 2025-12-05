@@ -7,6 +7,7 @@ interface User {
   email: string;
   derby_name?: string;
   role: string;
+  dark_mode?: boolean;
   created_at: string;
 }
 
@@ -16,7 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (data: { derby_name?: string }) => Promise<void>;
+  updateProfile: (data: { derby_name?: string; dark_mode?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
