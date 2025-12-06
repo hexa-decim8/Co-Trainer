@@ -272,13 +272,13 @@ function TimelineDrillItem({
               <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{drill.drill.exercise}</h4>
               <div className="flex flex-wrap gap-1 mt-1">
                 {drill.drill.contact_level && (
-                  <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded ${getContactBadgeColor(drill.drill.contact_level)}`}>
+                  <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(drill.drill.contact_level)}`}>
                     <Shield className="w-3 h-3 mr-1" />
                     {drill.drill.contact_level}
                   </span>
                 )}
                 {drill.drill.drill_type && (
-                  <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded ${getDrillTypeBadgeColor(drill.drill.drill_type)}`}>
+                  <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getDrillTypeBadgeColor(drill.drill.drill_type)}`}>
                     <Zap className="w-3 h-3 mr-1" />
                     {drill.drill.drill_type}
                   </span>
