@@ -196,11 +196,11 @@ export default function AdminPage() {
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'admin':
-        return 'bg-red-100 text-red-800 border-red-300';
+        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-300 dark:border-red-700';
       case 'coach':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+        return 'bg-gray-100 dark:bg-gray-700/50 text-gray-800 dark:text-gray-300 border-gray-300 dark:border-gray-600';
     }
   };
 
@@ -225,8 +225,8 @@ export default function AdminPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-primary-600" />
-            <h1 className="text-3xl font-display font-bold text-gray-900">Admin Panel</h1>
+            <Shield className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+            <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-gray-100">Admin Panel</h1>
           </div>
           <button
             onClick={() => clearCacheMutation.mutate()}
@@ -238,21 +238,21 @@ export default function AdminPage() {
           </button>
         </div>
         {clearCacheMutation.isSuccess && (
-          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+          <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
             Cache cleared! Drills resynced from Notion.
           </div>
         )}
         {clearCacheMutation.isError && (
-          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+          <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
             Failed to clear cache. Please try again.
           </div>
         )}
-        <p className="text-gray-600">Manage users, roles, and permissions</p>
+        <p className="text-gray-600 dark:text-gray-400">Manage users, roles, and permissions</p>
       </div>
 
       {/* Notion Configuration Section */}
-      <div className="mb-8 bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Notion Integration</h2>
+      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Notion Integration</h2>
 
         {/* Current Status */}
         <div className="mb-6">
@@ -268,8 +268,8 @@ export default function AdminPage() {
             </div>
           )}
           {settings?.notion_database_id && (
-            <p className="text-sm text-gray-600 mt-2">
-              Database ID: <code className="bg-gray-100 px-2 py-1 rounded">{settings.notion_database_id}</code>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Database ID: <code className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded">{settings.notion_database_id}</code>
             </p>
           )}
         </div>
@@ -286,7 +286,7 @@ export default function AdminPage() {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Notion API Key (Integration Token)
             </label>
             <input
@@ -294,15 +294,15 @@ export default function AdminPage() {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="secret_xxxxxxxxxxxxx"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Get your integration token from{' '}
               <a
                 href="https://www.notion.so/my-integrations"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-600 hover:underline"
+                className="text-primary-600 dark:text-primary-400 hover:underline"
               >
                 notion.so/my-integrations
               </a>
@@ -310,7 +310,7 @@ export default function AdminPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Notion Database ID
             </label>
             <input
@@ -318,9 +318,9 @@ export default function AdminPage() {
               value={databaseId}
               onChange={(e) => setDatabaseId(e.target.value)}
               placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Find the database ID in your Notion database URL after the workspace name
             </p>
           </div>
@@ -348,9 +348,9 @@ export default function AdminPage() {
         </div>
 
         {/* Instructions */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">Setup Instructions:</h3>
-          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Setup Instructions:</h3>
+          <ol className="text-sm text-blue-800 dark:text-blue-300 space-y-1 list-decimal list-inside">
             <li>Go to notion.so/my-integrations and create a new integration</li>
             <li>Copy the "Internal Integration Token"</li>
             <li>Open your Notion database and click "•••" → "Add connections" → Select your integration</li>
@@ -361,43 +361,43 @@ export default function AdminPage() {
       </div>
 
       {/* User Management Section */}
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">User Management</h2>
+      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">User Management</h2>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-900/50">ark:bg-gray-900/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Joined
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {users?.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Users className="w-5 h-5 text-gray-400 mr-2" />
-                      <div className="text-sm font-medium text-gray-900">
+                      <Users className="w-5 h-5 text-gray-400 dark:text-gray-500 mr-2" />
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {user.derby_name || 'No name set'}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{user.email}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">{user.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
@@ -408,27 +408,27 @@ export default function AdminPage() {
                       {user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                     {new Date(user.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => openRoleModal(user)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
                       title="Change role"
                     >
                       <Shield className="w-4 h-4 inline" />
                     </button>
                     <button
                       onClick={() => openPasswordModal(user)}
-                      className="text-green-600 hover:text-green-900 mr-3"
+                      className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 mr-3"
                       title="Reset password"
                     >
                       <Key className="w-4 h-4 inline" />
                     </button>
                     <button
                       onClick={() => openDeleteModal(user)}
-                      className="text-red-600 hover:text-red-900"
+                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
                       title="Delete user"
                     >
                       <Trash2 className="w-4 h-4 inline" />
@@ -444,14 +444,14 @@ export default function AdminPage() {
       {/* Role Update Modal */}
       {showRoleModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Change User Role</h2>
-              <button onClick={() => setShowRoleModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Change User Role</h2>
+              <button onClick={() => setShowRoleModal(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Update role for {selectedUser.derby_name || selectedUser.email}
             </p>
             <div className="space-y-3 mb-6">
@@ -465,7 +465,7 @@ export default function AdminPage() {
                   disabled={isOnlyAdmin(selectedUser)}
                   className="mr-2"
                 />
-                <span className="text-sm font-medium">User</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">User</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -477,7 +477,7 @@ export default function AdminPage() {
                   disabled={isOnlyAdmin(selectedUser)}
                   className="mr-2"
                 />
-                <span className="text-sm font-medium">Coach</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Coach</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -488,23 +488,23 @@ export default function AdminPage() {
                   onChange={(e) => setNewRole(e.target.value)}
                   className="mr-2"
                 />
-                <span className="text-sm font-medium">Admin</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Admin</span>
               </label>
             </div>
             {isOnlyAdmin(selectedUser) && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+              <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-800 dark:text-yellow-400 text-sm">
                 Cannot change role - this is the only admin user
               </div>
             )}
             {updateRoleMutation.isError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
                 {(updateRoleMutation.error as any)?.response?.data?.detail || 'Failed to update role'}
               </div>
             )}
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowRoleModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>
@@ -523,55 +523,55 @@ export default function AdminPage() {
       {/* Password Reset Modal */}
       {showPasswordModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Reset Password</h2>
-              <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Reset Password</h2>
+              <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Set new password for {selectedUser.derby_name || selectedUser.email}
             </p>
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
                   placeholder="Enter new password"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
                   placeholder="Confirm new password"
                 />
               </div>
               {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-sm text-red-600">Passwords do not match</p>
+                <p className="text-sm text-red-600 dark:text-red-400">Passwords do not match</p>
               )}
             </div>
             {resetPasswordMutation.isError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
                 {(resetPasswordMutation.error as any)?.response?.data?.detail || 'Failed to reset password'}
               </div>
             )}
             {resetPasswordMutation.isSuccess && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+              <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
                 Password reset successfully
               </div>
             )}
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowPasswordModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>
@@ -590,26 +590,26 @@ export default function AdminPage() {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Delete User</h2>
-              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Delete User</h2>
+              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-6">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
               Are you sure you want to delete {selectedUser.derby_name || selectedUser.email}?
               This action cannot be undone and will delete all their practice plans.
             </p>
             {deleteUserMutation.isError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
                 {(deleteUserMutation.error as any)?.response?.data?.detail || 'Failed to delete user'}
               </div>
             )}
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>

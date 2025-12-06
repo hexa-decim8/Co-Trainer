@@ -467,11 +467,11 @@ export default function TimelinePlanner({
 
       {/* Equipment summary */}
       {drills.length > 0 && (
-        <div className="bg-white border-t border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Equipment Needed</h3>
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Equipment Needed</h3>
           <div className="flex flex-wrap gap-2">
             {Array.from(new Set(drills.map(d => d.drill.equipment).filter(Boolean))).map((equipment) => (
-              <span key={equipment} className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">
+              <span key={equipment} className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm rounded-full">
                 {equipment}
               </span>
             ))}

@@ -368,7 +368,7 @@ export default function PlannerPage() {
                     setShowSaveDialog(false);
                     setPlanName('');
                   }}
-                  className="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-all"
+                  className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
                 >
                   Cancel
                 </button>

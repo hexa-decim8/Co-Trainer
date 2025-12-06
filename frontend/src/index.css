@@ -80,13 +80,15 @@ body {
   }
   
   .card-derby {
-    @apply bg-white rounded-xl shadow-md hover:shadow-derby-lg 
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-derby-lg 
            transition-all duration-300 border-l-4;
   }
   
   .input-derby {
-    @apply w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg 
-           focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100 
+    @apply w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 
+           bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+           rounded-lg focus:outline-none focus:border-primary-500 focus:ring-4 
+           focus:ring-primary-100 dark:focus:ring-primary-900/50
            transition-all duration-200;
   }
 }
@@ -102,13 +104,25 @@ body {
   border-radius: 5px;
 }
 
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 5px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }
 
 /* Drag and drop feedback */
