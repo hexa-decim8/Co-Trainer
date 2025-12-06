@@ -25,7 +25,7 @@ export default function AdminPage() {
   const [notionMessage, setNotionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch all users
-  const { data: users, isLoading } = useQuery<User[]>({
+  const { data: users, isLoading, error } = useQuery<User[]>({
     queryKey: ['admin', 'users'],
     queryFn: async () => {
       const response = await api.get('/admin/users');
@@ -33,10 +33,12 @@ export default function AdminPage() {
     },
     staleTime: 30 * 1000, // 30 seconds - users don't change frequently in admin view
     gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   // Fetch Notion settings
-  const { data: settings } = useQuery({
+  const { data: settings, error: settingsError } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
       const response = await api.get('/settings');
@@ -44,6 +46,8 @@ export default function AdminPage() {
     },
     staleTime: 60 * 1000, // 1 minute - settings rarely change
     gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnMount: false, // Don't refetch on mount if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   // Update role mutation
@@ -203,7 +207,15 @@ export default function AdminPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading users...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading users...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-red-500">Error loading admin panel: {error instanceof Error ? error.message : 'Unknown error'}</div>
       </div>
     );
   }
