@@ -51,12 +51,16 @@ export default function PlannerPage() {
   const { data: drills = [], isLoading } = useQuery({
     queryKey: ['drills', activeFilters],
     queryFn: () => drillsApi.getAll(activeFilters),
+    staleTime: 5 * 60 * 1000, // 5 minutes - drills don't change often
+    gcTime: 15 * 60 * 1000, // 15 minutes
   });
 
   // Fetch filter options
   const { data: filterOptions } = useQuery({
     queryKey: ['filter-options'],
     queryFn: () => drillsApi.getFilterOptions(),
+    staleTime: 10 * 60 * 1000, // 10 minutes - filter options rarely change
+    gcTime: 30 * 60 * 1000, // 30 minutes
   });
 
   const calculateStartTimes = (drills: Omit<TimelineDrill, 'startTime'>[]): TimelineDrill[] => {
@@ -207,9 +211,10 @@ export default function PlannerPage() {
       alert(isTemplate ? 'Template saved!' : 'Practice plan saved!');
       setShowSaveDialog(false);
       setPlanName('');
-    } catch (error) {
-      alert('Failed to save plan');
-      console.error(error);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
+      alert(errorMessage);
+      console.error('Save plan error:', error);
     }
   };
 
@@ -235,7 +240,7 @@ export default function PlannerPage() {
       onDragCancel={handleDragCancel} 
       collisionDetection={rectIntersection}
     >
-      <div className="h-[calc(100vh-5rem)] flex gap-1">
+      <div className="h-[calc(100vh-5rem)] flex gap-1 dark:bg-gray-900">
         {/* Left: Filters */}
         <div className="w-80 flex-shrink-0">
           {filterOptions && (
@@ -249,25 +254,25 @@ export default function PlannerPage() {
         </div>
 
         {/* Middle: Drill Browser */}
-        <div className="flex-1 flex flex-col bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
           <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6">
             <h2 className="text-2xl font-display font-bold tracking-wide">DRILL LIBRARY</h2>
             <p className="text-gray-300 text-sm mt-1">Drag drills to your timeline →</p>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white">
+          <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
             {isLoading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                  <div className="text-gray-600 font-semibold">Loading drills...</div>
+                  <div className="text-gray-600 dark:text-gray-400 font-semibold">Loading drills...</div>
                 </div>
               </div>
             ) : drills.length === 0 ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center max-w-md">
                   <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">No Drills Found</h3>
-                  <p className="text-gray-600">Try adjusting your filters to see more drills</p>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see more drills</p>
                 </div>
               </div>
             ) : (
@@ -288,8 +293,8 @@ export default function PlannerPage() {
         {/* Right: Timeline */}
         <div className="w-[28rem] flex-shrink-0 flex flex-col gap-1">
           {/* Practice Type Selector */}
-          <div className="bg-white shadow-md rounded-lg p-6">
-            <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
+          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+            <label className="block text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-3">
               Practice Type
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -300,7 +305,7 @@ export default function PlannerPage() {
                   className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                     practiceType === type
                       ? `${getPracticeTypeColor(type)} text-white shadow-lg scale-105`
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   {getPracticeTypeLabel(type)}
@@ -324,7 +329,7 @@ export default function PlannerPage() {
           </div>
 
           {/* Save buttons */}
-          <div className="bg-white shadow-md rounded-lg p-6">
+          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
             {!showSaveDialog ? (
               <button
                 onClick={() => setShowSaveDialog(true)}
@@ -363,7 +368,7 @@ export default function PlannerPage() {
                     setShowSaveDialog(false);
                     setPlanName('');
                   }}
-                  className="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-all"
+                  className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
                 >
                   Cancel
                 </button>

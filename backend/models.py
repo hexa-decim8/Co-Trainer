@@ -69,10 +69,29 @@ class PracticePlan(BaseModel):
     date: Optional[datetime] = None
     practice_type: PracticeType
     is_template: bool = False
+    is_public: bool = False
     notes: Optional[str] = None
     timeline: List[TimelineItem]
+    original_plan_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Plan name is required')
+        v = v.strip()
+        if len(v) > 200:
+            raise ValueError('Plan name must be 200 characters or less')
+        return v
+    
+    @validator('timeline')
+    def validate_timeline(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('Practice plan must have at least one drill')
+        if len(v) > 50:
+            raise ValueError('Practice plan cannot have more than 50 drills')
+        return v
 
 
 class PracticePlanSummary(BaseModel):
@@ -82,8 +101,13 @@ class PracticePlanSummary(BaseModel):
     date: Optional[datetime]
     practice_type: PracticeType
     is_template: bool
+    is_public: bool = False
     total_duration: int
     drill_count: int
+    creator_email: Optional[str] = None
+    creator_derby_name: Optional[str] = None
+    clone_count: int = 0
+    is_cloned_by_user: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -139,6 +163,7 @@ class UserResponse(BaseModel):
     email: str
     derby_name: Optional[str] = None
     role: str = "user"
+    dark_mode: bool = False
     created_at: datetime
 
 
@@ -153,6 +178,7 @@ class Token(BaseModel):
 class UserUpdate(BaseModel):
     """Model for updating user profile."""
     derby_name: Optional[str] = None
+    dark_mode: Optional[bool] = None
 
 
 class PasswordChange(BaseModel):
@@ -177,4 +203,34 @@ class UserListResponse(BaseModel):
     email: str
     derby_name: Optional[str] = None
     role: str
+    dark_mode: bool = False
     created_at: datetime
+
+
+# Library and Sharing Models
+class PaginatedPlansResponse(BaseModel):
+    """Paginated response for practice plans."""
+    items: List[PracticePlanSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class PlanCloneRequest(BaseModel):
+    """Request model for cloning a practice plan."""
+    new_name: str
+    
+    @validator('new_name')
+    def validate_new_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Plan name is required')
+        v = v.strip()
+        if len(v) > 200:
+            raise ValueError('Plan name must be 200 characters or less')
+        return v
+
+
+class PlanVisibilityUpdate(BaseModel):
+    """Request model for updating plan visibility."""
+    is_public: bool
