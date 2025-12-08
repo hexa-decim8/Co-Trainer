@@ -7,7 +7,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Clock, GripVertical, Shield, Zap } from 'lucide-react';
-import type { Drill } from '../types';
+import type { Drill, DrillSection } from '../types';
+import SectionBracket from './SectionBracket';
 
 interface TimelineDrill {
   id: string;
@@ -26,11 +27,13 @@ interface TimelinePlannerProps {
   practiceType: string;
   dropTimeSlot: number | null;
   activeDrill: Drill | null;
+  sections?: DrillSection[];
+  onSectionUpdate?: (sections: DrillSection[]) => void;
 }
 
 const PRACTICE_DURATION = 120; // 2 hours
 const MIN_DURATION = 5;
-const PIXELS_PER_MINUTE = 3; // Visual scaling for timeline
+const PIXELS_PER_MINUTE = 4; // Visual scaling for timeline
 
 // Color coding functions
 const getContactColor = (level: string | undefined) => {
@@ -328,6 +331,8 @@ export default function TimelinePlanner({
   practiceType,
   dropTimeSlot,
   activeDrill,
+  sections = [],
+  onSectionUpdate,
 }: TimelinePlannerProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: 'timeline',
@@ -391,8 +396,42 @@ export default function TimelinePlanner({
                 )}
               </div>
             );
-          })}
+          }))}
         </div>
+
+        {/* Section Brackets */}
+        {onSectionUpdate && sections.map((section) => (
+          <SectionBracket
+            key={section.id}
+            id={section.id}
+            name={section.name}
+            startMinute={section.start_minute}
+            endMinute={section.end_minute}
+            color={section.color}
+            pixelsPerMinute={PIXELS_PER_MINUTE}
+            onUpdateStart={(newStart) => {
+              const updated = sections.map(s => 
+                s.id === section.id ? { ...s, start_minute: newStart } : s
+              );
+              onSectionUpdate(updated);
+            }}
+            onUpdateEnd={(newEnd) => {
+              const updated = sections.map(s => 
+                s.id === section.id ? { ...s, end_minute: newEnd } : s
+              );
+              onSectionUpdate(updated);
+            }}
+            onDelete={() => {
+              onSectionUpdate(sections.filter(s => s.id !== section.id));
+            }}
+            onUpdateName={(newName) => {
+              const updated = sections.map(s => 
+                s.id === section.id ? { ...s, name: newName } : s
+              );
+              onSectionUpdate(updated);
+            }}
+          />
+        ))}
 
         {/* Droppable time slots */}
         <div className="absolute left-0 right-0 top-0 z-5">

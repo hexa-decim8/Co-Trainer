@@ -7,7 +7,7 @@ import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
-import type { Drill, DrillFilters, PracticeType } from '../types';
+import type { Drill, DrillFilters, PracticeType, DrillSection } from '../types';
 
 interface TimelineDrill {
   id: string;
@@ -43,6 +43,8 @@ export default function PlannerPage() {
   };
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
+  const [planDate, setPlanDate] = useState('');
+  const [sections, setSections] = useState<DrillSection[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
@@ -103,6 +105,14 @@ export default function PlannerPage() {
       const drill = active.data.current as Drill;
       const duration = Math.max(10, drill.avg_time || 15);
       
+      // Check if adding this drill would exceed 120 minutes
+      const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
+      if (currentTotal + duration > 120) {
+        alert('Cannot add drill - practice plans are limited to 120 minutes');
+        setActiveDrill(null);
+        return;
+      }
+      
       const newDrill = {
         id: `timeline-${Date.now()}-${Math.random()}`,
         drill,
@@ -140,6 +150,14 @@ export default function PlannerPage() {
         const drill = active.data.current as Drill;
         const duration = Math.max(10, drill.avg_time || 15);
         const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
+        
+        // Check if adding this drill would exceed 120 minutes
+        const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
+        if (currentTotal + duration > 120) {
+          alert('Cannot add drill - practice plans are limited to 120 minutes');
+          setActiveDrill(null);
+          return;
+        }
         
         const newDrill = {
           id: `timeline-${Date.now()}-${Math.random()}`,
@@ -179,6 +197,16 @@ export default function PlannerPage() {
   };
 
   const handleUpdateDuration = (index: number, newDuration: number) => {
+    // Check if new duration would exceed 120 minutes
+    const otherDrillsTotal = timelineDrills.reduce((sum, d, i) => 
+      i === index ? sum : sum + d.duration, 0
+    );
+    
+    if (otherDrillsTotal + newDuration > 120) {
+      alert('Cannot extend drill - would exceed 120-minute limit');
+      return;
+    }
+    
     const updated = [...timelineDrills];
     updated[index] = { ...updated[index], duration: newDuration };
     setTimelineDrills(calculateStartTimes(updated));
@@ -191,6 +219,27 @@ export default function PlannerPage() {
 
   const totalDuration = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
 
+  // Section management functions
+  const handleAddSection = (name: string, startMinute: number, endMinute: number) => {
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+    const newSection: DrillSection = {
+      id: `section-${Date.now()}`,
+      name,
+      start_minute: startMinute,
+      end_minute: endMinute,
+      color: colors[sections.length % colors.length],
+    };
+    setSections([...sections, newSection]);
+  };
+
+  const handleUpdateSection = (id: string, updates: Partial<Omit<DrillSection, 'id'>>) => {
+    setSections(sections.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const handleDeleteSection = (id: string) => {
+    setSections(sections.filter(s => s.id !== id));
+  };
+
   const handleSavePlan = async (isTemplate: boolean) => {
     if (!planName.trim()) {
       alert('Please enter a plan name');
@@ -200,6 +249,7 @@ export default function PlannerPage() {
     try {
       await plansApi.create({
         name: planName,
+        date: planDate || undefined,
         practice_type: practiceType,
         is_template: isTemplate,
         timeline: timelineDrills.map(d => ({
@@ -211,6 +261,7 @@ export default function PlannerPage() {
       alert(isTemplate ? 'Template saved!' : 'Practice plan saved!');
       setShowSaveDialog(false);
       setPlanName('');
+      setPlanDate('');
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
       alert(errorMessage);
@@ -312,6 +363,16 @@ export default function PlannerPage() {
                 </button>
               ))}
             </div>
+            
+            {/* Add Section Button */}
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => handleAddSection('Section', 0, 30)}
+                className="w-full px-3 py-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-200 dark:hover:bg-purple-800 transition-all"
+              >
+                + Add Section Bracket
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
@@ -325,6 +386,8 @@ export default function PlannerPage() {
               practiceType={practiceType}
               dropTimeSlot={dropTimeSlot}
               activeDrill={activeDrill}
+              sections={sections}
+              onSectionUpdate={setSections}
             />
           </div>
 
@@ -349,6 +412,13 @@ export default function PlannerPage() {
                   className="input-derby"
                   autoFocus
                 />
+                <input
+                  type="date"
+                  value={planDate}
+                  onChange={(e) => setPlanDate(e.target.value)}
+                  className="input-derby"
+                  placeholder="Date (optional)"
+                />
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleSavePlan(false)}
@@ -367,6 +437,7 @@ export default function PlannerPage() {
                   onClick={() => {
                     setShowSaveDialog(false);
                     setPlanName('');
+                    setPlanDate('');
                   }}
                   className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
                 >

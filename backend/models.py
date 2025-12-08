@@ -62,6 +62,15 @@ class TimelineItem(BaseModel):
     duration_minutes: int
 
 
+class DrillSection(BaseModel):
+    """A labeled section bracket on the practice timeline."""
+    id: str
+    name: str
+    start_minute: int
+    end_minute: int
+    color: str
+
+
 class PracticePlan(BaseModel):
     """Model for practice plan stored in database."""
     id: Optional[int] = None
