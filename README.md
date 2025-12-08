@@ -97,12 +97,6 @@ deactivate
 pip install package-name
 ```
 
-**Why use a virtual environment?**
-- Avoids conflicts with system Python packages
-- Satisfies PEP 668 externally-managed-environment requirements
-- Each project has its own isolated dependencies
-- Safe to delete and recreate without affecting other projects
-
 ### Notion Integration
 
 1. Create an integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
@@ -141,16 +135,6 @@ npm run dev
 Runs on `http://localhost:3000`
 
 ## Usage
-
-### Planning a Practice
-
-1. Select practice type (Fundamentals/Skills & Drills/Scrimmage)
-2. Filter drills using the sidebar filters
-3. Search for specific drills by name or description
-4. Drag drill cards to the timeline on the right
-5. Adjust durations using +5/-5 minute buttons
-6. Reorder drills by dragging within the timeline
-7. Save as a dated plan or reusable template
 
 ### Mobile View
 
@@ -263,10 +247,6 @@ DATABASE_URL=sqlite:///./cotrainer.db
 - 404 Not Found: Confirm database access permissions
 - Empty results: Check database content and column names match schema
 
-**Build Errors:**
-- Module not found: Run `npm install` in frontend directory
-- Python imports: Activate virtual environment and reinstall dependencies
-
 **Performance:**
 - Backend caches Notion responses
 - Restart backend to clear cache
@@ -283,7 +263,3 @@ Contributions welcome. Please maintain:
 ## License
 
 MIT License
-
-## Support
-
-Submit issues or feature requests on GitHub.
