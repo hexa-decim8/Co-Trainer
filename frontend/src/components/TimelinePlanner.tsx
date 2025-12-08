@@ -396,7 +396,7 @@ export default function TimelinePlanner({
                 )}
               </div>
             );
-          }))}
+          })}
         </div>
 
         {/* Section Brackets */}
