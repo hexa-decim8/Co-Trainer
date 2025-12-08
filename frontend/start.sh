@@ -26,16 +26,9 @@ echo ""
 echo "Setting up backend..."
 cd backend
 
-# Create virtual environment if it doesn'\''t exist
-if [ ! -d "venv" ]; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv venv
-fi
-
-# Activate virtual environment and install dependencies
+# Install dependencies using system pip
 echo "Installing backend dependencies..."
-source venv/bin/activate
-pip install -q -r requirements.txt
+python3 -m pip install -q -r requirements.txt
 
 # Create .env if it doesn'\''t exist
 if [ ! -f ".env" ]; then
@@ -80,8 +73,7 @@ trap cleanup SIGINT SIGTERM
 
 # Start backend in background
 cd backend
-source venv/bin/activate
-python main.py &
+python3 main.py &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
