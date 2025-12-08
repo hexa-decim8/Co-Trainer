@@ -52,11 +52,17 @@ Your Notion database requires the following properties:
 - Node.js 18+
 - Notion account with API access
 
+### Setup
+
 **Backend:**
 
 ```bash
 cd backend
-python3 -m pip install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate  # On macOS/Linux
+# OR
+.\venv\Scripts\Activate  # On Windows
+pip install -r requirements.txt
 ```
 
 **Frontend:**
@@ -65,6 +71,37 @@ python3 -m pip install -r requirements.txt
 cd frontend
 npm install
 ```
+
+### Working with Virtual Environment
+
+The virtual environment isolates project dependencies from your system Python. Here's what you need to know:
+
+**Activating the virtual environment:**
+```bash
+cd backend
+source venv/bin/activate  # macOS/Linux
+# OR
+.\venv\Scripts\Activate  # Windows
+```
+
+When activated, your prompt will show `(venv)` prefix.
+
+**Deactivating:**
+```bash
+deactivate
+```
+
+**Installing new packages:**
+```bash
+# Make sure venv is activated first
+pip install package-name
+```
+
+**Why use a virtual environment?**
+- Avoids conflicts with system Python packages
+- Satisfies PEP 668 externally-managed-environment requirements
+- Each project has its own isolated dependencies
+- Safe to delete and recreate without affecting other projects
 
 ### Notion Integration
 
@@ -88,7 +125,8 @@ npm install
 
 ```bash
 cd backend
-python3 main.py
+source venv/bin/activate  # macOS/Linux - activate venv first
+python main.py
 ```
 
 Runs on `http://localhost:8000`

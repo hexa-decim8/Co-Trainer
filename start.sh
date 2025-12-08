@@ -26,14 +26,31 @@ echo ""
 echo "Setting up backend..."
 cd backend
 
-# Install dependencies using system pip
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo "Creating Python virtual environment..."
+    python3 -m venv venv
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to create virtual environment"
+        echo "  Try: sudo apt install python3-venv python3-full"
+        exit 1
+    fi
+fi
+
+# Install dependencies using venv's pip directly
 echo "Installing backend dependencies..."
-python3 -m pip install --upgrade pip -q
-python3 -m pip install -r requirements.txt
-if [ $? -eq 0 ]; then
-    echo "✓ Dependencies installed successfully"
+if [ -f "venv/bin/pip" ]; then
+    echo "✓ Virtual environment found"
+    ./venv/bin/pip install --upgrade pip -q
+    ./venv/bin/pip install -r requirements.txt
+    if [ $? -eq 0 ]; then
+        echo "✓ Dependencies installed successfully"
+    else
+        echo "✗ Failed to install dependencies"
+        exit 1
+    fi
 else
-    echo "✗ Failed to install dependencies"
+    echo "✗ Virtual environment pip not found"
     exit 1
 fi
 
@@ -111,8 +128,8 @@ trap cleanup SIGINT SIGTERM EXIT
 # Start backend in background
 echo "Starting backend server..."
 cd backend
-# Use system uvicorn
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+# Use the venv's python directly
+./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 cd ..
 
