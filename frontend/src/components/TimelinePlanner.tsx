@@ -400,38 +400,40 @@ export default function TimelinePlanner({
         </div>
 
         {/* Section Brackets */}
-        {onSectionUpdate && sections.map((section) => (
-          <SectionBracket
-            key={section.id}
-            id={section.id}
-            name={section.name}
-            startMinute={section.start_minute}
-            endMinute={section.end_minute}
-            color={section.color}
-            pixelsPerMinute={PIXELS_PER_MINUTE}
-            onUpdateStart={(newStart) => {
-              const updated = sections.map(s => 
-                s.id === section.id ? { ...s, start_minute: newStart } : s
-              );
-              onSectionUpdate(updated);
-            }}
-            onUpdateEnd={(newEnd) => {
-              const updated = sections.map(s => 
-                s.id === section.id ? { ...s, end_minute: newEnd } : s
-              );
-              onSectionUpdate(updated);
-            }}
-            onDelete={() => {
-              onSectionUpdate(sections.filter(s => s.id !== section.id));
-            }}
-            onUpdateName={(newName) => {
-              const updated = sections.map(s => 
-                s.id === section.id ? { ...s, name: newName } : s
-              );
-              onSectionUpdate(updated);
-            }}
-          />
-        ))}
+        <div className="absolute left-0 top-0 bottom-0 z-20 pointer-events-none">
+          {onSectionUpdate && sections.map((section) => (
+            <SectionBracket
+              key={section.id}
+              id={section.id}
+              name={section.name}
+              startMinute={section.start_minute}
+              endMinute={section.end_minute}
+              color={section.color}
+              pixelsPerMinute={PIXELS_PER_MINUTE}
+              onUpdateStart={(newStart) => {
+                const updated = sections.map(s => 
+                  s.id === section.id ? { ...s, start_minute: newStart } : s
+                );
+                onSectionUpdate(updated);
+              }}
+              onUpdateEnd={(newEnd) => {
+                const updated = sections.map(s => 
+                  s.id === section.id ? { ...s, end_minute: newEnd } : s
+                );
+                onSectionUpdate(updated);
+              }}
+              onDelete={() => {
+                onSectionUpdate(sections.filter(s => s.id !== section.id));
+              }}
+              onUpdateName={(newName) => {
+                const updated = sections.map(s => 
+                  s.id === section.id ? { ...s, name: newName } : s
+                );
+                onSectionUpdate(updated);
+              }}
+            />
+          ))}
+        </div>
 
         {/* Droppable time slots */}
         <div className="absolute left-0 right-0 top-0 z-5">

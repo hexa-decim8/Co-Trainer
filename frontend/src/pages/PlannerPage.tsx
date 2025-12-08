@@ -367,7 +367,10 @@ export default function PlannerPage() {
             {/* Add Section Button */}
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
-                onClick={() => handleAddSection('Section', 0, 30)}
+                onClick={() => {
+                  const endTime = Math.max(45, totalDuration);
+                  handleAddSection('New Section', 0, Math.min(endTime, 120));
+                }}
                 className="w-full px-3 py-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-200 dark:hover:bg-purple-800 transition-all"
               >
                 + Add Section Bracket
@@ -404,21 +407,30 @@ export default function PlannerPage() {
               </button>
             ) : (
               <div className="space-y-3">
-                <input
-                  type="text"
-                  value={planName}
-                  onChange={(e) => setPlanName(e.target.value)}
-                  placeholder="Enter plan name..."
-                  className="input-derby"
-                  autoFocus
-                />
-                <input
-                  type="date"
-                  value={planDate}
-                  onChange={(e) => setPlanDate(e.target.value)}
-                  className="input-derby"
-                  placeholder="Date (optional)"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Plan Name
+                  </label>
+                  <input
+                    type="text"
+                    value={planName}
+                    onChange={(e) => setPlanName(e.target.value)}
+                    placeholder="Enter plan name..."
+                    className="input-derby"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Practice Date (optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={planDate}
+                    onChange={(e) => setPlanDate(e.target.value)}
+                    className="input-derby"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleSavePlan(false)}
