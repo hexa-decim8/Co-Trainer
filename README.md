@@ -52,11 +52,11 @@ Your Notion database requires the following properties:
 - Node.js 18+
 - Notion account with API access
 
+**Backend:**
+
 ```bash
 cd backend
-python3 -m venv venv
-source venv/bin/activate  # Windows: .\venv\Scripts\Activate
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 **Frontend:**
@@ -88,8 +88,7 @@ npm install
 
 ```bash
 cd backend
-source venv/bin/activate
-python main.py
+python3 main.py
 ```
 
 Runs on `http://localhost:8000`
