@@ -47,6 +47,14 @@ export interface TimelineItem {
   duration_minutes: number;
 }
 
+export interface DrillSection {
+  id: string;
+  name: string;
+  start_minute: number;
+  end_minute: number;
+  color: string;
+}
+
 export interface PracticePlan {
   id?: number;
   name: string;
