@@ -24,6 +24,8 @@ const dropAnimation = {
   })
 };
 
+const PRACTICE_DURATION = 120; // 2 hours in minutes
+
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
@@ -221,15 +223,49 @@ export default function PlannerPage() {
 
   // Section management functions
   const handleAddSection = (name: string, startMinute: number, endMinute: number) => {
+    // Check maximum bracket limit
+    if (sections.length >= 4) {
+      alert('Maximum of 4 section brackets allowed.');
+      return;
+    }
+    
     const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
-    const newSection: DrillSection = {
-      id: `section-${Date.now()}`,
-      name,
-      start_minute: startMinute,
-      end_minute: endMinute,
-      color: colors[sections.length % colors.length],
+    
+    // Find a non-overlapping position for the new section
+    let proposedStart = startMinute;
+    let proposedEnd = endMinute;
+    
+    // Check for overlaps and adjust position
+    const hasOverlap = () => {
+      return sections.some(section => 
+        (proposedStart >= section.start_minute && proposedStart < section.end_minute) ||
+        (proposedEnd > section.start_minute && proposedEnd <= section.end_minute) ||
+        (proposedStart <= section.start_minute && proposedEnd >= section.end_minute)
+      );
     };
-    setSections([...sections, newSection]);
+    
+    // If there's overlap, try to place it after the last section
+    if (hasOverlap() && sections.length > 0) {
+      const lastSection = sections.reduce((latest, section) => 
+        section.end_minute > latest.end_minute ? section : latest
+      );
+      proposedStart = lastSection.end_minute;
+      proposedEnd = Math.min(proposedStart + (endMinute - startMinute), PRACTICE_DURATION);
+    }
+    
+    // Only add if it fits within practice duration
+    if (proposedStart < PRACTICE_DURATION && proposedEnd <= PRACTICE_DURATION) {
+      const newSection: DrillSection = {
+        id: `section-${Date.now()}`,
+        name,
+        start_minute: proposedStart,
+        end_minute: proposedEnd,
+        color: colors[sections.length % colors.length],
+      };
+      setSections([...sections, newSection]);
+    } else {
+      alert('Cannot add section: Not enough space in the practice timeline.');
+    }
   };
 
   const handleUpdateSection = (id: string, updates: Partial<Omit<DrillSection, 'id'>>) => {
