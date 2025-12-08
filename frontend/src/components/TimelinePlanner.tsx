@@ -158,7 +158,7 @@ function TimelineSlot({ minutes, isActive }: { minutes: number; isActive: boolea
   return (
     <div
       ref={setNodeRef}
-      className={`absolute left-16 right-0 h-[15px] border-b transition-colors ${
+      className={`absolute left-24 right-0 h-[15px] border-b transition-colors ${
         isOver || isActive
           ? 'bg-primary-100 border-primary-400'
           : 'border-transparent hover:bg-gray-100'
@@ -366,7 +366,7 @@ export default function TimelinePlanner({
       {/* Timeline */}
       <div className="flex-1 overflow-y-auto relative">
         {/* Timeline ruler on left edge */}
-        <div className="absolute left-0 top-0 bottom-0 w-16 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-10">
+        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-10">
           {Array.from({ length: Math.ceil(PRACTICE_DURATION / 5) + 1 }, (_, i) => {
             const minutes = i * 5;
             if (minutes > PRACTICE_DURATION) return null;
@@ -453,7 +453,7 @@ export default function TimelinePlanner({
         {/* Visual drop preview */}
         {dropTimeSlot !== null && activeDrill && (
           <div
-            className="absolute left-16 right-4 bg-primary-200 border-2 border-primary-400 rounded-lg p-3 opacity-75 z-20 pointer-events-none"
+            className="absolute left-24 right-4 bg-primary-200 border-2 border-primary-400 rounded-lg p-3 opacity-75 z-20 pointer-events-none"
             style={{
               top: `${dropTimeSlot * PIXELS_PER_MINUTE}px`,
               height: `${(activeDrill.avg_time || 15) * PIXELS_PER_MINUTE}px`,
@@ -472,7 +472,7 @@ export default function TimelinePlanner({
         {/* Droppable area with drills */}
         <div 
           ref={setNodeRef}
-          className={`ml-16 p-4 min-h-full ${
+          className={`ml-24 p-4 min-h-full ${
             isOver ? 'bg-primary-50' : ''
           }`}
           style={{ minHeight: `${PRACTICE_DURATION * PIXELS_PER_MINUTE}px` }}

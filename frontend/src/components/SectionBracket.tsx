@@ -116,32 +116,78 @@ export default function SectionBracket({
   const generateBracketPath = (h: number) => {
     const w = 20; // bracket width
     const curve = 8; // curvature amount
-    const midPoint = h / 2;
+    const padding = 4; // padding from top and bottom edges
+    const effectiveHeight = h - (padding * 2);
+    const midPoint = effectiveHeight / 2 + padding;
 
     return `
-      M ${w} 0
-      Q ${w - curve} 0 ${w - curve} ${curve}
+      M ${w} ${padding}
+      Q ${w - curve} ${padding} ${w - curve} ${padding + curve}
       L ${w - curve} ${midPoint - curve}
       Q ${w - curve} ${midPoint} ${w - curve * 1.5} ${midPoint}
       Q ${w - curve} ${midPoint} ${w - curve} ${midPoint + curve}
-      L ${w - curve} ${h - curve}
-      Q ${w - curve} ${h} ${w} ${h}
+      L ${w - curve} ${h - padding - curve}
+      Q ${w - curve} ${h - padding} ${w} ${h - padding}
     `;
   };
 
   return (
     <div
       ref={containerRef}
-      className="absolute left-0 w-24 pointer-events-auto"
+      className="absolute left-0 pointer-events-auto"
       style={{
         top: `${topPosition}px`,
         height: `${height}px`,
+        width: '100px',
       }}
     >
-      {/* Decorative SVG Bracket */}
+      {/* Name and Delete Label Container - leftmost */}
+      <div
+        className="absolute flex flex-row items-center justify-start gap-1"
+        style={{
+          left: '15px',
+          top: '50%',
+          transform: 'translate(-50%, -50%) rotate(-90deg)',
+          transformOrigin: 'center center',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {isEditingName ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            onBlur={handleNameSubmit}
+            onKeyDown={handleNameKeyDown}
+            className="px-1 py-0.5 text-xs font-bold border rounded bg-white dark:bg-gray-800"
+            style={{ borderColor: color, color: color }}
+          />
+        ) : (
+          <>
+            <button
+              onClick={() => setIsEditingName(true)}
+              className="text-xs font-bold hover:underline px-1 py-0.5 bg-white/90 dark:bg-gray-800/90 rounded"
+              style={{ color: color }}
+              title="Click to edit name"
+            >
+              {name}
+            </button>
+            <button
+              onClick={onDelete}
+              className="text-xs px-1 py-0.5 rounded bg-white/90 dark:bg-gray-800/90 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400"
+              title="Delete section"
+            >
+              ✕
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Decorative SVG Bracket - middle */}
       <svg
-        className="absolute left-0 top-0 w-6 h-full pointer-events-none"
-        style={{ opacity: 0.6 }}
+        className="absolute top-0 w-6 h-full pointer-events-none"
+        style={{ left: '22px', opacity: 0.6 }}
       >
         <path
           d={generateBracketPath(height)}
@@ -155,61 +201,32 @@ export default function SectionBracket({
       {/* Top Handle */}
       <div
         onMouseDown={handleMouseDown(true)}
-        className={`absolute left-0 w-6 h-3 -top-1.5 cursor-ns-resize rounded-full transition-all ${
-          isDraggingStart ? 'scale-150 opacity-100' : 'opacity-50 hover:opacity-100'
-        }`}
-        style={{ backgroundColor: color }}
+        className="absolute w-6 h-3 -top-1.5 cursor-ns-resize rounded-full transition-all opacity-0"
+        style={{ left: '22px' }}
         title="Drag to adjust start time"
       />
 
-      {/* Label Container */}
+      {/* Duration Label - rightmost */}
       <div
-        className="absolute left-7 w-16 flex flex-col items-start justify-center"
+        className="absolute flex items-center justify-center"
         style={{
+          left: '48px',
           top: '50%',
-          transform: 'translateY(-50%)',
+          transform: 'translate(-50%, -50%) rotate(-90deg)',
+          transformOrigin: 'center center',
+          whiteSpace: 'nowrap',
         }}
       >
-        {isEditingName ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            onBlur={handleNameSubmit}
-            onKeyDown={handleNameKeyDown}
-            className="w-full px-1 py-0.5 text-xs font-bold border rounded"
-            style={{ borderColor: color, color: color }}
-          />
-        ) : (
-          <button
-            onClick={() => setIsEditingName(true)}
-            className="text-xs font-bold hover:underline text-left"
-            style={{ color: color }}
-            title="Click to edit name"
-          >
-            {name}
-          </button>
-        )}
-        <span className="text-xs opacity-70" style={{ color: color }}>
+        <span className="text-xs opacity-70 px-1 py-0.5 bg-white/90 dark:bg-gray-800/90 rounded" style={{ color: color }}>
           {duration} min
         </span>
-        <button
-          onClick={onDelete}
-          className="text-xs mt-1 px-1 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400"
-          title="Delete section"
-        >
-          ✕
-        </button>
       </div>
 
       {/* Bottom Handle */}
       <div
         onMouseDown={handleMouseDown(false)}
-        className={`absolute left-0 w-6 h-3 -bottom-1.5 cursor-ns-resize rounded-full transition-all ${
-          isDraggingEnd ? 'scale-150 opacity-100' : 'opacity-50 hover:opacity-100'
-        }`}
-        style={{ backgroundColor: color }}
+        className="absolute w-6 h-3 -bottom-1.5 cursor-ns-resize rounded-full transition-all opacity-0"
+        style={{ left: '22px' }}
         title="Drag to adjust end time"
       />
     </div>
