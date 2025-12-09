@@ -52,6 +52,7 @@ class PracticePlanDB(Base):
     is_template = Column(Boolean, default=False, index=True)
     notes = Column(Text, nullable=True)
     timeline_json = Column(Text, nullable=False)  # JSON string
+    sections_json = Column(Text, nullable=True)  # JSON string for section brackets
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -62,6 +62,14 @@ class TimelineItem(BaseModel):
     duration_minutes: int
 
 
+class DrillSection(BaseModel):
+    """A labeled section grouping drills in the timeline."""
+    id: str
+    name: str
+    color: str
+    drill_indices: List[int] = []  # Indices of drills in this section
+
+
 class PracticePlan(BaseModel):
     """Model for practice plan stored in database."""
     id: Optional[int] = None
@@ -72,6 +80,7 @@ class PracticePlan(BaseModel):
     is_public: bool = False
     notes: Optional[str] = None
     timeline: List[TimelineItem]
+    sections: Optional[List[DrillSection]] = None
     original_plan_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -121,6 +130,7 @@ class PracticePlanWithDrills(BaseModel):
     is_template: bool
     notes: Optional[str]
     timeline: List[dict]  # Each item has drill details + duration + start_time
+    sections: Optional[List[DrillSection]] = None
     total_duration: int
     created_at: datetime
     updated_at: datetime

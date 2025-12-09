@@ -640,7 +640,8 @@ async def create_plan(
         practice_type=plan.practice_type.value,
         is_template=plan.is_template,
         notes=plan.notes,
-        timeline_json=json.dumps([item.dict() for item in plan.timeline])
+        timeline_json=json.dumps([item.dict() for item in plan.timeline]),
+        sections_json=json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
     )
     
     # Set new fields if they exist in the database
@@ -804,6 +805,11 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         timeline_with_drills.append(timeline_item)
         current_time += duration
     
+    # Parse sections if they exist
+    sections = None
+    if hasattr(plan, 'sections_json') and plan.sections_json:
+        sections = json.loads(plan.sections_json)
+    
     return PracticePlanWithDrills(
         id=plan.id,
         name=plan.name,
@@ -812,6 +818,7 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         is_template=plan.is_template,
         notes=plan.notes,
         timeline=timeline_with_drills,
+        sections=sections,
         total_duration=current_time,
         created_at=plan.created_at,
         updated_at=plan.updated_at
@@ -841,6 +848,7 @@ async def update_plan(
     db_plan.is_public = plan.is_public
     db_plan.notes = plan.notes
     db_plan.timeline_json = json.dumps([item.dict() for item in plan.timeline])
+    db_plan.sections_json = json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()

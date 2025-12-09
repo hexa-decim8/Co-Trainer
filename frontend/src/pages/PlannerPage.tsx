@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save } from 'lucide-react';
+import { Save, Brackets } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -16,6 +16,14 @@ interface TimelineDrill {
   startTime: number;
 }
 
+interface SectionBracket {
+  id: string;
+  name: string;
+  startMinute: number;
+  endMinute: number;
+  color: string;
+}
+
 const dropAnimation = {
   duration: 300,
   easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
@@ -24,9 +32,12 @@ const dropAnimation = {
   })
 };
 
+const PRACTICE_DURATION = 120; // 2 hours
+
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
+  const [sections, setSections] = useState<SectionBracket[]>([]);
 
   const handleContactLevelClick = (level: string) => {
     setActiveFilters(prev => ({
@@ -191,6 +202,70 @@ export default function PlannerPage() {
 
   const totalDuration = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
 
+  // Section bracket handlers
+  const getRandomColor = () => {
+    const colors = [
+      '#f59e0b', // amber
+      '#3b82f6', // blue
+      '#8b5cf6', // purple
+      '#ec4899', // pink
+      '#14b8a6', // teal
+      '#f97316', // orange
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  const handleAddSection = () => {
+    if (sections.length >= 4) {
+      alert('Maximum 4 sections allowed');
+      return;
+    }
+
+    // Find the next available non-overlapping position
+    let startMinute = 0;
+    
+    if (sections.length > 0) {
+      // Sort sections by start time and find the first gap or position after last section
+      const sortedSections = [...sections].sort((a, b) => a.startMinute - b.startMinute);
+      const lastSection = sortedSections[sortedSections.length - 1];
+      startMinute = Math.min(lastSection.endMinute, PRACTICE_DURATION - 15);
+    }
+
+    const endMinute = Math.min(startMinute + 30, PRACTICE_DURATION);
+
+    const newSection: SectionBracket = {
+      id: `section-${Date.now()}`,
+      name: `Section ${sections.length + 1}`,
+      startMinute,
+      endMinute,
+      color: getRandomColor(),
+    };
+
+    setSections([...sections, newSection]);
+  };
+
+  const handleUpdateSectionStart = (id: string, newStart: number) => {
+    setSections(sections.map(s => 
+      s.id === id ? { ...s, startMinute: newStart } : s
+    ));
+  };
+
+  const handleUpdateSectionEnd = (id: string, newEnd: number) => {
+    setSections(sections.map(s => 
+      s.id === id ? { ...s, endMinute: newEnd } : s
+    ));
+  };
+
+  const handleDeleteSection = (id: string) => {
+    setSections(sections.filter(s => s.id !== id));
+  };
+
+  const handleUpdateSectionName = (id: string, newName: string) => {
+    setSections(sections.map(s => 
+      s.id === id ? { ...s, name: newName } : s
+    ));
+  };
+
   const handleSavePlan = async (isTemplate: boolean) => {
     if (!planName.trim()) {
       alert('Please enter a plan name');
@@ -205,6 +280,12 @@ export default function PlannerPage() {
         timeline: timelineDrills.map(d => ({
           drill_id: d.drill.id,
           duration_minutes: d.duration,
+        })),
+        sections: sections.map(s => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          drill_indices: [], // Will be calculated server-side if needed
         })),
       });
 
@@ -292,11 +373,21 @@ export default function PlannerPage() {
 
         {/* Right: Timeline */}
         <div className="w-[28rem] flex-shrink-0 flex flex-col gap-1">
-          {/* Practice Type Selector */}
+          {/* Practice Type Selector and Add Section Button */}
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-            <label className="block text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-3">
-              Practice Type
-            </label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">
+                Practice Type
+              </label>
+              <button
+                onClick={handleAddSection}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
+                title="Add section bracket"
+              >
+                <Brackets className="w-4 h-4" />
+                Add Section
+              </button>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {(['fundamentals', 'skills_and_drills', 'scrimmage'] as PracticeType[]).map((type) => (
                 <button
@@ -325,6 +416,11 @@ export default function PlannerPage() {
               practiceType={practiceType}
               dropTimeSlot={dropTimeSlot}
               activeDrill={activeDrill}
+              sections={sections}
+              onUpdateSectionStart={handleUpdateSectionStart}
+              onUpdateSectionEnd={handleUpdateSectionEnd}
+              onDeleteSection={handleDeleteSection}
+              onUpdateSectionName={handleUpdateSectionName}
             />
           </div>
 
