@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
@@ -7,6 +7,7 @@ import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
+import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import type { Drill, DrillFilters, PracticeType } from '../types';
 
 interface TimelineDrill {
@@ -58,13 +59,80 @@ export default function PlannerPage() {
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
 
-  // Fetch drills with filters
-  const { data: drills = [], isLoading } = useQuery({
-    queryKey: ['drills', activeFilters],
-    queryFn: () => drillsApi.getAll(activeFilters),
-    staleTime: 5 * 60 * 1000, // 5 minutes - drills don't change often
-    gcTime: 15 * 60 * 1000, // 15 minutes
-  });
+  // Stream drills from backend
+  const { 
+    drills: allDrills, 
+    isLoading, 
+    isStreaming,
+    error: streamError,
+    progress,
+    total,
+  } = useStreamingDrills({ enabled: true });
+
+  // Apply filters client-side
+  const drills = useMemo(() => {
+    let filtered = allDrills;
+
+    // Text search
+    if (activeFilters.search) {
+      const searchLower = activeFilters.search.toLowerCase();
+      filtered = filtered.filter(
+        (d) =>
+          d.exercise.toLowerCase().includes(searchLower) ||
+          (d.description && d.description.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Contact level filter
+    if (activeFilters.contact_level?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.contact_level!.some((cl) => d.contact_level.includes(cl))
+      );
+    }
+
+    // Difficulty filter
+    if (activeFilters.difficulty?.length) {
+      filtered = filtered.filter((d) => activeFilters.difficulty!.includes(d.difficulty!));
+    }
+
+    // Drill type filter
+    if (activeFilters.drill_type?.length) {
+      filtered = filtered.filter((d) => activeFilters.drill_type!.includes(d.drill_type!));
+    }
+
+    // Equipment filter
+    if (activeFilters.equipment?.length) {
+      filtered = filtered.filter((d) => activeFilters.equipment!.includes(d.equipment!));
+    }
+
+    // Game type filter
+    if (activeFilters.game_type?.length) {
+      filtered = filtered.filter((d) => activeFilters.game_type!.includes(d.game_type!));
+    }
+
+    // Position focus filter
+    if (activeFilters.position_focus?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.position_focus!.some((pf) => d.position_focus.includes(pf))
+      );
+    }
+
+    // Skater level filter
+    if (activeFilters.skater_level?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.skater_level!.some((sl) => d.skater_level.includes(sl))
+      );
+    }
+
+    // Type filter
+    if (activeFilters.type?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.type!.some((t) => d.type.includes(t))
+      );
+    }
+
+    return filtered;
+  }, [allDrills, activeFilters]);
 
   // Fetch filter options
   const { data: filterOptions } = useQuery({
@@ -341,11 +409,28 @@ export default function PlannerPage() {
             <p className="text-gray-300 text-sm mt-1">Drag drills to your timeline →</p>
           </div>
           <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-            {isLoading ? (
+            {isLoading || isStreaming ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                  <div className="text-gray-600 dark:text-gray-400 font-semibold">Loading drills...</div>
+                  <div className="text-gray-600 dark:text-gray-400 font-semibold">
+                    {isStreaming && progress > 0 ? (
+                      <>Loading drills... {progress}{total ? `/${total}` : ''}</>
+                    ) : (
+                      'Connecting to Notion...'
+                    )}
+                  </div>
+                  {streamError && (
+                    <p className="text-red-600 dark:text-red-400 text-sm mt-2">{streamError}</p>
+                  )}
+                </div>
+              </div>
+            ) : drills.length === 0 && allDrills.length === 0 ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center max-w-md">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
                 </div>
               </div>
             ) : drills.length === 0 ? (
@@ -477,7 +562,11 @@ export default function PlannerPage() {
       <DragOverlay dropAnimation={dropAnimation}>
         {activeDrill ? (
           <div className="rotate-3 scale-105 shadow-2xl">
-            <DrillCard drill={activeDrill} onShowDetails={() => {}} />
+            <DrillCard 
+              drill={activeDrill} 
+              onContactLevelClick={() => {}} 
+              onDrillTypeClick={() => {}} 
+            />
           </div>
         ) : null}
       </DragOverlay>

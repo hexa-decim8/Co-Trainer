@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
@@ -473,10 +474,42 @@ async def delete_user(
     # Delete user (cascade will delete related records)
     db.delete(target_user)
     db.commit()
-    
     return {"success": True, "message": "User deleted successfully"}
 
 
+@app.get("/api/drills/stream")
+async def stream_drills(
+    force_sync: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """
+    Stream drills from Notion as they are parsed.
+    Returns Server-Sent Events (SSE) for progressive loading.
+    """
+    async def event_generator():
+        try:
+            async for event in notion_service.stream_all_drills(db=db, force_sync=force_sync):
+                # Format as SSE event
+                event_data = json.dumps(event)
+                yield f"data: {event_data}\n\n"
+        except Exception as e:
+            logger.error(f"Error in stream_drills: {e}")
+            error_event = json.dumps({"type": "error", "message": str(e)})
+            yield f"data: {error_event}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )
+
+
+@app.get("/api/drills", response_model=List[Drill])
 @app.get("/api/drills", response_model=List[Drill])
 async def get_drills(
     search: Optional[str] = Query(None),

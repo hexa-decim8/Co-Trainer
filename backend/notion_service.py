@@ -1,9 +1,10 @@
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, AsyncGenerator
 from notion_client import Client
 from config import settings
 from models import Drill
 from drill_cache import drill_cache_manager
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,89 @@ class NotionService:
                     logger.info("Returning cached data due to Notion API error")
                     return cached_drills
             raise
+    
+    async def stream_all_drills(self, db=None, force_sync: bool = False) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream drills from Notion as they are parsed.
+        Yields SSE-formatted events for progressive loading.
+        
+        Yields events:
+        - {"type": "drill", "data": {...}} for each drill
+        - {"type": "progress", "count": N} every 10 drills
+        - {"type": "complete", "total": N} when finished
+        - {"type": "error", "message": "..."} on errors
+        """
+        # Check if we can use cache
+        if db and not force_sync:
+            if not drill_cache_manager.should_sync(db):
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    logger.info(f"Streaming {len(cached_drills)} drills from cache")
+                    for idx, drill in enumerate(cached_drills):
+                        yield {"type": "drill", "data": drill.dict()}
+                        if (idx + 1) % 10 == 0:
+                            yield {"type": "progress", "count": idx + 1}
+                    yield {"type": "complete", "total": len(cached_drills)}
+                    return
+        
+        # If no cache or force sync, fetch from Notion
+        if not self.client or not self.database_id:
+            logger.warning("Notion API not configured")
+            # Try to stream stale cache
+            if db:
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    logger.info("Streaming stale cache (Notion not configured)")
+                    for drill in cached_drills:
+                        yield {"type": "drill", "data": drill.dict()}
+                    yield {"type": "complete", "total": len(cached_drills)}
+                    return
+            yield {"type": "error", "message": "Notion API not configured"}
+            return
+        
+        try:
+            logger.info("Streaming drills from Notion...")
+            drills = []
+            count = 0
+            has_more = True
+            start_cursor = None
+            
+            while has_more:
+                response = self.client.databases.query(
+                    database_id=self.database_id,
+                    start_cursor=start_cursor
+                )
+                
+                for page in response.get("results", []):
+                    try:
+                        drill = self._parse_drill(page)
+                        # Only include drills with an Exercise name
+                        if drill.exercise and drill.exercise != "Untitled":
+                            drills.append(drill)
+                            count += 1
+                            yield {"type": "drill", "data": drill.dict()}
+                            
+                            # Send progress update every 10 drills
+                            if count % 10 == 0:
+                                yield {"type": "progress", "count": count}
+                    except Exception as e:
+                        logger.error(f"Error parsing drill {page.get('id')}: {e}")
+                        yield {"type": "error", "message": f"Failed to parse drill: {str(e)}"}
+                
+                has_more = response.get("has_more", False)
+                start_cursor = response.get("next_cursor")
+            
+            # Cache the results
+            self._cache = drills
+            if db:
+                drill_cache_manager.save_to_cache(drills, db)
+            
+            logger.info(f"Successfully streamed {count} drills from Notion")
+            yield {"type": "complete", "total": count}
+        
+        except Exception as e:
+            logger.error(f"Error streaming drills from Notion: {e}")
+            yield {"type": "error", "message": str(e)}
     
     async def get_drill_by_id(self, drill_id: str) -> Optional[Drill]:
         """Get a single drill by ID."""
