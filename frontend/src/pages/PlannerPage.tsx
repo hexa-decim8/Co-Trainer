@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
@@ -40,19 +40,19 @@ export default function PlannerPage() {
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
   const [sections, setSections] = useState<SectionBracket[]>([]);
 
-  const handleContactLevelClick = (level: string) => {
+  const handleContactLevelClick = useCallback((level: string) => {
     setActiveFilters(prev => ({
       ...prev,
       contact_level: [level]
     }));
-  };
+  }, []);
 
-  const handleDrillTypeClick = (type: string) => {
+  const handleDrillTypeClick = useCallback((type: string) => {
     setActiveFilters(prev => ({
       ...prev,
       drill_type: [type]
     }));
-  };
+  }, []);
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -363,7 +363,9 @@ export default function PlannerPage() {
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
       alert(errorMessage);
-      console.error('Save plan error:', error);
+      if (import.meta.env.DEV) {
+        console.error('Save plan error:', error);
+      }
     }
   };
 

@@ -86,10 +86,10 @@ class NotionService:
         
         elif prop_type == "multi_relation":
             # Handle multi-relation properties (fetch ALL related Global Tags)
-            print(f"[MULTI-RELATION] prop_data type: {type(prop_data)}, value: {prop_data}")
+            logger.debug(f"[MULTI-RELATION] prop_data type: {type(prop_data)}, value: {prop_data}")
             results = []
             if prop_data and len(prop_data) > 0:
-                print(f"[MULTI-RELATION] Processing {len(prop_data)} relation items")
+                logger.debug(f"[MULTI-RELATION] Processing {len(prop_data)} relation items")
                 try:
                     for relation_item in prop_data:
                         page_id = relation_item.get("id")
@@ -102,7 +102,7 @@ class NotionService:
                                     title_data = related_props[title_prop].get("title", [])
                                     if title_data and len(title_data) > 0:
                                         tag_name = title_data[0].get("plain_text")
-                                        print(f"[MULTI-RELATION] Found tag: '{tag_name}'")
+                                        logger.debug(f"[MULTI-RELATION] Found tag: '{tag_name}'")
                                         results.append(tag_name)
                                         found = True
                                         break
@@ -112,15 +112,14 @@ class NotionService:
                                         title_data = prop_value.get("title", [])
                                         if title_data and len(title_data) > 0:
                                             tag_name = title_data[0].get("plain_text")
-                                            print(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}'")
+                                            logger.debug(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}'")
                                             results.append(tag_name)
                                             break
                             if not found:
-                                print(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
+                                logger.debug(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
                 except Exception as e:
-                    print(f"[MULTI-RELATION] Error: {e}")
-                    logger.error(f"Error fetching multi-relation: {e}")
-            print(f"[MULTI-RELATION] Returning: {results}")
+                    logger.error(f"[MULTI-RELATION] Error: {e}")
+            logger.debug(f"[MULTI-RELATION] Returning: {results}")
             return results
         
         elif prop_type == "rollup":
@@ -152,9 +151,9 @@ class NotionService:
         position_prop = props.get("Position")
         if position_prop:
             relation_data = position_prop.get('relation')
-            print(f"[DEBUG] Position: type={position_prop.get('type')}, relation_data={relation_data}")
+            logger.debug(f"[DEBUG] Position: type={position_prop.get('type')}, relation_data={relation_data}")
         else:
-            print(f"[DEBUG] Position NOT FOUND. Available: {list(props.keys())}")
+            logger.debug(f"[DEBUG] Position NOT FOUND. Available: {list(props.keys())}")
         
         return Drill(
             id=page["id"],

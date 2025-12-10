@@ -173,7 +173,9 @@ export const drillsApi = {
                 break;
             }
           } catch (parseError) {
-            console.error('Failed to parse SSE event:', parseError);
+            if (import.meta.env.DEV) {
+              console.error('Failed to parse SSE event:', parseError);
+            }
           }
         }
       }
