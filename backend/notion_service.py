@@ -23,7 +23,9 @@ class NotionService:
         if prop is None:
             return None
         
-        prop_data = prop.get(prop_type)
+        # For multi_relation, we need to read from "relation" key
+        actual_key = "relation" if prop_type == "multi_relation" else prop_type
+        prop_data = prop.get(actual_key)
         
         if prop_type == "title":
             if prop_data and len(prop_data) > 0:
@@ -68,10 +70,57 @@ class NotionService:
                                     tag_name = title_data[0].get("plain_text")
                                     logger.debug(f"Found tag name '{tag_name}' from related page {page_id}")
                                     return tag_name
-                        logger.debug(f"No title found in related page {page_id}")
+                        # If no title property found, try to find any title-type property
+                        for prop_name, prop_value in related_props.items():
+                            if prop_value.get("type") == "title":
+                                title_data = prop_value.get("title", [])
+                                if title_data and len(title_data) > 0:
+                                    tag_name = title_data[0].get("plain_text")
+                                    logger.debug(f"Found tag name '{tag_name}' from title property '{prop_name}' in related page {page_id}")
+                                    return tag_name
+                        logger.warning(f"No title property found in related page {page_id}. Available properties: {list(related_props.keys())}")
                 except Exception as e:
                     logger.error(f"Error fetching related page: {e}")
             return None
+        
+        elif prop_type == "multi_relation":
+            # Handle multi-relation properties (fetch ALL related Global Tags)
+            print(f"[MULTI-RELATION] prop_data type: {type(prop_data)}, value: {prop_data}")
+            results = []
+            if prop_data and len(prop_data) > 0:
+                print(f"[MULTI-RELATION] Processing {len(prop_data)} relation items")
+                try:
+                    for relation_item in prop_data:
+                        page_id = relation_item.get("id")
+                        if page_id and self.client:
+                            related_page = self.client.pages.retrieve(page_id=page_id)
+                            related_props = related_page.get("properties", {})
+                            found = False
+                            for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                                if title_prop in related_props:
+                                    title_data = related_props[title_prop].get("title", [])
+                                    if title_data and len(title_data) > 0:
+                                        tag_name = title_data[0].get("plain_text")
+                                        print(f"[MULTI-RELATION] Found tag: '{tag_name}'")
+                                        results.append(tag_name)
+                                        found = True
+                                        break
+                            if not found:
+                                for prop_name, prop_value in related_props.items():
+                                    if prop_value.get("type") == "title":
+                                        title_data = prop_value.get("title", [])
+                                        if title_data and len(title_data) > 0:
+                                            tag_name = title_data[0].get("plain_text")
+                                            print(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}'")
+                                            results.append(tag_name)
+                                            break
+                            if not found:
+                                print(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
+                except Exception as e:
+                    print(f"[MULTI-RELATION] Error: {e}")
+                    logger.error(f"Error fetching multi-relation: {e}")
+            print(f"[MULTI-RELATION] Returning: {results}")
+            return results
         
         elif prop_type == "rollup":
             # Handle rollup properties (aggregated data from relations)
@@ -98,6 +147,14 @@ class NotionService:
         """Parse a Notion page into a Drill model."""
         props = page.get("properties", {})
         
+        # Debug Position property
+        position_prop = props.get("Position")
+        if position_prop:
+            relation_data = position_prop.get('relation')
+            print(f"[DEBUG] Position: type={position_prop.get('type')}, relation_data={relation_data}")
+        else:
+            print(f"[DEBUG] Position NOT FOUND. Available: {list(props.keys())}")
+        
         return Drill(
             id=page["id"],
             exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
@@ -110,7 +167,7 @@ class NotionService:
             equipment=self._parse_property(props.get("Equipment"), "select"),
             game_type=self._parse_property(props.get("Game Type"), "select"),
             players=self._parse_property(props.get("Players"), "number"),
-            position_focus=self._parse_property(props.get("Position Focus"), "multi_select") or [],
+            position_focus=self._parse_property(props.get("Position"), "multi_relation") or [],
             skater_level=self._parse_property(props.get("Skater Level"), "multi_select") or [],
             skaters_needed=self._parse_property(props.get("Skaters Needed"), "number"),
             type=self._parse_property(props.get("Type"), "multi_select") or [],
