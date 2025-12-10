@@ -511,9 +511,12 @@ async def get_drills(
             (d.description and search_lower in d.description.lower())
         ]
     
-    # Contact level filter
+    # Contact level filter (multi-relation, match if ANY value in filter appears in drill)
     if contact_level:
-        filtered_drills = [d for d in filtered_drills if d.contact_level in contact_level]
+        filtered_drills = [
+            d for d in filtered_drills
+            if any(cl in d.contact_level for cl in contact_level)
+        ]
     
     # Difficulty filter
     if difficulty:
@@ -531,14 +534,14 @@ async def get_drills(
     if game_type:
         filtered_drills = [d for d in filtered_drills if d.game_type in game_type]
     
-    # Position focus filter (multi-select, match if ANY value in filter appears in drill)
+    # Position focus filter (multi-relation, match if ANY value in filter appears in drill)
     if position_focus:
         filtered_drills = [
             d for d in filtered_drills
             if any(pf in d.position_focus for pf in position_focus)
         ]
     
-    # Skater level filter (multi-select)
+    # Skater level filter (multi-relation, match if ANY value in filter appears in drill)
     if skater_level:
         filtered_drills = [
             d for d in filtered_drills
@@ -598,8 +601,13 @@ async def get_filter_options(current_user: UserDB = Depends(get_current_user)):
     types = set()
     
     for drill in drills:
-        if drill.contact_level:
-            contact_levels.add(drill.contact_level)
+        # Multi-relation/select fields that are now lists
+        contact_levels.update(drill.contact_level)
+        skater_levels.update(drill.skater_level)
+        position_focus_list.update(drill.position_focus)
+        types.update(drill.type)
+        
+        # Single-select fields
         if drill.difficulty:
             difficulties.add(drill.difficulty)
         if drill.drill_type:
@@ -608,11 +616,6 @@ async def get_filter_options(current_user: UserDB = Depends(get_current_user)):
             equipment_list.add(drill.equipment)
         if drill.game_type:
             game_types.add(drill.game_type)
-        
-        # Multi-select fields
-        position_focus_list.update(drill.position_focus)
-        skater_levels.update(drill.skater_level)
-        types.update(drill.type)
     
     return FilterOptions(
         contact_levels=sorted(contact_levels),

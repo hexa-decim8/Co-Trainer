@@ -16,7 +16,7 @@ class Drill(BaseModel):
     id: str
     exercise: str
     avg_time: Optional[int] = None  # in minutes
-    contact_level: Optional[str] = None
+    contact_level: List[str] = []  # multi-relation
     depends_on: List[str] = []  # multi-select
     description: Optional[str] = None
     difficulty: Optional[int] = None  # 1-5
@@ -24,8 +24,8 @@ class Drill(BaseModel):
     equipment: Optional[str] = None
     game_type: Optional[str] = None
     players: Optional[int] = None
-    position_focus: List[str] = []  # multi-select
-    skater_level: List[str] = []  # multi-select
+    position_focus: List[str] = []  # multi-relation
+    skater_level: List[str] = []  # multi-relation
     skaters_needed: Optional[int] = None
     type: List[str] = []  # multi-select
     video_link: Optional[str] = None

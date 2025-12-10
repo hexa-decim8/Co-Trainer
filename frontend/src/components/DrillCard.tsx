@@ -9,13 +9,14 @@ interface DrillCardProps {
   onDrillTypeClick?: (type: string) => void;
 }
 
-const getContactColor = (level: string | undefined) => {
-  if (!level) return 'border-gray-300';
-  const lower = level.toLowerCase();
-  if (lower.includes('no') || lower.includes('none')) return 'border-contact-none';
-  if (lower.includes('light') || lower.includes('some')) return 'border-contact-light';
-  if (lower.includes('medium')) return 'border-contact-medium';
-  if (lower.includes('full')) return 'border-contact-full';
+const getContactColor = (levels: string[] | undefined) => {
+  if (!levels || levels.length === 0) return 'border-gray-300';
+  // Use the highest/most severe contact level for border color
+  const level = levels[0].toLowerCase();
+  if (level.includes('full')) return 'border-contact-full';
+  if (level.includes('medium')) return 'border-contact-medium';
+  if (level.includes('light') || level.includes('some')) return 'border-contact-light';
+  if (level.includes('no') || level.includes('none')) return 'border-contact-none';
   return 'border-gray-300';
 };
 
@@ -240,17 +241,23 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
             </span>
           )}
           
-          {drill.contact_level && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onContactLevelClick?.(drill.contact_level!);
-              }}
-              className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(drill.contact_level)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer`}
-            >
-              <Shield className="w-3 h-3 mr-1" />
-              {drill.contact_level}
-            </button>
+          {/* Contact Level badges */}
+          {drill.contact_level && drill.contact_level.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {drill.contact_level.map((level) => (
+                <button
+                  key={level}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onContactLevelClick?.(level);
+                  }}
+                  className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(level)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer`}
+                >
+                  <Shield className="w-3 h-3 mr-1" />
+                  {level}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

@@ -159,7 +159,7 @@ class NotionService:
             id=page["id"],
             exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
             avg_time=self._parse_property(props.get("Avg Time"), "number"),
-            contact_level=self._parse_property(props.get("Contact Level"), "relation"),
+            contact_level=self._parse_property(props.get("Contact Level"), "multi_relation") or [],
             depends_on=self._parse_property(props.get("Depends on"), "multi_select") or [],
             description=self._parse_property(props.get("Description"), "rich_text"),
             difficulty=self._parse_property(props.get("Difficulty 1-5"), "number"),
@@ -168,7 +168,7 @@ class NotionService:
             game_type=self._parse_property(props.get("Game Type"), "select"),
             players=self._parse_property(props.get("Players"), "number"),
             position_focus=self._parse_property(props.get("Position"), "multi_relation") or [],
-            skater_level=self._parse_property(props.get("Skater Level"), "multi_select") or [],
+            skater_level=self._parse_property(props.get("Skater Level"), "multi_relation") or [],
             skaters_needed=self._parse_property(props.get("Skaters Needed"), "number"),
             type=self._parse_property(props.get("Type"), "multi_select") or [],
             video_link=self._parse_property(props.get("Video Link"), "url")
