@@ -2,11 +2,12 @@ import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Brackets } from 'lucide-react';
+import { Save, Plus } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
+import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import type { Drill, DrillFilters, PracticeType, DrillSection } from '../types';
 
 interface TimelineDrill {
@@ -60,7 +61,6 @@ export default function PlannerPage() {
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [planDate, setPlanDate] = useState('');
-  const [sections, setSections] = useState<DrillSection[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
@@ -359,35 +359,6 @@ export default function PlannerPage() {
     setSections(sections.filter(s => s.id !== id));
   };
 
-  const handleSavePlan = async (isTemplate: boolean) => {
-    if (!planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
-
-    // Find the next available non-overlapping position
-    let startMinute = 0;
-    
-    if (sections.length > 0) {
-      // Sort sections by start time and find the first gap or position after last section
-      const sortedSections = [...sections].sort((a, b) => a.startMinute - b.startMinute);
-      const lastSection = sortedSections[sortedSections.length - 1];
-      startMinute = Math.min(lastSection.endMinute, PRACTICE_DURATION - 15);
-    }
-
-    const endMinute = Math.min(startMinute + 30, PRACTICE_DURATION);
-
-    const newSection: SectionBracket = {
-      id: `section-${Date.now()}`,
-      name: `Section ${sections.length + 1}`,
-      startMinute,
-      endMinute,
-      color: getRandomColor(),
-    };
-
-    setSections([...sections, newSection]);
-  };
-
   const handleUpdateSectionStart = (id: string, newStart: number) => {
     setSections(sections.map(s => 
       s.id === id ? { ...s, startMinute: newStart } : s
@@ -398,10 +369,6 @@ export default function PlannerPage() {
     setSections(sections.map(s => 
       s.id === id ? { ...s, endMinute: newEnd } : s
     ));
-  };
-
-  const handleDeleteSection = (id: string) => {
-    setSections(sections.filter(s => s.id !== id));
   };
 
   const handleUpdateSectionName = (id: string, newName: string) => {
@@ -545,11 +512,14 @@ export default function PlannerPage() {
                 Practice Type
               </label>
               <button
-                onClick={handleAddSection}
+                onClick={() => {
+                  const endTime = Math.max(45, totalDuration);
+                  handleAddSection('New Section', 0, Math.min(endTime, 120));
+                }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
                 title="Add section bracket"
               >
-                <Brackets className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
                 Add Section
               </button>
             </div>
@@ -567,19 +537,6 @@ export default function PlannerPage() {
                   {getPracticeTypeLabel(type)}
                 </button>
               ))}
-            </div>
-            
-            {/* Add Section Button */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => {
-                  const endTime = Math.max(45, totalDuration);
-                  handleAddSection('New Section', 0, Math.min(endTime, 120));
-                }}
-                className="w-full px-3 py-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-200 dark:hover:bg-purple-800 transition-all"
-              >
-                + Add Section Bracket
-              </button>
             </div>
           </div>
 

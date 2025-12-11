@@ -29,6 +29,13 @@ class Drill(BaseModel):
     skaters_needed: Optional[int] = None
     type: List[str] = []  # multi-select
     video_link: Optional[str] = None
+    
+    @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    def ensure_list(cls, v):
+        """Convert string to list for fields that should be lists."""
+        if isinstance(v, str):
+            return [v] if v else []
+        return v if v is not None else []
 
 
 class DrillFilters(BaseModel):
