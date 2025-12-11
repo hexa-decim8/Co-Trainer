@@ -60,6 +60,7 @@ export default function PlannerPage() {
   }, []);
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
+  const [practiceDate, setPracticeDate] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
@@ -342,58 +343,111 @@ export default function PlannerPage() {
   };
 
   const handleSavePlan = async (isTemplate: boolean) => {
-    // Clear previous messages
-    setSaveError(null);
-    setSaveSuccess(null);
-
-    // Validation
-    if (!planName.trim()) {
-      setSaveError({ message: 'Please enter a plan name', field: 'name' });
-      return;
-    }
-
-    if (planName.trim().length > 200) {
-      setSaveError({ message: 'Plan name must be 200 characters or less', field: 'name' });
-      return;
-    }
-
-    if (timelineDrills.length === 0) {
-      setSaveError({ message: 'Practice plan must have at least one drill', field: 'timeline' });
-      return;
-    }
-
-    if (timelineDrills.length > 50) {
-      setSaveError({ message: 'Practice plan cannot have more than 50 drills', field: 'timeline' });
-      return;
-    }
-
     try {
-      await plansApi.create({
-        name: planName,
+      // Clear previous messages
+      setSaveError(null);
+      setSaveSuccess(null);
+
+      // Validation
+      if (!planName || !planName.trim()) {
+        setSaveError({ message: 'Please enter a plan name', field: 'name' });
+        return;
+      }
+
+      if (planName.trim().length > 200) {
+        setSaveError({ message: 'Plan name must be 200 characters or less', field: 'name' });
+        return;
+      }
+
+      if (!Array.isArray(timelineDrills) || timelineDrills.length === 0) {
+        setSaveError({ message: 'Practice plan must have at least one drill', field: 'timeline' });
+        return;
+      }
+
+      if (timelineDrills.length > 50) {
+        setSaveError({ message: 'Practice plan cannot have more than 50 drills', field: 'timeline' });
+        return;
+      }
+
+      // Validate drill data before sending
+      const validTimeline = timelineDrills
+        .filter(d => d && (d.drill?.id || d.id))
+        .map(d => {
+          try {
+            return {
+              drill_id: String(d.drill?.id || d.id),
+              duration_minutes: Math.max(5, Math.min(120, Number(d.duration) || 15)),
+            };
+          } catch (err) {
+            console.error('Error mapping drill:', err, d);
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      if (validTimeline.length === 0) {
+        setSaveError({ message: 'No valid drills to save', field: 'timeline' });
+        return;
+      }
+
+      // Convert date to ISO datetime format if provided
+      let formattedDate = undefined;
+      if (practiceDate && practiceDate.trim()) {
+        try {
+          // Add time component to make it a valid datetime
+          formattedDate = `${practiceDate.trim()}T00:00:00`;
+        } catch (err) {
+          console.error('Date formatting error:', err);
+        }
+      }
+
+      const payload = {
+        name: planName.trim(),
+        date: formattedDate,
         practice_type: practiceType,
-        is_template: isTemplate,
-        timeline: timelineDrills.map(d => ({
-          drill_id: d?.drill?.id || d.id,
-          duration_minutes: d.duration || 15,
-        })),
-        sections: sections.map(s => ({
-          id: s.id,
-          name: s.name,
-          color: s.color,
+        is_template: Boolean(isTemplate),
+        timeline: validTimeline,
+        sections: Array.isArray(sections) ? sections.map(s => ({
+          id: String(s.id),
+          name: String(s.name || ''),
+          color: String(s.color || '#000000'),
           drill_indices: [],
-        })),
-      });
+        })) : [],
+      };
+
+      await plansApi.create(payload);
 
       setSaveSuccess(isTemplate ? 'Template saved successfully!' : 'Practice plan saved successfully!');
-      setTimeout(() => {
-        setShowSaveDialog(false);
-        setPlanName('');
-        setSaveSuccess(null);
+      
+      const timer = setTimeout(() => {
+        try {
+          setShowSaveDialog(false);
+          setPlanName('');
+          setPracticeDate('');
+          setSaveSuccess(null);
+        } catch (err) {
+          console.error('Cleanup error:', err);
+        }
       }, 1500);
+
+      return () => clearTimeout(timer);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
-      setSaveError({ message: errorMessage });
       console.error('Save plan error:', error);
+      let errorMessage = 'Failed to save plan. Please try again.';
+      
+      if (error?.response?.data?.detail) {
+        errorMessage = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        errorMessage = JSON.stringify(error, null, 2);
+      }
+      
+      setSaveError({ message: errorMessage });
     }
   };
 
@@ -561,6 +615,25 @@ export default function PlannerPage() {
                   autoFocus
                 />
                 
+                <div>
+                  <label htmlFor="practice-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Practice Date (optional)
+                  </label>
+                  <input
+                    id="practice-date"
+                    type="date"
+                    value={practiceDate || ''}
+                    onChange={(e) => {
+                      try {
+                        setPracticeDate(e.target.value || '');
+                      } catch (err) {
+                        console.error('Date input error:', err);
+                      }
+                    }}
+                    className="input-derby"
+                  />
+                </div>
+                
                 {/* Error message */}
                 {saveError?.message && (
                   <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
@@ -593,6 +666,7 @@ export default function PlannerPage() {
                   onClick={() => {
                     setShowSaveDialog(false);
                     setPlanName('');
+                    setPracticeDate('');
                     setSaveError(null);
                     setSaveSuccess(null);
                   }}
