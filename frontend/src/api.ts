@@ -104,6 +104,85 @@ export const drillsApi = {
     const response = await api.get<FilterOptions>('/filter-options');
     return response.data;
   },
+
+  streamAll: async (
+    onDrill: (drill: Drill) => void,
+    onProgress: (count: number) => void,
+    onComplete: (total: number) => void,
+    onError: (error: string) => void,
+    forceSync: boolean = false,
+    signal?: AbortSignal
+  ): Promise<void> => {
+    const token = localStorage.getItem('auth_token');
+    const url = `/api/drills/stream?force_sync=${forceSync}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        // Decode chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE events (separated by \n\n)
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || ''; // Keep incomplete event in buffer
+
+        for (const eventText of events) {
+          if (!eventText.trim()) continue;
+
+          // Parse SSE format: "data: {...}"
+          const dataMatch = eventText.match(/^data: (.+)$/m);
+          if (!dataMatch) continue;
+
+          try {
+            const event = JSON.parse(dataMatch[1]);
+
+            switch (event.type) {
+              case 'drill':
+                onDrill(event.data);
+                break;
+              case 'progress':
+                onProgress(event.count);
+                break;
+              case 'complete':
+                onComplete(event.total);
+                break;
+              case 'error':
+                onError(event.message);
+                break;
+            }
+          } catch (parseError) {
+            if (import.meta.env.DEV) {
+              console.error('Failed to parse SSE event:', parseError);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
 };
 
 export const plansApi = {

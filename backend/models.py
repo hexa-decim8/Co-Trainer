@@ -16,7 +16,7 @@ class Drill(BaseModel):
     id: str
     exercise: str
     avg_time: Optional[int] = None  # in minutes
-    contact_level: Optional[str] = None
+    contact_level: List[str] = []  # multi-relation
     depends_on: List[str] = []  # multi-select
     description: Optional[str] = None
     difficulty: Optional[int] = None  # 1-5
@@ -24,11 +24,18 @@ class Drill(BaseModel):
     equipment: Optional[str] = None
     game_type: Optional[str] = None
     players: Optional[int] = None
-    position_focus: List[str] = []  # multi-select
-    skater_level: List[str] = []  # multi-select
+    position_focus: List[str] = []  # multi-relation
+    skater_level: List[str] = []  # multi-relation
     skaters_needed: Optional[int] = None
     type: List[str] = []  # multi-select
     video_link: Optional[str] = None
+    
+    @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    def ensure_list(cls, v):
+        """Convert string to list for fields that should be lists."""
+        if isinstance(v, str):
+            return [v] if v else []
+        return v if v is not None else []
 
 
 class DrillFilters(BaseModel):
@@ -81,6 +88,7 @@ class PracticePlan(BaseModel):
     is_public: bool = False
     notes: Optional[str] = None
     timeline: List[TimelineItem]
+    sections: Optional[List[DrillSection]] = None
     original_plan_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -130,6 +138,7 @@ class PracticePlanWithDrills(BaseModel):
     is_template: bool
     notes: Optional[str]
     timeline: List[dict]  # Each item has drill details + duration + start_time
+    sections: Optional[List[DrillSection]] = None
     total_duration: int
     created_at: datetime
     updated_at: datetime

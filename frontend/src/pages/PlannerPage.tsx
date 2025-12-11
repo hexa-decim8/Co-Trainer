@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save } from 'lucide-react';
+import { Save, Plus } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
+import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import type { Drill, DrillFilters, PracticeType, DrillSection } from '../types';
 
 interface TimelineDrill {
@@ -14,6 +15,19 @@ interface TimelineDrill {
   drill: Drill;
   duration: number;
   startTime: number;
+}
+
+interface SectionBracket {
+  id: string;
+  name: string;
+  startMinute: number;
+  endMinute: number;
+  color: string;
+}
+
+interface SaveError {
+  message: string;
+  field?: string;
 }
 
 const dropAnimation = {
@@ -29,35 +43,104 @@ const PRACTICE_DURATION = 120; // 2 hours in minutes
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
+  const [sections, setSections] = useState<SectionBracket[]>([]);
 
-  const handleContactLevelClick = (level: string) => {
+  const handleContactLevelClick = useCallback((level: string) => {
     setActiveFilters(prev => ({
       ...prev,
       contact_level: [level]
     }));
-  };
+  }, []);
 
-  const handleDrillTypeClick = (type: string) => {
+  const handleDrillTypeClick = useCallback((type: string) => {
     setActiveFilters(prev => ({
       ...prev,
       drill_type: [type]
     }));
-  };
+  }, []);
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [planDate, setPlanDate] = useState('');
-  const [sections, setSections] = useState<DrillSection[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<SaveError | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
-  // Fetch drills with filters
-  const { data: drills = [], isLoading } = useQuery({
-    queryKey: ['drills', activeFilters],
-    queryFn: () => drillsApi.getAll(activeFilters),
-    staleTime: 5 * 60 * 1000, // 5 minutes - drills don't change often
-    gcTime: 15 * 60 * 1000, // 15 minutes
-  });
+  // Stream drills from backend
+  const { 
+    drills: allDrills, 
+    isLoading, 
+    isStreaming,
+    error: streamError,
+    progress,
+    total,
+  } = useStreamingDrills({ enabled: true });
+
+  // Apply filters client-side
+  const drills = useMemo(() => {
+    let filtered = allDrills;
+
+    // Text search
+    if (activeFilters.search) {
+      const searchLower = activeFilters.search.toLowerCase();
+      filtered = filtered.filter(
+        (d) =>
+          d.exercise.toLowerCase().includes(searchLower) ||
+          (d.description && d.description.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Contact level filter
+    if (activeFilters.contact_level?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.contact_level!.some((cl) => d.contact_level.includes(cl))
+      );
+    }
+
+    // Difficulty filter
+    if (activeFilters.difficulty?.length) {
+      filtered = filtered.filter((d) => activeFilters.difficulty!.includes(d.difficulty!));
+    }
+
+    // Drill type filter
+    if (activeFilters.drill_type?.length) {
+      filtered = filtered.filter((d) => activeFilters.drill_type!.includes(d.drill_type!));
+    }
+
+    // Equipment filter
+    if (activeFilters.equipment?.length) {
+      filtered = filtered.filter((d) => activeFilters.equipment!.includes(d.equipment!));
+    }
+
+    // Game type filter
+    if (activeFilters.game_type?.length) {
+      filtered = filtered.filter((d) => activeFilters.game_type!.includes(d.game_type!));
+    }
+
+    // Position focus filter
+    if (activeFilters.position_focus?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.position_focus!.some((pf) => d.position_focus.includes(pf))
+      );
+    }
+
+    // Skater level filter
+    if (activeFilters.skater_level?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.skater_level!.some((sl) => d.skater_level.includes(sl))
+      );
+    }
+
+    // Type filter
+    if (activeFilters.type?.length) {
+      filtered = filtered.filter((d) =>
+        activeFilters.type!.some((t) => d.type.includes(t))
+      );
+    }
+
+    return filtered;
+  }, [allDrills, activeFilters]);
 
   // Fetch filter options
   const { data: filterOptions } = useQuery({
@@ -105,7 +188,7 @@ export default function PlannerPage() {
     if (over?.id === 'timeline' && active.data.current && !isTimelineDrill) {
       // Adding new drill from library to end of timeline
       const drill = active.data.current as Drill;
-      const duration = Math.max(10, drill.avg_time || 15);
+      const duration = Math.max(10, Number(drill.avg_time) || 15);
       
       // Check if adding this drill would exceed 120 minutes
       const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
@@ -150,7 +233,7 @@ export default function PlannerPage() {
       } else if (active.data.current) {
         // Dropping new drill from library at specific time slot
         const drill = active.data.current as Drill;
-        const duration = Math.max(10, drill.avg_time || 15);
+        const duration = Math.max(10, Number(drill.avg_time) || 15);
         const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
         
         // Check if adding this drill would exceed 120 minutes
@@ -276,12 +359,25 @@ export default function PlannerPage() {
     setSections(sections.filter(s => s.id !== id));
   };
 
-  const handleSavePlan = async (isTemplate: boolean) => {
-    if (!planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
+  const handleUpdateSectionStart = (id: string, newStart: number) => {
+    setSections(sections.map(s => 
+      s.id === id ? { ...s, startMinute: newStart } : s
+    ));
+  };
 
+  const handleUpdateSectionEnd = (id: string, newEnd: number) => {
+    setSections(sections.map(s => 
+      s.id === id ? { ...s, endMinute: newEnd } : s
+    ));
+  };
+
+  const handleUpdateSectionName = (id: string, newName: string) => {
+    setSections(sections.map(s => 
+      s.id === id ? { ...s, name: newName } : s
+    ));
+  };
+
+  const handleSavePlan = async (isTemplate: boolean) => {
     try {
       await plansApi.create({
         name: planName,
@@ -299,9 +395,22 @@ export default function PlannerPage() {
       setPlanName('');
       setPlanDate('');
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
-      alert(errorMessage);
       console.error('Save plan error:', error);
+      let errorMessage = 'Failed to save plan. Please try again.';
+      
+      if (error?.response?.data?.detail) {
+        errorMessage = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        errorMessage = JSON.stringify(error, null, 2);
+      }
+      
+      setSaveError({ message: errorMessage });
     }
   };
 
@@ -347,11 +456,28 @@ export default function PlannerPage() {
             <p className="text-gray-300 text-sm mt-1">Drag drills to your timeline →</p>
           </div>
           <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-            {isLoading ? (
+            {isLoading || isStreaming ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                  <div className="text-gray-600 dark:text-gray-400 font-semibold">Loading drills...</div>
+                  <div className="text-gray-600 dark:text-gray-400 font-semibold">
+                    {isStreaming && progress > 0 ? (
+                      <>Loading drills... {progress}{total ? `/${total}` : ''}</>
+                    ) : (
+                      'Connecting to Notion...'
+                    )}
+                  </div>
+                  {streamError && (
+                    <p className="text-red-600 dark:text-red-400 text-sm mt-2">{streamError}</p>
+                  )}
+                </div>
+              </div>
+            ) : drills.length === 0 && allDrills.length === 0 ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center max-w-md">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
                 </div>
               </div>
             ) : drills.length === 0 ? (
@@ -379,11 +505,24 @@ export default function PlannerPage() {
 
         {/* Right: Timeline */}
         <div className="w-[28rem] flex-shrink-0 flex flex-col gap-1">
-          {/* Practice Type Selector */}
+          {/* Practice Type Selector and Add Section Button */}
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-            <label className="block text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-3">
-              Practice Type
-            </label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">
+                Practice Type
+              </label>
+              <button
+                onClick={() => {
+                  const endTime = Math.max(45, totalDuration);
+                  handleAddSection('New Section', 0, Math.min(endTime, 120));
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
+                title="Add section bracket"
+              >
+                <Plus className="w-4 h-4" />
+                Add Section
+              </button>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {(['fundamentals', 'skills_and_drills', 'scrimmage'] as PracticeType[]).map((type) => (
                 <button
@@ -398,19 +537,6 @@ export default function PlannerPage() {
                   {getPracticeTypeLabel(type)}
                 </button>
               ))}
-            </div>
-            
-            {/* Add Section Button */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => {
-                  const endTime = Math.max(45, totalDuration);
-                  handleAddSection('New Section', 0, Math.min(endTime, 120));
-                }}
-                className="w-full px-3 py-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-200 dark:hover:bg-purple-800 transition-all"
-              >
-                + Add Section Bracket
-              </button>
             </div>
           </div>
 
@@ -500,7 +626,11 @@ export default function PlannerPage() {
       <DragOverlay dropAnimation={dropAnimation}>
         {activeDrill ? (
           <div className="rotate-3 scale-105 shadow-2xl">
-            <DrillCard drill={activeDrill} onShowDetails={() => {}} />
+            <DrillCard 
+              drill={activeDrill} 
+              onContactLevelClick={() => {}} 
+              onDrillTypeClick={() => {}} 
+            />
           </div>
         ) : null}
       </DragOverlay>

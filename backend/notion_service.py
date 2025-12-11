@@ -1,9 +1,10 @@
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, AsyncGenerator
 from notion_client import Client
 from config import settings
 from models import Drill
 from drill_cache import drill_cache_manager
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,9 @@ class NotionService:
         if prop is None:
             return None
         
-        prop_data = prop.get(prop_type)
+        # For multi_relation, we need to read from "relation" key
+        actual_key = "relation" if prop_type == "multi_relation" else prop_type
+        prop_data = prop.get(actual_key)
         
         if prop_type == "title":
             if prop_data and len(prop_data) > 0:
@@ -68,10 +71,56 @@ class NotionService:
                                     tag_name = title_data[0].get("plain_text")
                                     logger.debug(f"Found tag name '{tag_name}' from related page {page_id}")
                                     return tag_name
-                        logger.debug(f"No title found in related page {page_id}")
+                        # If no title property found, try to find any title-type property
+                        for prop_name, prop_value in related_props.items():
+                            if prop_value.get("type") == "title":
+                                title_data = prop_value.get("title", [])
+                                if title_data and len(title_data) > 0:
+                                    tag_name = title_data[0].get("plain_text")
+                                    logger.debug(f"Found tag name '{tag_name}' from title property '{prop_name}' in related page {page_id}")
+                                    return tag_name
+                        logger.warning(f"No title property found in related page {page_id}. Available properties: {list(related_props.keys())}")
                 except Exception as e:
                     logger.error(f"Error fetching related page: {e}")
             return None
+        
+        elif prop_type == "multi_relation":
+            # Handle multi-relation properties (fetch ALL related Global Tags)
+            logger.debug(f"[MULTI-RELATION] prop_data type: {type(prop_data)}, value: {prop_data}")
+            results = []
+            if prop_data and len(prop_data) > 0:
+                logger.debug(f"[MULTI-RELATION] Processing {len(prop_data)} relation items")
+                try:
+                    for relation_item in prop_data:
+                        page_id = relation_item.get("id")
+                        if page_id and self.client:
+                            related_page = self.client.pages.retrieve(page_id=page_id)
+                            related_props = related_page.get("properties", {})
+                            found = False
+                            for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                                if title_prop in related_props:
+                                    title_data = related_props[title_prop].get("title", [])
+                                    if title_data and len(title_data) > 0:
+                                        tag_name = title_data[0].get("plain_text")
+                                        logger.debug(f"[MULTI-RELATION] Found tag: '{tag_name}'")
+                                        results.append(tag_name)
+                                        found = True
+                                        break
+                            if not found:
+                                for prop_name, prop_value in related_props.items():
+                                    if prop_value.get("type") == "title":
+                                        title_data = prop_value.get("title", [])
+                                        if title_data and len(title_data) > 0:
+                                            tag_name = title_data[0].get("plain_text")
+                                            logger.debug(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}'")
+                                            results.append(tag_name)
+                                            break
+                            if not found:
+                                logger.debug(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
+                except Exception as e:
+                    logger.error(f"[MULTI-RELATION] Error: {e}")
+            logger.debug(f"[MULTI-RELATION] Returning: {results}")
+            return results
         
         elif prop_type == "rollup":
             # Handle rollup properties (aggregated data from relations)
@@ -98,11 +147,19 @@ class NotionService:
         """Parse a Notion page into a Drill model."""
         props = page.get("properties", {})
         
+        # Debug Position property
+        position_prop = props.get("Position")
+        if position_prop:
+            relation_data = position_prop.get('relation')
+            logger.debug(f"[DEBUG] Position: type={position_prop.get('type')}, relation_data={relation_data}")
+        else:
+            logger.debug(f"[DEBUG] Position NOT FOUND. Available: {list(props.keys())}")
+        
         return Drill(
             id=page["id"],
             exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
             avg_time=self._parse_property(props.get("Avg Time"), "number"),
-            contact_level=self._parse_property(props.get("Contact Level"), "relation"),
+            contact_level=self._parse_property(props.get("Contact Level"), "multi_relation") or [],
             depends_on=self._parse_property(props.get("Depends on"), "multi_select") or [],
             description=self._parse_property(props.get("Description"), "rich_text"),
             difficulty=self._parse_property(props.get("Difficulty 1-5"), "number"),
@@ -110,8 +167,8 @@ class NotionService:
             equipment=self._parse_property(props.get("Equipment"), "select"),
             game_type=self._parse_property(props.get("Game Type"), "select"),
             players=self._parse_property(props.get("Players"), "number"),
-            position_focus=self._parse_property(props.get("Position Focus"), "multi_select") or [],
-            skater_level=self._parse_property(props.get("Skater Level"), "multi_select") or [],
+            position_focus=self._parse_property(props.get("Position"), "multi_relation") or [],
+            skater_level=self._parse_property(props.get("Skater Level"), "multi_relation") or [],
             skaters_needed=self._parse_property(props.get("Skaters Needed"), "number"),
             type=self._parse_property(props.get("Type"), "multi_select") or [],
             video_link=self._parse_property(props.get("Video Link"), "url")
@@ -190,6 +247,89 @@ class NotionService:
                     logger.info("Returning cached data due to Notion API error")
                     return cached_drills
             raise
+    
+    async def stream_all_drills(self, db=None, force_sync: bool = False) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream drills from Notion as they are parsed.
+        Yields SSE-formatted events for progressive loading.
+        
+        Yields events:
+        - {"type": "drill", "data": {...}} for each drill
+        - {"type": "progress", "count": N} every 10 drills
+        - {"type": "complete", "total": N} when finished
+        - {"type": "error", "message": "..."} on errors
+        """
+        # Check if we can use cache
+        if db and not force_sync:
+            if not drill_cache_manager.should_sync(db):
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    logger.info(f"Streaming {len(cached_drills)} drills from cache")
+                    for idx, drill in enumerate(cached_drills):
+                        yield {"type": "drill", "data": drill.dict()}
+                        if (idx + 1) % 10 == 0:
+                            yield {"type": "progress", "count": idx + 1}
+                    yield {"type": "complete", "total": len(cached_drills)}
+                    return
+        
+        # If no cache or force sync, fetch from Notion
+        if not self.client or not self.database_id:
+            logger.warning("Notion API not configured")
+            # Try to stream stale cache
+            if db:
+                cached_drills = drill_cache_manager.load_from_cache(db)
+                if cached_drills:
+                    logger.info("Streaming stale cache (Notion not configured)")
+                    for drill in cached_drills:
+                        yield {"type": "drill", "data": drill.dict()}
+                    yield {"type": "complete", "total": len(cached_drills)}
+                    return
+            yield {"type": "error", "message": "Notion API not configured"}
+            return
+        
+        try:
+            logger.info("Streaming drills from Notion...")
+            drills = []
+            count = 0
+            has_more = True
+            start_cursor = None
+            
+            while has_more:
+                response = self.client.databases.query(
+                    database_id=self.database_id,
+                    start_cursor=start_cursor
+                )
+                
+                for page in response.get("results", []):
+                    try:
+                        drill = self._parse_drill(page)
+                        # Only include drills with an Exercise name
+                        if drill.exercise and drill.exercise != "Untitled":
+                            drills.append(drill)
+                            count += 1
+                            yield {"type": "drill", "data": drill.dict()}
+                            
+                            # Send progress update every 10 drills
+                            if count % 10 == 0:
+                                yield {"type": "progress", "count": count}
+                    except Exception as e:
+                        logger.error(f"Error parsing drill {page.get('id')}: {e}")
+                        yield {"type": "error", "message": f"Failed to parse drill: {str(e)}"}
+                
+                has_more = response.get("has_more", False)
+                start_cursor = response.get("next_cursor")
+            
+            # Cache the results
+            self._cache = drills
+            if db:
+                drill_cache_manager.save_to_cache(drills, db)
+            
+            logger.info(f"Successfully streamed {count} drills from Notion")
+            yield {"type": "complete", "total": count}
+        
+        except Exception as e:
+            logger.error(f"Error streaming drills from Notion: {e}")
+            yield {"type": "error", "message": str(e)}
     
     async def get_drill_by_id(self, drill_id: str) -> Optional[Drill]:
         """Get a single drill by ID."""

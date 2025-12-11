@@ -4,7 +4,7 @@ export interface Drill {
   id: string;
   exercise: string;
   avg_time: number | null;
-  contact_level: string | null;
+  contact_level: string[];
   depends_on: string[];
   description: string | null;
   difficulty: number | null;
@@ -64,6 +64,7 @@ export interface PracticePlan {
   is_public?: boolean;
   notes?: string;
   timeline: TimelineItem[];
+  sections?: DrillSection[];
   original_plan_id?: number;
   created_at?: string;
   updated_at?: string;

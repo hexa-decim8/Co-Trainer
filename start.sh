@@ -35,22 +35,26 @@ if [ ! -d "venv" ]; then
         echo "  Try: sudo apt install python3-venv python3-full"
         exit 1
     fi
+    echo "✓ Virtual environment created"
+fi
+
+# Verify venv was created successfully
+if [ ! -f "venv/bin/pip" ]; then
+    echo "✗ Virtual environment creation failed - pip not found"
+    echo "  The venv directory exists but is incomplete"
+    echo "  Try deleting 'backend/venv' and running again"
+    exit 1
 fi
 
 # Install dependencies using venv's pip directly
 echo "Installing backend dependencies..."
-if [ -f "venv/bin/pip" ]; then
-    echo "✓ Virtual environment found"
-    ./venv/bin/pip install --upgrade pip -q
-    ./venv/bin/pip install -r requirements.txt
-    if [ $? -eq 0 ]; then
-        echo "✓ Dependencies installed successfully"
-    else
-        echo "✗ Failed to install dependencies"
-        exit 1
-    fi
+echo "✓ Virtual environment found"
+./venv/bin/pip install --upgrade pip -q
+./venv/bin/pip install -r requirements.txt
+if [ $? -eq 0 ]; then
+    echo "✓ Dependencies installed successfully"
 else
-    echo "✗ Virtual environment pip not found"
+    echo "✗ Failed to install dependencies"
     exit 1
 fi
 

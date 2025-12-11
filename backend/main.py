@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
@@ -473,10 +474,42 @@ async def delete_user(
     # Delete user (cascade will delete related records)
     db.delete(target_user)
     db.commit()
-    
     return {"success": True, "message": "User deleted successfully"}
 
 
+@app.get("/api/drills/stream")
+async def stream_drills(
+    force_sync: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """
+    Stream drills from Notion as they are parsed.
+    Returns Server-Sent Events (SSE) for progressive loading.
+    """
+    async def event_generator():
+        try:
+            async for event in notion_service.stream_all_drills(db=db, force_sync=force_sync):
+                # Format as SSE event
+                event_data = json.dumps(event)
+                yield f"data: {event_data}\n\n"
+        except Exception as e:
+            logger.error(f"Error in stream_drills: {e}")
+            error_event = json.dumps({"type": "error", "message": str(e)})
+            yield f"data: {error_event}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )
+
+
+@app.get("/api/drills", response_model=List[Drill])
 @app.get("/api/drills", response_model=List[Drill])
 async def get_drills(
     search: Optional[str] = Query(None),
@@ -497,6 +530,12 @@ async def get_drills(
     Filters use OR logic within a category and AND logic across categories.
     Set force_sync=true to force refresh from Notion.
     """
+    logger.info(f"API: Drill card retrieval requested by user {current_user.email}")
+    logger.info(f"API: Filters - search={search}, contact_level={contact_level}, difficulty={difficulty}, "
+                f"drill_type={drill_type}, equipment={equipment}, game_type={game_type}, "
+                f"position_focus={position_focus}, skater_level={skater_level}, type={type_filter}, "
+                f"force_sync={force_sync}")
+    
     drills = await notion_service.get_all_drills(db=db, force_sync=force_sync)
     
     # Apply filters
@@ -511,9 +550,12 @@ async def get_drills(
             (d.description and search_lower in d.description.lower())
         ]
     
-    # Contact level filter
+    # Contact level filter (multi-relation, match if ANY value in filter appears in drill)
     if contact_level:
-        filtered_drills = [d for d in filtered_drills if d.contact_level in contact_level]
+        filtered_drills = [
+            d for d in filtered_drills
+            if any(cl in d.contact_level for cl in contact_level)
+        ]
     
     # Difficulty filter
     if difficulty:
@@ -531,14 +573,14 @@ async def get_drills(
     if game_type:
         filtered_drills = [d for d in filtered_drills if d.game_type in game_type]
     
-    # Position focus filter (multi-select, match if ANY value in filter appears in drill)
+    # Position focus filter (multi-relation, match if ANY value in filter appears in drill)
     if position_focus:
         filtered_drills = [
             d for d in filtered_drills
             if any(pf in d.position_focus for pf in position_focus)
         ]
     
-    # Skater level filter (multi-select)
+    # Skater level filter (multi-relation, match if ANY value in filter appears in drill)
     if skater_level:
         filtered_drills = [
             d for d in filtered_drills
@@ -552,6 +594,7 @@ async def get_drills(
             if any(t in d.type for t in type_filter)
         ]
     
+    logger.info(f"API: Returning {len(filtered_drills)} drill cards (filtered from {len(drills)} total)")
     return filtered_drills
 
 
@@ -598,8 +641,13 @@ async def get_filter_options(current_user: UserDB = Depends(get_current_user)):
     types = set()
     
     for drill in drills:
-        if drill.contact_level:
-            contact_levels.add(drill.contact_level)
+        # Multi-relation/select fields that are now lists
+        contact_levels.update(drill.contact_level)
+        skater_levels.update(drill.skater_level)
+        position_focus_list.update(drill.position_focus)
+        types.update(drill.type)
+        
+        # Single-select fields
         if drill.difficulty:
             difficulties.add(drill.difficulty)
         if drill.drill_type:
@@ -608,11 +656,6 @@ async def get_filter_options(current_user: UserDB = Depends(get_current_user)):
             equipment_list.add(drill.equipment)
         if drill.game_type:
             game_types.add(drill.game_type)
-        
-        # Multi-select fields
-        position_focus_list.update(drill.position_focus)
-        skater_levels.update(drill.skater_level)
-        types.update(drill.type)
     
     return FilterOptions(
         contact_levels=sorted(contact_levels),
@@ -633,6 +676,10 @@ async def create_plan(
     current_user: UserDB = Depends(get_current_user)
 ):
     """Create a new practice plan."""
+    logger.info(f"API: Creating plan '{plan.name}' for user {current_user.email} "
+                f"(template={plan.is_template}, public={plan.is_public}, "
+                f"drills={len(plan.timeline)}, sections={len(plan.sections) if plan.sections else 0})")
+    
     db_plan = PracticePlanDB(
         user_id=current_user.id,
         name=plan.name,
@@ -640,14 +687,20 @@ async def create_plan(
         practice_type=plan.practice_type.value,
         is_template=plan.is_template,
         notes=plan.notes,
-        timeline_json=json.dumps([item.dict() for item in plan.timeline])
+        timeline_json=json.dumps([item.dict() for item in plan.timeline]),
+        sections_json=json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
     )
     
     # Set new fields if they exist in the database
     if hasattr(db_plan, 'is_public'):
         db_plan.is_public = plan.is_public
+    else:
+        logger.warning(f"Database schema missing 'is_public' column - plan will not be publicly accessible")
+    
     if hasattr(db_plan, 'clone_count'):
         db_plan.clone_count = 0
+    else:
+        logger.warning(f"Database schema missing 'clone_count' column - clone tracking unavailable")
     
     db.add(db_plan)
     db.commit()
@@ -656,6 +709,9 @@ async def create_plan(
     # Calculate total duration
     timeline_data = json.loads(db_plan.timeline_json)
     total_duration = sum(item["duration_minutes"] for item in timeline_data)
+    
+    logger.info(f"API: Successfully created plan ID {db_plan.id} - '{db_plan.name}' "
+                f"({total_duration} min, {len(timeline_data)} drills)")
     
     return PracticePlanSummary(
         id=db_plan.id,
@@ -804,6 +860,11 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         timeline_with_drills.append(timeline_item)
         current_time += duration
     
+    # Parse sections if they exist
+    sections = None
+    if hasattr(plan, 'sections_json') and plan.sections_json:
+        sections = json.loads(plan.sections_json)
+    
     return PracticePlanWithDrills(
         id=plan.id,
         name=plan.name,
@@ -812,6 +873,7 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         is_template=plan.is_template,
         notes=plan.notes,
         timeline=timeline_with_drills,
+        sections=sections,
         total_duration=current_time,
         created_at=plan.created_at,
         updated_at=plan.updated_at
@@ -841,6 +903,7 @@ async def update_plan(
     db_plan.is_public = plan.is_public
     db_plan.notes = plan.notes
     db_plan.timeline_json = json.dumps([item.dict() for item in plan.timeline])
+    db_plan.sections_json = json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
