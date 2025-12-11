@@ -28,6 +28,15 @@ from auth import (
     get_current_user, verify_password, verify_refresh_token, require_admin, require_coach_or_admin
 )
 
+# Configure logging to display in terminal
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()  # Output to console/terminal
+    ]
+)
+
 app = FastAPI(title="Co-Trainer API", version="1.0.0")
 
 logger = logging.getLogger(__name__)

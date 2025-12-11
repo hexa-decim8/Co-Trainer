@@ -20,7 +20,7 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
   const [isExpanded, setIsExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: drill.id,
-    data: { current: drill },
+    data: drill
   });
 
   // Memoize color calculations

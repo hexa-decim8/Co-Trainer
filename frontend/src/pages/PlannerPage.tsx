@@ -17,13 +17,7 @@ interface TimelineDrill {
   startTime: number;
 }
 
-interface SectionBracket {
-  id: string;
-  name: string;
-  startMinute: number;
-  endMinute: number;
-  color: string;
-}
+// Use DrillSection from types.ts instead of local interface
 
 interface SaveError {
   message: string;
@@ -43,7 +37,7 @@ const PRACTICE_DURATION = 120; // 2 hours in minutes
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
-  const [sections, setSections] = useState<SectionBracket[]>([]);
+  const [sections, setSections] = useState<DrillSection[]>([]);
 
   const handleContactLevelClick = useCallback((level: string) => {
     setActiveFilters(prev => ({
@@ -160,7 +154,10 @@ export default function PlannerPage() {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveDrill(event.active.data.current as Drill);
+    const drillData = event.active.data?.current;
+    if (drillData) {
+      setActiveDrill(drillData as Drill);
+    }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -185,9 +182,18 @@ export default function PlannerPage() {
     // Check if dragging an existing timeline drill
     const isTimelineDrill = timelineDrills.some(d => d.id === active.id);
 
-    if (over?.id === 'timeline' && active.data.current && !isTimelineDrill) {
+    if (over?.id === 'timeline' && active.data?.current && !isTimelineDrill) {
       // Adding new drill from library to end of timeline
       const drill = active.data.current as Drill;
+      
+      // Validate drill has required data (only ID is needed for API)
+      if (!drill || !drill.id) {
+        console.error('Invalid drill data:', drill);
+        alert('Cannot add drill - invalid drill data');
+        setActiveDrill(null);
+        return;
+      }
+      
       const duration = Math.max(10, Number(drill.avg_time) || 15);
       
       // Check if adding this drill would exceed 120 minutes
@@ -230,9 +236,18 @@ export default function PlannerPage() {
           
           setTimelineDrills(calculateStartTimes(reordered));
         }
-      } else if (active.data.current) {
+      } else if (active.data?.current) {
         // Dropping new drill from library at specific time slot
         const drill = active.data.current as Drill;
+        
+        // Validate drill has required data (only ID is needed for API)
+        if (!drill || !drill.id) {
+          console.error('Invalid drill data:', drill);
+          alert('Cannot add drill - invalid drill data');
+          setActiveDrill(null);
+          return;
+        }
+        
         const duration = Math.max(10, Number(drill.avg_time) || 15);
         const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
         
@@ -393,10 +408,28 @@ export default function PlannerPage() {
     }
 
     // Validate all drills have valid data
-    const hasInvalidDrill = timelineDrills.some(d => !d.drill || !d.drill.id);
-    if (hasInvalidDrill) {
-      console.error('Invalid drills detected:', timelineDrills);
-      setSaveError({ message: 'Timeline contains invalid drills. Please refresh and try again.' });
+    console.log('Timeline drills before save:', timelineDrills);
+    
+    const invalidDrills: any[] = [];
+    timelineDrills.forEach((d, index) => {
+      if (!d.drill || !d.drill.id || !d.drill.exercise) {
+        console.error(`Invalid drill at index ${index}:`, {
+          index,
+          timelineDrillId: d.id,
+          hasDrillObject: !!d.drill,
+          drillId: d.drill?.id,
+          drillExercise: d.drill?.exercise,
+          fullDrill: d
+        });
+        invalidDrills.push({ index, drill: d });
+      }
+    });
+    
+    if (invalidDrills.length > 0) {
+      console.error('Invalid drills found:', invalidDrills);
+      setSaveError({ 
+        message: `Timeline contains ${invalidDrills.length} invalid drill(s) at position(s): ${invalidDrills.map(x => x.index + 1).join(', ')}. Please remove and re-add these drills.` 
+      });
       return;
     }
 
@@ -408,26 +441,21 @@ export default function PlannerPage() {
         formattedDate = `${planDate.trim()}T00:00:00`;
       }
 
-      // Convert sections to the format expected by backend
-      const formattedSections = sections.map(s => ({
-        id: s.id,
-        name: s.name,
-        start_minute: s.start_minute,
-        end_minute: s.end_minute,
-        color: s.color,
-      }));
-
-      await plansApi.create({
+      const planData = {
         name: planName.trim(),
         date: formattedDate,
         practice_type: practiceType,
         is_template: isTemplate,
+        is_public: false,
         timeline: timelineDrills.map(d => ({
           drill_id: d.drill.id,
           duration_minutes: d.duration,
         })),
-        sections: formattedSections.length > 0 ? formattedSections : undefined,
-      });
+        sections: sections.length > 0 ? sections : undefined,
+      };
+
+      console.log('Saving plan with data:', planData);
+      await plansApi.create(planData);
 
       setSaveSuccess(isTemplate ? 'Template saved!' : 'Practice plan saved!');
       setTimeout(() => setSaveSuccess(null), 3000);
@@ -609,6 +637,16 @@ export default function PlannerPage() {
               </button>
             ) : (
               <div className="space-y-3">
+                {saveError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-600 dark:text-red-400">{saveError.message}</p>
+                  </div>
+                )}
+                {saveSuccess && (
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm text-green-600 dark:text-green-400">{saveSuccess}</p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Plan Name
@@ -652,6 +690,8 @@ export default function PlannerPage() {
                     setShowSaveDialog(false);
                     setPlanName('');
                     setPlanDate('');
+                    setSaveError(null);
+                    setSaveSuccess(null);
                   }}
                   className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
                 >

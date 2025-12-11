@@ -181,7 +181,7 @@ function TimelineDrillItem({
               <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{drill.drill.exercise}</h4>
               <div className="flex flex-wrap gap-1 mt-1">
                 {drill.drill.contact_level && (Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level.length > 0 : true) && (
-                  <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(drill.drill.contact_level)}`}>
+                  <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level[0] : drill.drill.contact_level)}`}>
                     <Shield className="w-3 h-3 mr-1" />
                     {Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level[0] || 'Unknown' : drill.drill.contact_level}
                   </span>
