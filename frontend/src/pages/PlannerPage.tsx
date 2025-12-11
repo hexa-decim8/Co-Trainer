@@ -39,19 +39,85 @@ export default function PlannerPage() {
   const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
   const [sections, setSections] = useState<DrillSection[]>([]);
 
+  // Toggle-based badge click handlers
   const handleContactLevelClick = useCallback((level: string) => {
-    setActiveFilters(prev => ({
-      ...prev,
-      contact_level: [level]
-    }));
+    setActiveFilters(prev => {
+      const current = prev.contact_level || [];
+      const newValues = current.includes(level)
+        ? current.filter(v => v !== level)
+        : [...current, level];
+      return {
+        ...prev,
+        contact_level: newValues.length > 0 ? newValues : undefined
+      };
+    });
   }, []);
 
   const handleDrillTypeClick = useCallback((type: string) => {
-    setActiveFilters(prev => ({
-      ...prev,
-      drill_type: [type]
-    }));
+    setActiveFilters(prev => {
+      const current = prev.drill_type || [];
+      const newValues = current.includes(type)
+        ? current.filter(v => v !== type)
+        : [...current, type];
+      return {
+        ...prev,
+        drill_type: newValues.length > 0 ? newValues : undefined
+      };
+    });
   }, []);
+
+  const handleEquipmentClick = useCallback((equipment: string) => {
+    setActiveFilters(prev => {
+      const current = prev.equipment || [];
+      const newValues = current.includes(equipment)
+        ? current.filter(v => v !== equipment)
+        : [...current, equipment];
+      return {
+        ...prev,
+        equipment: newValues.length > 0 ? newValues : undefined
+      };
+    });
+  }, []);
+
+  const handlePositionFocusClick = useCallback((position: string) => {
+    setActiveFilters(prev => {
+      const current = prev.position_focus || [];
+      const newValues = current.includes(position)
+        ? current.filter(v => v !== position)
+        : [...current, position];
+      return {
+        ...prev,
+        position_focus: newValues.length > 0 ? newValues : undefined
+      };
+    });
+  }, []);
+
+  const handleSkaterLevelClick = useCallback((level: string) => {
+    setActiveFilters(prev => {
+      const current = prev.skater_level || [];
+      const newValues = current.includes(level)
+        ? current.filter(v => v !== level)
+        : [...current, level];
+      return {
+        ...prev,
+        skater_level: newValues.length > 0 ? newValues : undefined
+      };
+    });
+  }, []);
+
+  const handleTypeClick = useCallback((type: string) => {
+    setActiveFilters(prev => {
+      const current = prev.type || [];
+      const newValues = current.includes(type)
+        ? current.filter(v => v !== type)
+        : [...current, type];
+      return {
+        ...prev,
+        type: newValues.length > 0 ? newValues : undefined
+      };
+    });
+  }, []);
+
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
   const [planDate, setPlanDate] = useState('');
@@ -562,8 +628,13 @@ export default function PlannerPage() {
                   <DrillCard
                     key={drill.id}
                     drill={drill}
+                    activeFilters={activeFilters}
                     onContactLevelClick={handleContactLevelClick}
                     onDrillTypeClick={handleDrillTypeClick}
+                    onEquipmentClick={handleEquipmentClick}
+                    onPositionFocusClick={handlePositionFocusClick}
+                    onSkaterLevelClick={handleSkaterLevelClick}
+                    onTypeClick={handleTypeClick}
                   />
                 ))}
               </div>
@@ -707,9 +778,14 @@ export default function PlannerPage() {
         {activeDrill ? (
           <div className="rotate-3 scale-105 shadow-2xl">
             <DrillCard 
-              drill={activeDrill} 
+              drill={activeDrill}
+              activeFilters={activeFilters}
               onContactLevelClick={() => {}} 
-              onDrillTypeClick={() => {}} 
+              onDrillTypeClick={() => {}}
+              onEquipmentClick={() => {}}
+              onPositionFocusClick={() => {}}
+              onSkaterLevelClick={() => {}}
+              onTypeClick={() => {}}
             />
           </div>
         ) : null}
