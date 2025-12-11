@@ -148,59 +148,98 @@ export default function FilterSidebar({
 
       {/* Filters */}
       <div className="flex-1 overflow-y-auto p-6">
-        {filterOptions.type && filterOptions.type.length > 0 && (
-          <FilterSection
-            title="Drill Type"
-            category="type"
-            options={filterOptions.type}
-            id="type"
-          />
-        )}
-        
-        {filterOptions.contact_level && filterOptions.contact_level.length > 0 && (
-          <FilterSection
-            title="Contact Level"
-            category="contact_level"
-            options={filterOptions.contact_level}
-            id="contact_level"
-          />
-        )}
-        
-        {filterOptions.difficulty && filterOptions.difficulty.length > 0 && (
-          <FilterSection
-            title="Difficulty"
-            category="difficulty"
-            options={filterOptions.difficulty}
-            id="difficulty"
-          />
-        )}
-        
-        {filterOptions.position_focus && filterOptions.position_focus.length > 0 && (
-          <FilterSection
-            title="Position Focus"
-            category="position_focus"
-            options={filterOptions.position_focus}
-            id="position_focus"
-          />
-        )}
-        
-        {filterOptions.skater_level && filterOptions.skater_level.length > 0 && (
-          <FilterSection
-            title="Skater Level"
-            category="skater_level"
-            options={filterOptions.skater_level}
-            id="skater_level"
-          />
-        )}
-        
-        {filterOptions.drill_type && filterOptions.drill_type.length > 0 && (
-          <FilterSection
-            title="Category"
-            category="drill_type"
-            options={filterOptions.drill_type}
-            id="drill_type"
-          />
-        )}
+        {/* Drill Characteristics Group */}
+        <div className="mb-6">
+          <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center">
+            <span className="mr-2">⚡</span> Drill Characteristics
+          </h2>
+          
+          {filterOptions.types && filterOptions.types.length > 0 && (
+            <FilterSection
+              title="Type"
+              category="type"
+              options={filterOptions.types}
+              id="type"
+            />
+          )}
+          
+          {filterOptions.drill_types && filterOptions.drill_types.length > 0 && (
+            <FilterSection
+              title="Category"
+              category="drill_type"
+              options={filterOptions.drill_types}
+              id="drill_type"
+            />
+          )}
+          
+          {filterOptions.contact_levels && filterOptions.contact_levels.length > 0 && (
+            <FilterSection
+              title="Contact Level"
+              category="contact_level"
+              options={filterOptions.contact_levels}
+              id="contact_level"
+            />
+          )}
+        </div>
+
+        {/* Player Requirements Group */}
+        <div className="mb-6">
+          <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center">
+            <span className="mr-2">👤</span> Player Requirements
+          </h2>
+          
+          {filterOptions.difficulties && filterOptions.difficulties.length > 0 && (
+            <FilterSection
+              title="Difficulty"
+              category="difficulty"
+              options={filterOptions.difficulties}
+              id="difficulty"
+            />
+          )}
+          
+          {filterOptions.skater_levels && filterOptions.skater_levels.length > 0 && (
+            <FilterSection
+              title="Skater Level"
+              category="skater_level"
+              options={filterOptions.skater_levels}
+              id="skater_level"
+            />
+          )}
+          
+          {filterOptions.position_focus && filterOptions.position_focus.length > 0 && (
+            <FilterSection
+              title="Position Focus"
+              category="position_focus"
+              options={filterOptions.position_focus}
+              id="position_focus"
+            />
+          )}
+        </div>
+
+        {/* Logistics Group */}
+        <div className="mb-6">
+          <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center">
+            <span className="mr-2">🛠️</span> Logistics
+          </h2>
+          
+          {filterOptions.equipment && filterOptions.equipment.length > 0 && (
+            <FilterSection
+              title="Equipment"
+              category="equipment"
+              options={filterOptions.equipment}
+              id="equipment"
+            />
+          )}
+          
+          {filterOptions.game_types && filterOptions.game_types.length > 0 && (
+            <FilterSection
+              title="Game Type"
+              category="game_type"
+              options={filterOptions.game_types}
+              id="game_type"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

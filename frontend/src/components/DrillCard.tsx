@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Info, Clock, Shield, Users, Target, Zap, GripVertical, ChevronUp, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
-import type { Drill } from '../types';
+import type { Drill, DrillFilters } from '../types';
 import {
   getContactColor,
   getContactBadgeColor,
@@ -12,12 +12,31 @@ import {
 
 interface DrillCardProps {
   drill: Drill;
+  activeFilters?: DrillFilters;
   onContactLevelClick?: (level: string) => void;
   onDrillTypeClick?: (type: string) => void;
+  onEquipmentClick?: (equipment: string) => void;
+  onPositionFocusClick?: (position: string) => void;
+  onSkaterLevelClick?: (level: string) => void;
+  onTypeClick?: (type: string) => void;
 }
 
-export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick }: DrillCardProps) {
+export default function DrillCard({ 
+  drill, 
+  activeFilters, 
+  onContactLevelClick, 
+  onDrillTypeClick,
+  onEquipmentClick,
+  onPositionFocusClick,
+  onSkaterLevelClick,
+  onTypeClick
+}: DrillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Detect mobile device
+  const isMobile = useMemo(() => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }, []);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: drill.id,
     data: drill
@@ -91,19 +110,23 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
           {/* Contact Level badges */}
           {drill.contact_level && drill.contact_level.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {drill.contact_level.map((level) => (
-                <button
-                  key={level}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onContactLevelClick?.(level);
-                  }}
-                  className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(level)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer`}
-                >
-                  <Shield className="w-3 h-3 mr-1" />
-                  {level}
-                </button>
-              ))}
+              {drill.contact_level.map((level) => {
+                const isActive = activeFilters?.contact_level?.includes(level);
+                return (
+                  <button
+                    key={level}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onContactLevelClick?.(level);
+                    }}
+                    className={`inline-flex items-center text-xs font-medium rounded-md ${getContactBadgeColor(level)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                  >
+                    <Shield className="w-3 h-3 mr-1" />
+                    {level}
+                    {isActive && <span className="ml-1 font-bold">✓</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -111,23 +134,37 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
         {/* Drill Type and Equipment */}
         {(drill.drill_type || drill.equipment) && (
           <div className="flex flex-wrap gap-2 mb-3">
-            {drill.drill_type && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDrillTypeClick?.(drill.drill_type!);
-                }}
-                className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getDrillTypeBadgeColor(drill.drill_type)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer`}
-              >
-                <Zap className="w-3 h-3 mr-1" />
-                {drill.drill_type}
-              </button>
-            )}
-            {drill.equipment && (
-              <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300">
-                {drill.equipment}
-              </span>
-            )}
+            {drill.drill_type && (() => {
+              const isActive = activeFilters?.drill_type?.includes(drill.drill_type);
+              return (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDrillTypeClick?.(drill.drill_type!);
+                  }}
+                  className={`inline-flex items-center text-xs font-medium rounded-md ${getDrillTypeBadgeColor(drill.drill_type)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                >
+                  <Zap className="w-3 h-3 mr-1" />
+                  {drill.drill_type}
+                  {isActive && <span className="ml-1 font-bold">✓</span>}
+                </button>
+              );
+            })()}
+            {drill.equipment && (() => {
+              const isActive = activeFilters?.equipment?.includes(drill.equipment);
+              return (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEquipmentClick?.(drill.equipment!);
+                  }}
+                  className={`inline-flex items-center text-xs font-medium rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                >
+                  {drill.equipment}
+                  {isActive && <span className="ml-1 font-bold">✓</span>}
+                </button>
+              );
+            })()}
           </div>
         )}
 
@@ -153,14 +190,25 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
         {drill.position_focus && drill.position_focus.length > 0 && (
           <div className="mb-3">
             <div className="flex flex-wrap gap-1.5">
-              {drill.position_focus.slice(0, 2).map((pos) => (
-                <span key={pos} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300">
-                  <Target className="w-3 h-3 mr-1" />
-                  {pos}
-                </span>
-              ))}
+              {drill.position_focus.slice(0, 2).map((pos) => {
+                const isActive = activeFilters?.position_focus?.includes(pos);
+                return (
+                  <button
+                    key={pos}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPositionFocusClick?.(pos);
+                    }}
+                    className={`inline-flex items-center text-xs font-medium rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                  >
+                    <Target className="w-3 h-3 mr-1" />
+                    {pos}
+                    {isActive && <span className="ml-1 font-bold">✓</span>}
+                  </button>
+                );
+              })}
               {drill.position_focus.length > 2 && (
-                <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400">
+                <span className={`inline-flex items-center text-xs font-medium rounded-md bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}>
                   +{drill.position_focus.length - 2}
                 </span>
               )}
@@ -172,11 +220,22 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
         {drill.skater_level && drill.skater_level.length > 0 && (
           <div className="mb-3">
             <div className="flex flex-wrap gap-1.5">
-              {drill.skater_level.map((level) => (
-                <span key={level} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300">
-                  {level}
-                </span>
-              ))}
+              {drill.skater_level.map((level) => {
+                const isActive = activeFilters?.skater_level?.includes(level);
+                return (
+                  <button
+                    key={level}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSkaterLevelClick?.(level);
+                    }}
+                    className={`inline-flex items-center text-xs font-medium rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                  >
+                    {level}
+                    {isActive && <span className="ml-1 font-bold">✓</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -184,13 +243,24 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
         {/* Type Tags */}
         {drill.type && drill.type.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {drill.type.slice(0, 3).map((t) => (
-              <span key={t} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                {t}
-              </span>
-            ))}
+            {drill.type.slice(0, 3).map((t) => {
+              const isActive = activeFilters?.type?.includes(t);
+              return (
+                <button
+                  key={t}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTypeClick?.(t);
+                  }}
+                  className={`inline-flex items-center text-xs font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                >
+                  {t}
+                  {isActive && <span className="ml-1 font-bold">✓</span>}
+                </button>
+              );
+            })}
             {drill.type.length > 3 && (
-              <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+              <span className={`inline-flex items-center text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}>
                 +{drill.type.length - 3} more
               </span>
             )}
@@ -237,11 +307,22 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
                   All Positions ({drill.position_focus.length})
                 </h4>
                 <div className="flex flex-wrap gap-1">
-                  {drill.position_focus.map((pos) => (
-                    <span key={pos} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300">
-                      {pos}
-                    </span>
-                  ))}
+                  {drill.position_focus.map((pos) => {
+                    const isActive = activeFilters?.position_focus?.includes(pos);
+                    return (
+                      <button
+                        key={pos}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPositionFocusClick?.(pos);
+                        }}
+                        className={`inline-flex items-center text-xs font-medium rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                      >
+                        {pos}
+                        {isActive && <span className="ml-1 font-bold">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -254,11 +335,22 @@ export default function DrillCard({ drill, onContactLevelClick, onDrillTypeClick
                   All Categories ({drill.type.length})
                 </h4>
                 <div className="flex flex-wrap gap-1">
-                  {drill.type.map((t) => (
-                    <span key={t} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                      {t}
-                    </span>
-                  ))}
+                  {drill.type.map((t) => {
+                    const isActive = activeFilters?.type?.includes(t);
+                    return (
+                      <button
+                        key={t}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTypeClick?.(t);
+                        }}
+                        className={`inline-flex items-center text-xs font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                      >
+                        {t}
+                        {isActive && <span className="ml-1 font-bold">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
