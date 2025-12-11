@@ -7,8 +7,7 @@ import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
-import { useStreamingDrills } from '../hooks/useStreamingDrills';
-import type { Drill, DrillFilters, PracticeType } from '../types';
+import type { Drill, DrillFilters, PracticeType, DrillSection } from '../types';
 
 interface TimelineDrill {
   id: string;
@@ -38,7 +37,7 @@ const dropAnimation = {
   })
 };
 
-const PRACTICE_DURATION = 120; // 2 hours
+const PRACTICE_DURATION = 120; // 2 hours in minutes
 
 export default function PlannerPage() {
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
@@ -60,7 +59,8 @@ export default function PlannerPage() {
   }, []);
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
-  const [practiceDate, setPracticeDate] = useState('');
+  const [planDate, setPlanDate] = useState('');
+  const [sections, setSections] = useState<DrillSection[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
@@ -190,6 +190,14 @@ export default function PlannerPage() {
       const drill = active.data.current as Drill;
       const duration = Math.max(10, Number(drill.avg_time) || 15);
       
+      // Check if adding this drill would exceed 120 minutes
+      const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
+      if (currentTotal + duration > 120) {
+        alert('Cannot add drill - practice plans are limited to 120 minutes');
+        setActiveDrill(null);
+        return;
+      }
+      
       const newDrill = {
         id: `timeline-${Date.now()}-${Math.random()}`,
         drill,
@@ -227,6 +235,14 @@ export default function PlannerPage() {
         const drill = active.data.current as Drill;
         const duration = Math.max(10, Number(drill.avg_time) || 15);
         const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
+        
+        // Check if adding this drill would exceed 120 minutes
+        const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
+        if (currentTotal + duration > 120) {
+          alert('Cannot add drill - practice plans are limited to 120 minutes');
+          setActiveDrill(null);
+          return;
+        }
         
         const newDrill = {
           id: `timeline-${Date.now()}-${Math.random()}`,
@@ -266,6 +282,16 @@ export default function PlannerPage() {
   };
 
   const handleUpdateDuration = (index: number, newDuration: number) => {
+    // Check if new duration would exceed 120 minutes
+    const otherDrillsTotal = timelineDrills.reduce((sum, d, i) => 
+      i === index ? sum : sum + d.duration, 0
+    );
+    
+    if (otherDrillsTotal + newDuration > 120) {
+      alert('Cannot extend drill - would exceed 120-minute limit');
+      return;
+    }
+    
     const updated = [...timelineDrills];
     updated[index] = { ...updated[index], duration: newDuration };
     setTimelineDrills(calculateStartTimes(updated));
@@ -278,22 +304,64 @@ export default function PlannerPage() {
 
   const totalDuration = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
 
-  // Section bracket handlers
-  const getRandomColor = () => {
-    const colors = [
-      '#f59e0b', // amber
-      '#3b82f6', // blue
-      '#8b5cf6', // purple
-      '#ec4899', // pink
-      '#14b8a6', // teal
-      '#f97316', // orange
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
+  // Section management functions
+  const handleAddSection = (name: string, startMinute: number, endMinute: number) => {
+    // Check maximum bracket limit
+    if (sections.length >= 4) {
+      alert('Maximum of 4 section brackets allowed.');
+      return;
+    }
+    
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+    
+    // Find a non-overlapping position for the new section
+    let proposedStart = startMinute;
+    let proposedEnd = endMinute;
+    
+    // Check for overlaps and adjust position
+    const hasOverlap = () => {
+      return sections.some(section => 
+        (proposedStart >= section.start_minute && proposedStart < section.end_minute) ||
+        (proposedEnd > section.start_minute && proposedEnd <= section.end_minute) ||
+        (proposedStart <= section.start_minute && proposedEnd >= section.end_minute)
+      );
+    };
+    
+    // If there's overlap, try to place it after the last section
+    if (hasOverlap() && sections.length > 0) {
+      const lastSection = sections.reduce((latest, section) => 
+        section.end_minute > latest.end_minute ? section : latest
+      );
+      proposedStart = lastSection.end_minute;
+      proposedEnd = Math.min(proposedStart + (endMinute - startMinute), PRACTICE_DURATION);
+    }
+    
+    // Only add if it fits within practice duration
+    if (proposedStart < PRACTICE_DURATION && proposedEnd <= PRACTICE_DURATION) {
+      const newSection: DrillSection = {
+        id: `section-${Date.now()}`,
+        name,
+        start_minute: proposedStart,
+        end_minute: proposedEnd,
+        color: colors[sections.length % colors.length],
+      };
+      setSections([...sections, newSection]);
+    } else {
+      alert('Cannot add section: Not enough space in the practice timeline.');
+    }
   };
 
-  const handleAddSection = () => {
-    if (sections.length >= 4) {
-      alert('Maximum 4 sections allowed');
+  const handleUpdateSection = (id: string, updates: Partial<Omit<DrillSection, 'id'>>) => {
+    setSections(sections.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const handleDeleteSection = (id: string) => {
+    setSections(sections.filter(s => s.id !== id));
+  };
+
+  const handleSavePlan = async (isTemplate: boolean) => {
+    if (!planName.trim()) {
+      alert('Please enter a plan name');
       return;
     }
 
@@ -344,93 +412,21 @@ export default function PlannerPage() {
 
   const handleSavePlan = async (isTemplate: boolean) => {
     try {
-      // Clear previous messages
-      setSaveError(null);
-      setSaveSuccess(null);
-
-      // Validation
-      if (!planName || !planName.trim()) {
-        setSaveError({ message: 'Please enter a plan name', field: 'name' });
-        return;
-      }
-
-      if (planName.trim().length > 200) {
-        setSaveError({ message: 'Plan name must be 200 characters or less', field: 'name' });
-        return;
-      }
-
-      if (!Array.isArray(timelineDrills) || timelineDrills.length === 0) {
-        setSaveError({ message: 'Practice plan must have at least one drill', field: 'timeline' });
-        return;
-      }
-
-      if (timelineDrills.length > 50) {
-        setSaveError({ message: 'Practice plan cannot have more than 50 drills', field: 'timeline' });
-        return;
-      }
-
-      // Validate drill data before sending
-      const validTimeline = timelineDrills
-        .filter(d => d && (d.drill?.id || d.id))
-        .map(d => {
-          try {
-            return {
-              drill_id: String(d.drill?.id || d.id),
-              duration_minutes: Math.max(5, Math.min(120, Number(d.duration) || 15)),
-            };
-          } catch (err) {
-            console.error('Error mapping drill:', err, d);
-            return null;
-          }
-        })
-        .filter(Boolean);
-
-      if (validTimeline.length === 0) {
-        setSaveError({ message: 'No valid drills to save', field: 'timeline' });
-        return;
-      }
-
-      // Convert date to ISO datetime format if provided
-      let formattedDate = undefined;
-      if (practiceDate && practiceDate.trim()) {
-        try {
-          // Add time component to make it a valid datetime
-          formattedDate = `${practiceDate.trim()}T00:00:00`;
-        } catch (err) {
-          console.error('Date formatting error:', err);
-        }
-      }
-
-      const payload = {
-        name: planName.trim(),
-        date: formattedDate,
+      await plansApi.create({
+        name: planName,
+        date: planDate || undefined,
         practice_type: practiceType,
-        is_template: Boolean(isTemplate),
-        timeline: validTimeline,
-        sections: Array.isArray(sections) ? sections.map(s => ({
-          id: String(s.id),
-          name: String(s.name || ''),
-          color: String(s.color || '#000000'),
-          drill_indices: [],
-        })) : [],
-      };
+        is_template: isTemplate,
+        timeline: timelineDrills.map(d => ({
+          drill_id: d.drill.id,
+          duration_minutes: d.duration,
+        })),
+      });
 
-      await plansApi.create(payload);
-
-      setSaveSuccess(isTemplate ? 'Template saved successfully!' : 'Practice plan saved successfully!');
-      
-      const timer = setTimeout(() => {
-        try {
-          setShowSaveDialog(false);
-          setPlanName('');
-          setPracticeDate('');
-          setSaveSuccess(null);
-        } catch (err) {
-          console.error('Cleanup error:', err);
-        }
-      }, 1500);
-
-      return () => clearTimeout(timer);
+      alert(isTemplate ? 'Template saved!' : 'Practice plan saved!');
+      setShowSaveDialog(false);
+      setPlanName('');
+      setPlanDate('');
     } catch (error: any) {
       console.error('Save plan error:', error);
       let errorMessage = 'Failed to save plan. Please try again.';
@@ -572,6 +568,19 @@ export default function PlannerPage() {
                 </button>
               ))}
             </div>
+            
+            {/* Add Section Button */}
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  const endTime = Math.max(45, totalDuration);
+                  handleAddSection('New Section', 0, Math.min(endTime, 120));
+                }}
+                className="w-full px-3 py-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-200 dark:hover:bg-purple-800 transition-all"
+              >
+                + Add Section Bracket
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
@@ -586,10 +595,7 @@ export default function PlannerPage() {
               dropTimeSlot={dropTimeSlot}
               activeDrill={activeDrill}
               sections={sections}
-              onUpdateSectionStart={handleUpdateSectionStart}
-              onUpdateSectionEnd={handleUpdateSectionEnd}
-              onDeleteSection={handleDeleteSection}
-              onUpdateSectionName={handleUpdateSectionName}
+              onSectionUpdate={setSections}
             />
           </div>
 
@@ -606,48 +612,30 @@ export default function PlannerPage() {
               </button>
             ) : (
               <div className="space-y-3">
-                <input
-                  type="text"
-                  value={planName}
-                  onChange={(e) => setPlanName(e.target.value)}
-                  placeholder="Enter plan name..."
-                  className="input-derby"
-                  autoFocus
-                />
-                
                 <div>
-                  <label htmlFor="practice-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Plan Name
+                  </label>
+                  <input
+                    type="text"
+                    value={planName}
+                    onChange={(e) => setPlanName(e.target.value)}
+                    placeholder="Enter plan name..."
+                    className="input-derby"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Practice Date (optional)
                   </label>
                   <input
-                    id="practice-date"
                     type="date"
-                    value={practiceDate || ''}
-                    onChange={(e) => {
-                      try {
-                        setPracticeDate(e.target.value || '');
-                      } catch (err) {
-                        console.error('Date input error:', err);
-                      }
-                    }}
+                    value={planDate}
+                    onChange={(e) => setPlanDate(e.target.value)}
                     className="input-derby"
                   />
                 </div>
-                
-                {/* Error message */}
-                {saveError?.message && (
-                  <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
-                    {saveError.message}
-                  </div>
-                )}
-                
-                {/* Success message */}
-                {saveSuccess && (
-                  <div className="p-3 bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 rounded-lg text-green-700 dark:text-green-300 text-sm">
-                    {saveSuccess}
-                  </div>
-                )}
-                
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleSavePlan(false)}
@@ -666,9 +654,7 @@ export default function PlannerPage() {
                   onClick={() => {
                     setShowSaveDialog(false);
                     setPlanName('');
-                    setPracticeDate('');
-                    setSaveError(null);
-                    setSaveSuccess(null);
+                    setPlanDate('');
                   }}
                   className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
                 >

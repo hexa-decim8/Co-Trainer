@@ -63,11 +63,12 @@ class TimelineItem(BaseModel):
 
 
 class DrillSection(BaseModel):
-    """A labeled section grouping drills in the timeline."""
+    """A labeled section bracket on the practice timeline."""
     id: str
     name: str
+    start_minute: int
+    end_minute: int
     color: str
-    drill_indices: List[int] = []  # Indices of drills in this section
 
 
 class PracticePlan(BaseModel):

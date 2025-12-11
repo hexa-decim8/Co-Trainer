@@ -7,8 +7,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Clock, GripVertical, Shield, Zap } from 'lucide-react';
+import type { Drill, DrillSection } from '../types';
 import SectionBracket from './SectionBracket';
-import type { Drill } from '../types';
 
 interface TimelineDrill {
   id: string;
@@ -35,16 +35,13 @@ interface TimelinePlannerProps {
   practiceType: string;
   dropTimeSlot: number | null;
   activeDrill: Drill | null;
-  sections: Section[];
-  onUpdateSectionStart: (id: string, newStart: number) => void;
-  onUpdateSectionEnd: (id: string, newEnd: number) => void;
-  onDeleteSection: (id: string) => void;
-  onUpdateSectionName: (id: string, newName: string) => void;
+  sections?: DrillSection[];
+  onSectionUpdate?: (sections: DrillSection[]) => void;
 }
 
 const PRACTICE_DURATION = 120; // 2 hours
 const MIN_DURATION = 5;
-const PIXELS_PER_MINUTE = 3; // Visual scaling for timeline
+const PIXELS_PER_MINUTE = 4; // Visual scaling for timeline
 
 // Color coding functions
 const getContactColor = (level: string[] | string | undefined) => {
@@ -349,11 +346,8 @@ export default function TimelinePlanner({
   practiceType,
   dropTimeSlot,
   activeDrill,
-  sections,
-  onUpdateSectionStart,
-  onUpdateSectionEnd,
-  onDeleteSection,
-  onUpdateSectionName,
+  sections = [],
+  onSectionUpdate,
 }: TimelinePlannerProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: 'timeline',
@@ -386,7 +380,7 @@ export default function TimelinePlanner({
 
       {/* Timeline */}
       <div className="flex-1 overflow-y-auto relative">
-        {/* Timeline ruler on left edge - expanded width */}
+        {/* Timeline ruler on left edge */}
         <div className="absolute left-0 top-0 bottom-0 w-24 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-10">
           {Array.from({ length: Math.ceil(PRACTICE_DURATION / 5) + 1 }, (_, i) => {
             const minutes = i * 5;
@@ -418,6 +412,42 @@ export default function TimelinePlanner({
               </div>
             );
           })}
+        </div>
+
+        {/* Section Brackets */}
+        <div className="absolute left-0 top-0 bottom-0 z-20 pointer-events-none">
+          {onSectionUpdate && sections.map((section) => (
+            <SectionBracket
+              key={section.id}
+              id={section.id}
+              name={section.name}
+              startMinute={section.start_minute}
+              endMinute={section.end_minute}
+              color={section.color}
+              pixelsPerMinute={PIXELS_PER_MINUTE}
+              onUpdateStart={(newStart) => {
+                const updated = sections.map(s => 
+                  s.id === section.id ? { ...s, start_minute: newStart } : s
+                );
+                onSectionUpdate(updated);
+              }}
+              onUpdateEnd={(newEnd) => {
+                const updated = sections.map(s => 
+                  s.id === section.id ? { ...s, end_minute: newEnd } : s
+                );
+                onSectionUpdate(updated);
+              }}
+              onDelete={() => {
+                onSectionUpdate(sections.filter(s => s.id !== section.id));
+              }}
+              onUpdateName={(newName) => {
+                const updated = sections.map(s => 
+                  s.id === section.id ? { ...s, name: newName } : s
+                );
+                onSectionUpdate(updated);
+              }}
+            />
+          ))}
         </div>
 
         {/* Droppable time slots */}

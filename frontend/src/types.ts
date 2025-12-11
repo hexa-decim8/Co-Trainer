@@ -50,8 +50,9 @@ export interface TimelineItem {
 export interface DrillSection {
   id: string;
   name: string;
+  start_minute: number;
+  end_minute: number;
   color: string;
-  drill_indices: number[];
 }
 
 export interface PracticePlan {
