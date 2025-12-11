@@ -375,27 +375,6 @@ export default function TimelinePlanner({
           </div>
         )}
 
-        {/* Section Brackets - render above drills */}
-        <div className="absolute left-0 top-0 bottom-0 z-20 pointer-events-none">
-          <div className="relative h-full pointer-events-auto">
-            {sections.map(section => (
-              <SectionBracket
-                key={section.id}
-                id={section.id}
-                name={section.name}
-                startMinute={section.startMinute}
-                endMinute={section.endMinute}
-                color={section.color}
-                pixelsPerMinute={PIXELS_PER_MINUTE}
-                onUpdateStart={(newStart) => onUpdateSectionStart(section.id, newStart)}
-                onUpdateEnd={(newEnd) => onUpdateSectionEnd(section.id, newEnd)}
-                onDelete={() => onDeleteSection(section.id)}
-                onUpdateName={(newName) => onUpdateSectionName(section.id, newName)}
-              />
-            ))}
-          </div>
-        </div>
-
         {/* Droppable area with drills */}
         <div 
           ref={setNodeRef}
