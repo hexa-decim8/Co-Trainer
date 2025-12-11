@@ -432,32 +432,6 @@ export default function PlannerPage() {
     }
   };
 
-  const handleUpdateSection = (id: string, updates: Partial<Omit<DrillSection, 'id'>>) => {
-    setSections(sections.map(s => s.id === id ? { ...s, ...updates } : s));
-  };
-
-  const handleDeleteSection = (id: string) => {
-    setSections(sections.filter(s => s.id !== id));
-  };
-
-  const handleUpdateSectionStart = (id: string, newStart: number) => {
-    setSections(sections.map(s => 
-      s.id === id ? { ...s, startMinute: newStart } : s
-    ));
-  };
-
-  const handleUpdateSectionEnd = (id: string, newEnd: number) => {
-    setSections(sections.map(s => 
-      s.id === id ? { ...s, endMinute: newEnd } : s
-    ));
-  };
-
-  const handleUpdateSectionName = (id: string, newName: string) => {
-    setSections(sections.map(s => 
-      s.id === id ? { ...s, name: newName } : s
-    ));
-  };
-
   const handleSavePlan = async (isTemplate: boolean) => {
     // Clear previous errors
     setSaveError(null);
@@ -682,7 +656,7 @@ export default function PlannerPage() {
           <div className="flex-1 overflow-hidden">
             <TimelinePlanner
               drills={timelineDrills}
-              onAddDrill={(drill, duration) => {}}
+              onAddDrill={() => {}}
               onRemoveDrill={handleRemoveDrill}
               onReorder={handleReorder}
               onUpdateDuration={handleUpdateDuration}
