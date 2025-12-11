@@ -25,6 +25,11 @@ interface SectionBracket {
   color: string;
 }
 
+interface SaveError {
+  message: string;
+  field?: string;
+}
+
 const dropAnimation = {
   duration: 300,
   easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
@@ -58,6 +63,8 @@ export default function PlannerPage() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<SaveError | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   // Stream drills from backend
   const { 
@@ -180,7 +187,7 @@ export default function PlannerPage() {
     if (over?.id === 'timeline' && active.data.current && !isTimelineDrill) {
       // Adding new drill from library to end of timeline
       const drill = active.data.current as Drill;
-      const duration = Math.max(10, drill.avg_time || 15);
+      const duration = Math.max(10, Number(drill.avg_time) || 15);
       
       const newDrill = {
         id: `timeline-${Date.now()}-${Math.random()}`,
@@ -217,7 +224,7 @@ export default function PlannerPage() {
       } else if (active.data.current) {
         // Dropping new drill from library at specific time slot
         const drill = active.data.current as Drill;
-        const duration = Math.max(10, drill.avg_time || 15);
+        const duration = Math.max(10, Number(drill.avg_time) || 15);
         const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
         
         const newDrill = {
@@ -335,8 +342,28 @@ export default function PlannerPage() {
   };
 
   const handleSavePlan = async (isTemplate: boolean) => {
+    // Clear previous messages
+    setSaveError(null);
+    setSaveSuccess(null);
+
+    // Validation
     if (!planName.trim()) {
-      alert('Please enter a plan name');
+      setSaveError({ message: 'Please enter a plan name', field: 'name' });
+      return;
+    }
+
+    if (planName.trim().length > 200) {
+      setSaveError({ message: 'Plan name must be 200 characters or less', field: 'name' });
+      return;
+    }
+
+    if (timelineDrills.length === 0) {
+      setSaveError({ message: 'Practice plan must have at least one drill', field: 'timeline' });
+      return;
+    }
+
+    if (timelineDrills.length > 50) {
+      setSaveError({ message: 'Practice plan cannot have more than 50 drills', field: 'timeline' });
       return;
     }
 
@@ -346,26 +373,27 @@ export default function PlannerPage() {
         practice_type: practiceType,
         is_template: isTemplate,
         timeline: timelineDrills.map(d => ({
-          drill_id: d.drill.id,
-          duration_minutes: d.duration,
+          drill_id: d?.drill?.id || d.id,
+          duration_minutes: d.duration || 15,
         })),
         sections: sections.map(s => ({
           id: s.id,
           name: s.name,
           color: s.color,
-          drill_indices: [], // Will be calculated server-side if needed
+          drill_indices: [],
         })),
       });
 
-      alert(isTemplate ? 'Template saved!' : 'Practice plan saved!');
-      setShowSaveDialog(false);
-      setPlanName('');
+      setSaveSuccess(isTemplate ? 'Template saved successfully!' : 'Practice plan saved successfully!');
+      setTimeout(() => {
+        setShowSaveDialog(false);
+        setPlanName('');
+        setSaveSuccess(null);
+      }, 1500);
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to save plan';
-      alert(errorMessage);
-      if (import.meta.env.DEV) {
-        console.error('Save plan error:', error);
-      }
+      setSaveError({ message: errorMessage });
+      console.error('Save plan error:', error);
     }
   };
 
@@ -532,6 +560,21 @@ export default function PlannerPage() {
                   className="input-derby"
                   autoFocus
                 />
+                
+                {/* Error message */}
+                {saveError?.message && (
+                  <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
+                    {saveError.message}
+                  </div>
+                )}
+                
+                {/* Success message */}
+                {saveSuccess && (
+                  <div className="p-3 bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 rounded-lg text-green-700 dark:text-green-300 text-sm">
+                    {saveSuccess}
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleSavePlan(false)}
@@ -550,6 +593,8 @@ export default function PlannerPage() {
                   onClick={() => {
                     setShowSaveDialog(false);
                     setPlanName('');
+                    setSaveError(null);
+                    setSaveSuccess(null);
                   }}
                   className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
                 >

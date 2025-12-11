@@ -47,6 +47,13 @@ export interface TimelineItem {
   duration_minutes: number;
 }
 
+export interface DrillSection {
+  id: string;
+  name: string;
+  color: string;
+  drill_indices: number[];
+}
+
 export interface PracticePlan {
   id?: number;
   name: string;
@@ -56,6 +63,7 @@ export interface PracticePlan {
   is_public?: boolean;
   notes?: string;
   timeline: TimelineItem[];
+  sections?: DrillSection[];
   original_plan_id?: number;
   created_at?: string;
   updated_at?: string;

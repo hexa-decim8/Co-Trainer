@@ -530,6 +530,12 @@ async def get_drills(
     Filters use OR logic within a category and AND logic across categories.
     Set force_sync=true to force refresh from Notion.
     """
+    logger.info(f"API: Drill card retrieval requested by user {current_user.email}")
+    logger.info(f"API: Filters - search={search}, contact_level={contact_level}, difficulty={difficulty}, "
+                f"drill_type={drill_type}, equipment={equipment}, game_type={game_type}, "
+                f"position_focus={position_focus}, skater_level={skater_level}, type={type_filter}, "
+                f"force_sync={force_sync}")
+    
     drills = await notion_service.get_all_drills(db=db, force_sync=force_sync)
     
     # Apply filters
@@ -588,6 +594,7 @@ async def get_drills(
             if any(t in d.type for t in type_filter)
         ]
     
+    logger.info(f"API: Returning {len(filtered_drills)} drill cards (filtered from {len(drills)} total)")
     return filtered_drills
 
 
@@ -669,6 +676,10 @@ async def create_plan(
     current_user: UserDB = Depends(get_current_user)
 ):
     """Create a new practice plan."""
+    logger.info(f"API: Creating plan '{plan.name}' for user {current_user.email} "
+                f"(template={plan.is_template}, public={plan.is_public}, "
+                f"drills={len(plan.timeline)}, sections={len(plan.sections) if plan.sections else 0})")
+    
     db_plan = PracticePlanDB(
         user_id=current_user.id,
         name=plan.name,
@@ -683,8 +694,13 @@ async def create_plan(
     # Set new fields if they exist in the database
     if hasattr(db_plan, 'is_public'):
         db_plan.is_public = plan.is_public
+    else:
+        logger.warning(f"Database schema missing 'is_public' column - plan will not be publicly accessible")
+    
     if hasattr(db_plan, 'clone_count'):
         db_plan.clone_count = 0
+    else:
+        logger.warning(f"Database schema missing 'clone_count' column - clone tracking unavailable")
     
     db.add(db_plan)
     db.commit()
@@ -693,6 +709,9 @@ async def create_plan(
     # Calculate total duration
     timeline_data = json.loads(db_plan.timeline_json)
     total_duration = sum(item["duration_minutes"] for item in timeline_data)
+    
+    logger.info(f"API: Successfully created plan ID {db_plan.id} - '{db_plan.name}' "
+                f"({total_duration} min, {len(timeline_data)} drills)")
     
     return PracticePlanSummary(
         id=db_plan.id,
