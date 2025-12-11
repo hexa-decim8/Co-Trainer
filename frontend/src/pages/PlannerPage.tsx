@@ -378,19 +378,59 @@ export default function PlannerPage() {
   };
 
   const handleSavePlan = async (isTemplate: boolean) => {
+    // Clear previous errors
+    setSaveError(null);
+    
+    // Validation
+    if (!planName.trim()) {
+      setSaveError({ message: 'Please enter a plan name.' });
+      return;
+    }
+
+    if (timelineDrills.length === 0) {
+      setSaveError({ message: 'Please add at least one drill to the timeline.' });
+      return;
+    }
+
+    // Validate all drills have valid data
+    const hasInvalidDrill = timelineDrills.some(d => !d.drill || !d.drill.id);
+    if (hasInvalidDrill) {
+      console.error('Invalid drills detected:', timelineDrills);
+      setSaveError({ message: 'Timeline contains invalid drills. Please refresh and try again.' });
+      return;
+    }
+
     try {
+      // Format the date if provided
+      let formattedDate: string | undefined = undefined;
+      if (planDate && planDate.trim()) {
+        // Backend expects ISO datetime format with T separator
+        formattedDate = `${planDate.trim()}T00:00:00`;
+      }
+
+      // Convert sections to the format expected by backend
+      const formattedSections = sections.map(s => ({
+        id: s.id,
+        name: s.name,
+        start_minute: s.start_minute,
+        end_minute: s.end_minute,
+        color: s.color,
+      }));
+
       await plansApi.create({
-        name: planName,
-        date: planDate || undefined,
+        name: planName.trim(),
+        date: formattedDate,
         practice_type: practiceType,
         is_template: isTemplate,
         timeline: timelineDrills.map(d => ({
           drill_id: d.drill.id,
           duration_minutes: d.duration,
         })),
+        sections: formattedSections.length > 0 ? formattedSections : undefined,
       });
 
-      alert(isTemplate ? 'Template saved!' : 'Practice plan saved!');
+      setSaveSuccess(isTemplate ? 'Template saved!' : 'Practice plan saved!');
+      setTimeout(() => setSaveSuccess(null), 3000);
       setShowSaveDialog(false);
       setPlanName('');
       setPlanDate('');

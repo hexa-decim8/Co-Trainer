@@ -48,6 +48,16 @@ async def startup_event():
     init_db()
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    logger.info("Shutting down application...")
+    # Dispose of database engine to close all connections
+    from database import engine
+    engine.dispose()
+    logger.info("Database connections closed")
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -1103,4 +1113,22 @@ async def list_templates(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+    import signal
+    import sys
+    
+    def signal_handler(sig, frame):
+        """Handle shutdown signals gracefully."""
+        logger.info(f"Received signal {sig}, shutting down gracefully...")
+        sys.exit(0)
+    
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    uvicorn.run(
+        app,
+        host=settings.api_host,
+        port=settings.api_port,
+        log_level="info",
+        access_log=True
+    )

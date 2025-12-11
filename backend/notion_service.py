@@ -184,19 +184,24 @@ class NotionService:
         """
         # Check memory cache first
         if not force_sync and self._cache is not None:
+            logger.info(f"✓ Using in-memory cache: {len(self._cache)} drills")
             return self._cache
         
         # Check database cache if db session provided
         if db and not force_sync:
+            logger.info("Checking database cache...")
             if not drill_cache_manager.should_sync(db):
                 cached_drills = drill_cache_manager.load_from_cache(db)
                 if cached_drills:
+                    logger.info(f"✓ Using database cache: {len(cached_drills)} drills")
                     self._cache = cached_drills
                     return cached_drills
+            else:
+                logger.info("Cache expired, fetching fresh data from Notion...")
         
         # If no cache or force sync, fetch from Notion
         if not self.client or not self.database_id:
-            logger.warning("Notion API not configured")
+            logger.warning("⚠ Notion API not configured")
             # Return cached data even if stale
             if db:
                 cached_drills = drill_cache_manager.load_from_cache(db)
@@ -206,36 +211,47 @@ class NotionService:
             return []
         
         try:
-            logger.info("Syncing drills from Notion...")
+            logger.info("🔄 Syncing drills from Notion API...")
             drills = []
             has_more = True
             start_cursor = None
+            page_count = 0
             
             while has_more:
+                page_count += 1
+                logger.info(f"→ Fetching page {page_count} from Notion...")
                 response = self.client.databases.query(
                     database_id=self.database_id,
                     start_cursor=start_cursor
                 )
                 
-                for page in response.get("results", []):
+                page_results = response.get("results", [])
+                logger.info(f"  Received {len(page_results)} items in page {page_count}")
+                
+                for page in page_results:
                     try:
                         drill = self._parse_drill(page)
                         # Only include drills with an Exercise name
                         if drill.exercise and drill.exercise != "Untitled":
                             drills.append(drill)
                     except Exception as e:
-                        logger.error(f"Error parsing drill {page.get('id')}: {e}")
+                        logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
                 
                 has_more = response.get("has_more", False)
                 start_cursor = response.get("next_cursor")
+                logger.info(f"  Progress: {len(drills)} drills parsed so far...")
+                if has_more:
+                    logger.info(f"  More pages available, continuing...")
             
             self._cache = drills
             
             # Save to database cache
             if db:
+                logger.info(f"💾 Saving {len(drills)} drills to database cache...")
                 drill_cache_manager.save_to_cache(drills, db)
+                logger.info("✓ Cache saved successfully")
             
-            logger.info(f"Successfully synced {len(drills)} drills from Notion")
+            logger.info(f"✓ Successfully synced {len(drills)} drills from Notion (fetched {page_count} pages)")
             return drills
         
         except Exception as e:
@@ -261,16 +277,21 @@ class NotionService:
         """
         # Check if we can use cache
         if db and not force_sync:
+            logger.info("Checking cache for streaming...")
             if not drill_cache_manager.should_sync(db):
                 cached_drills = drill_cache_manager.load_from_cache(db)
                 if cached_drills:
-                    logger.info(f"Streaming {len(cached_drills)} drills from cache")
+                    logger.info(f"✓ Streaming {len(cached_drills)} drills from cache")
                     for idx, drill in enumerate(cached_drills):
                         yield {"type": "drill", "data": drill.dict()}
                         if (idx + 1) % 10 == 0:
                             yield {"type": "progress", "count": idx + 1}
+                            logger.info(f"  Streamed {idx + 1}/{len(cached_drills)} drills...")
+                    logger.info(f"✓ Completed streaming {len(cached_drills)} drills from cache")
                     yield {"type": "complete", "total": len(cached_drills)}
                     return
+            else:
+                logger.info("Cache expired, will stream from Notion...")
         
         # If no cache or force sync, fetch from Notion
         if not self.client or not self.database_id:
@@ -288,19 +309,25 @@ class NotionService:
             return
         
         try:
-            logger.info("Streaming drills from Notion...")
+            logger.info("🔄 Streaming drills from Notion API...")
             drills = []
             count = 0
             has_more = True
             start_cursor = None
+            page_count = 0
             
             while has_more:
+                page_count += 1
+                logger.info(f"→ Fetching page {page_count} from Notion...")
                 response = self.client.databases.query(
                     database_id=self.database_id,
                     start_cursor=start_cursor
                 )
                 
-                for page in response.get("results", []):
+                page_results = response.get("results", [])
+                logger.info(f"  Received {len(page_results)} items in page {page_count}")
+                
+                for page in page_results:
                     try:
                         drill = self._parse_drill(page)
                         # Only include drills with an Exercise name
@@ -311,20 +338,25 @@ class NotionService:
                             
                             # Send progress update every 10 drills
                             if count % 10 == 0:
+                                logger.info(f"  Progress: {count} drills streamed...")
                                 yield {"type": "progress", "count": count}
                     except Exception as e:
-                        logger.error(f"Error parsing drill {page.get('id')}: {e}")
+                        logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
                         yield {"type": "error", "message": f"Failed to parse drill: {str(e)}"}
                 
                 has_more = response.get("has_more", False)
                 start_cursor = response.get("next_cursor")
+                if has_more:
+                    logger.info(f"  More pages available, continuing...")
             
             # Cache the results
             self._cache = drills
             if db:
+                logger.info(f"💾 Saving {count} drills to database cache...")
                 drill_cache_manager.save_to_cache(drills, db)
+                logger.info("✓ Cache saved successfully")
             
-            logger.info(f"Successfully streamed {count} drills from Notion")
+            logger.info(f"✓ Successfully streamed {count} drills from Notion (fetched {page_count} pages)")
             yield {"type": "complete", "total": count}
         
         except Exception as e:
