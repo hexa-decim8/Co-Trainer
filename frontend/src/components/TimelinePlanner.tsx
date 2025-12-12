@@ -126,25 +126,39 @@ function TimelineDrillItem({
         }}
       />
       
-      <div className="flex items-start gap-3 p-3 h-full relative z-10">
+      <div className={`flex items-start gap-3 h-full relative z-10 transition-all duration-200 ${drillHeight < 60 ? 'p-2' : 'p-3'}`}>
         {/* Drag handle */}
         <div 
           {...attributes} 
           {...listeners} 
           className="cursor-grab active:cursor-grabbing mt-1 flex-shrink-0 relative z-20 touch-none"
         >
-          <GripVertical className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+          <GripVertical className={`text-gray-400 dark:text-gray-500 transition-all duration-200 ${drillHeight < 60 ? 'w-4 h-4' : 'w-5 h-5'}`} />
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col relative z-10">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <div 
+                className="text-xs text-gray-500 dark:text-gray-400 mb-1 transition-all duration-200 overflow-hidden"
+                style={{ 
+                  opacity: drillHeight >= 60 ? 1 : Math.max(0, (drillHeight - 50) / 10),
+                  maxHeight: drillHeight >= 50 ? '20px' : '0px'
+                }}
+              >
                 {formatTime(drill.startTime)} - {formatTime(drill.startTime + drill.duration)}
               </div>
-              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{drill.drill.exercise}</h4>
-              <div className="flex flex-wrap gap-1 mt-1">
+              <h4 className={`font-semibold text-gray-900 dark:text-white transition-all duration-200 ${drillHeight < 60 ? 'text-xs' : 'text-sm'}`}>
+                {drill.drill.exercise}
+              </h4>
+              <div 
+                className="flex flex-wrap gap-1 mt-1 transition-all duration-200 overflow-hidden"
+                style={{ 
+                  opacity: drillHeight >= 80 ? 1 : Math.max(0, (drillHeight - 70) / 10),
+                  maxHeight: drillHeight >= 70 ? '60px' : '0px'
+                }}
+              >
                 {drill.drill.contact_level && (Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level.length > 0 : true) && (
                   <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level[0] : drill.drill.contact_level)}`}>
                     <Shield className="w-3 h-3 mr-1" />
@@ -164,13 +178,13 @@ function TimelineDrillItem({
               onClick={onRemove}
               className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0 ml-2"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className={`transition-all duration-200 ${drillHeight < 60 ? 'w-3 h-3' : 'w-4 h-4'}`} />
             </button>
           </div>
 
           {/* Duration indicator */}
-          <div className="mt-auto pt-2 text-xs text-gray-600 dark:text-gray-400 font-medium">
-            {drill.duration} minutes
+          <div className={`mt-auto text-gray-600 dark:text-gray-400 font-medium transition-all duration-200 ${drillHeight < 60 ? 'pt-1' : 'pt-2'} ${drillHeight < 60 ? 'text-[10px]' : 'text-xs'}`}>
+            {drill.duration} min
           </div>
         </div>
       </div>
@@ -292,7 +306,11 @@ function SectionContainer({
     <div 
       ref={setSectionRef}
       style={sectionStyle}
-      className="border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden relative flex flex-col"
+      className={`border-2 rounded-lg overflow-hidden relative flex flex-col transition-all ${
+        isOver 
+          ? 'border-primary-500 shadow-lg' 
+          : 'border-gray-300 dark:border-gray-600'
+      }`}
     >
       {/* Section Header */}
       <div 
@@ -378,23 +396,30 @@ function SectionContainer({
       </div>
 
       {/* Section Content */}
-      <div
-        ref={setDropRef}
-        className={`p-3 flex-1 flex flex-col ${isOver ? 'bg-primary-50 dark:bg-primary-900/20' : 'bg-white dark:bg-gray-800'}`}
-      >
-        {section.drills.length === 0 ? (
-          <div className="h-[80px] flex items-center justify-center text-gray-400 dark:text-gray-500">
-            <div className="text-center">
-              <Plus className="w-6 h-6 mx-auto mb-1" />
-              <p className="text-xs">Drop drills here</p>
+      <div className="relative flex-1 bg-white dark:bg-gray-800">
+        {/* Invisible drop zone overlay */}
+        <div
+          ref={setDropRef}
+          className={`absolute inset-0 z-0 transition-colors pointer-events-auto ${
+            isOver ? 'bg-primary-50 dark:bg-primary-900/20' : 'bg-transparent'
+          }`}
+        />
+        
+        {/* Actual content */}
+        <div className="relative z-10 p-3 flex-1 flex flex-col">
+          {section.drills.length === 0 ? (
+            <div className="min-h-[120px] flex items-center justify-center text-gray-400 dark:text-gray-500">
+              <div className="text-center">
+                <Plus className="w-6 h-6 mx-auto mb-1" />
+                <p className="text-xs">Drop drills here</p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <SortableContext 
-              items={section.drills.map(d => d.id)} 
-              strategy={verticalListSortingStrategy}
-            >
+          ) : (
+            <div className="space-y-2">
+              <SortableContext 
+                items={section.drills.map(d => d.id)} 
+                strategy={verticalListSortingStrategy}
+              >
               {section.drills.map((drill, index) => (
                 <TimelineDrillItem
                   key={drill.id}
@@ -407,7 +432,8 @@ function SectionContainer({
               ))}
             </SortableContext>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Resize handle at bottom */}
