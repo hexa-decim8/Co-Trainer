@@ -47,11 +47,29 @@ export interface TimelineItem {
   duration_minutes: number;
 }
 
+// Deprecated - used for old bracket overlays
 export interface DrillSection {
   id: string;
   name: string;
   start_minute: number;
   end_minute: number;
+  color: string;
+}
+
+// New section-based structure where sections contain drills
+export interface TimelineDrill {
+  id: string;
+  drill: Drill;
+  duration: number;
+  startTime: number; // Section-relative time (0 to section.duration)
+}
+
+export interface PracticeSection {
+  id: string;
+  name: string;
+  duration: number; // Minutes allocated to this section
+  drills: TimelineDrill[];
+  isMainPractice: boolean;
   color: string;
 }
 

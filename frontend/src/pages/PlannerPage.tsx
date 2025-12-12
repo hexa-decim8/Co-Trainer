@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save, Plus } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
@@ -8,16 +8,7 @@ import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
-import type { Drill, DrillFilters, PracticeType, DrillSection } from '../types';
-
-interface TimelineDrill {
-  id: string;
-  drill: Drill;
-  duration: number;
-  startTime: number;
-}
-
-// Use DrillSection from types.ts instead of local interface
+import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
 
 interface SaveError {
   message: string;
@@ -33,11 +24,29 @@ const dropAnimation = {
 };
 
 const PRACTICE_DURATION = 120; // 2 hours in minutes
+const DEFAULT_SECTION_DURATION = 10; // Default duration for new sections
 
 export default function PlannerPage() {
+  // Configure sensors with activation constraints to prevent accidental drags
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before drag starts
+      },
+    })
+  );
+
   const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
-  const [timelineDrills, setTimelineDrills] = useState<TimelineDrill[]>([]);
-  const [sections, setSections] = useState<DrillSection[]>([]);
+  
+  // Initialize with Main Practice section
+  const [sections, setSections] = useState<PracticeSection[]>([{
+    id: `section-${Date.now()}`,
+    name: 'Main Practice',
+    duration: PRACTICE_DURATION,
+    drills: [],
+    isMainPractice: true,
+    color: '#3b82f6' // Blue color for main practice
+  }]);
 
   // Toggle-based badge click handlers
   const handleContactLevelClick = useCallback((level: string) => {
@@ -219,6 +228,16 @@ export default function PlannerPage() {
     });
   };
 
+  // Helper function to get all drills across all sections (for compatibility)
+  const getAllDrills = (): TimelineDrill[] => {
+    return sections.flatMap(section => section.drills);
+  };
+
+  // Helper function to find which section contains a drill
+  const findSectionByDrillId = (drillId: string): PracticeSection | undefined => {
+    return sections.find(section => section.drills.some(d => d.id === drillId));
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const drillData = event.active.data?.current;
     if (drillData) {
@@ -245,14 +264,86 @@ export default function PlannerPage() {
     const { active, over } = event;
     setDropTimeSlot(null);
 
-    // Check if dragging an existing timeline drill
-    const isTimelineDrill = timelineDrills.some(d => d.id === active.id);
+    // Check if reordering sections
+    const activeId = String(active.id);
+    const overId = over ? String(over.id) : null;
+    
+    if (activeId.startsWith('section-sortable-') && overId?.startsWith('section-sortable-')) {
+      // Reordering sections
+      const activeIndex = sections.findIndex(s => `section-sortable-${s.id}` === activeId);
+      const overIndex = sections.findIndex(s => `section-sortable-${s.id}` === overId);
+      
+      if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+        handleReorderSections(activeIndex, overIndex);
+      }
+      setActiveDrill(null);
+      return;
+    }
 
-    if (over?.id === 'timeline' && active.data?.current && !isTimelineDrill) {
-      // Adding new drill from library to end of timeline
+    // Extract section ID from drop target
+    const getTargetSectionId = (id: any): string | null => {
+      const idStr = String(id);
+      if (idStr.startsWith('section-') && idStr.includes('-drop')) {
+        return idStr.replace('-drop', '');
+      }
+      if (idStr.startsWith('timeline-slot-')) {
+        // Extract section from slot ID format: timeline-slot-{sectionId}-{time}
+        const parts = idStr.split('-');
+        if (parts.length >= 4) {
+          return `${parts[2]}-${parts[3]}`;
+        }
+      }
+      return null;
+    };
+
+    const targetSectionId = over ? getTargetSectionId(over.id) : null;
+    if (!targetSectionId) {
+      setActiveDrill(null);
+      return;
+    }
+
+    const targetSection = sections.find(s => s.id === targetSectionId);
+    if (!targetSection) {
+      setActiveDrill(null);
+      return;
+    }
+
+    // Check if dragging an existing drill from any section
+    const sourceSection = findSectionByDrillId(String(active.id));
+    const isTimelineDrill = !!sourceSection;
+
+    if (isTimelineDrill && sourceSection) {
+      // Moving existing drill (within same section or to different section)
+      const draggedDrill = sourceSection.drills.find(d => d.id === active.id);
+      if (!draggedDrill) return;
+
+      // Remove drill from source section
+      const updatedSections = sections.map(section => {
+        if (section.id === sourceSection.id) {
+          return {
+            ...section,
+            drills: section.drills.filter(d => d.id !== String(active.id))
+          };
+        }
+        return section;
+      });
+
+      // Add to target section - no duration limits
+      const newDrill = { ...draggedDrill, startTime: 0 }; // Reset start time for new section
+
+      const finalSections = updatedSections.map(section => {
+        if (section.id === targetSectionId) {
+          const updatedDrills = calculateStartTimes([...section.drills, newDrill]);
+          return { ...section, drills: updatedDrills };
+        }
+        return section;
+      });
+
+      setSections(finalSections);
+    } else if (active.data?.current) {
+      // Adding new drill from library
       const drill = active.data.current as Drill;
       
-      // Validate drill has required data (only ID is needed for API)
       if (!drill || !drill.id) {
         console.error('Invalid drill data:', drill);
         alert('Cannot add drill - invalid drill data');
@@ -262,174 +353,145 @@ export default function PlannerPage() {
       
       const duration = Math.max(10, Number(drill.avg_time) || 15);
       
-      // Check if adding this drill would exceed 120 minutes
-      const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
-      if (currentTotal + duration > 120) {
-        alert('Cannot add drill - practice plans are limited to 120 minutes');
-        setActiveDrill(null);
-        return;
-      }
-      
-      const newDrill = {
-        id: `timeline-${Date.now()}-${Math.random()}`,
+      // Add drill to section - no duration limits
+      const newDrill: TimelineDrill = {
+        id: `drill-${Date.now()}-${Math.random()}`,
         drill,
         duration,
         startTime: 0,
       };
 
-      const updatedDrills = calculateStartTimes([...timelineDrills, newDrill]);
-      setTimelineDrills(updatedDrills);
-    } else if (over && String(over.id).startsWith('timeline-slot-')) {
-      if (isTimelineDrill) {
-        // Reordering existing drill to specific time position
-        const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
-        const draggedDrill = timelineDrills.find(d => d.id === active.id);
-        
-        if (draggedDrill) {
-          // Remove the dragged drill
-          const withoutDragged = timelineDrills.filter(d => d.id !== active.id);
-          
-          // Find insertion index based on target time
-          let insertIndex = withoutDragged.findIndex(d => d.startTime >= targetTime);
-          if (insertIndex === -1) insertIndex = withoutDragged.length;
-          
-          // Insert at new position
-          const reordered = [
-            ...withoutDragged.slice(0, insertIndex),
-            draggedDrill,
-            ...withoutDragged.slice(insertIndex)
-          ];
-          
-          setTimelineDrills(calculateStartTimes(reordered));
+      const updatedSections = sections.map(section => {
+        if (section.id === targetSectionId) {
+          const updatedDrills = calculateStartTimes([...section.drills, newDrill]);
+          return { ...section, drills: updatedDrills };
         }
-      } else if (active.data?.current) {
-        // Dropping new drill from library at specific time slot
-        const drill = active.data.current as Drill;
-        
-        // Validate drill has required data (only ID is needed for API)
-        if (!drill || !drill.id) {
-          console.error('Invalid drill data:', drill);
-          alert('Cannot add drill - invalid drill data');
-          setActiveDrill(null);
-          return;
-        }
-        
-        const duration = Math.max(10, Number(drill.avg_time) || 15);
-        const targetTime = parseInt(String(over.id).replace('timeline-slot-', ''));
-        
-        // Check if adding this drill would exceed 120 minutes
-        const currentTotal = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
-        if (currentTotal + duration > 120) {
-          alert('Cannot add drill - practice plans are limited to 120 minutes');
-          setActiveDrill(null);
-          return;
-        }
-        
-        const newDrill = {
-          id: `timeline-${Date.now()}-${Math.random()}`,
-          drill,
-          duration,
-          startTime: targetTime,
-        };
+        return section;
+      });
 
-        // Find insertion index and handle overlaps by shifting drills
-        let insertIndex = timelineDrills.findIndex(d => d.startTime >= targetTime);
-        if (insertIndex === -1) insertIndex = timelineDrills.length;
-
-        const newDrills = [
-          ...timelineDrills.slice(0, insertIndex),
-          newDrill,
-          ...timelineDrills.slice(insertIndex)
-        ];
-        
-        setTimelineDrills(calculateStartTimes(newDrills));
-      }
-    } else if (over && active.id !== over.id && isTimelineDrill) {
-      // Reordering within timeline (drag onto another drill)
-      const oldIndex = timelineDrills.findIndex(d => d.id === active.id);
-      const newIndex = timelineDrills.findIndex(d => d.id === over.id);
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const reordered = arrayMove(timelineDrills, oldIndex, newIndex);
-        setTimelineDrills(calculateStartTimes(reordered));
-      }
+      setSections(updatedSections);
     }
+    
     setActiveDrill(null);
   };
 
-  const handleRemoveDrill = (index: number) => {
-    const updated = timelineDrills.filter((_, i) => i !== index);
-    setTimelineDrills(calculateStartTimes(updated));
+  const handleRemoveDrill = (sectionId: string, drillIndex: number) => {
+    const updatedSections = sections.map(section => {
+      if (section.id === sectionId) {
+
+        const updated = section.drills.filter((_, i) => i !== drillIndex);
+        return { ...section, drills: calculateStartTimes(updated) };
+      }
+      return section;
+    });
+    setSections(updatedSections);
   };
 
-  const handleUpdateDuration = (index: number, newDuration: number) => {
-    // Check if new duration would exceed 120 minutes
-    const otherDrillsTotal = timelineDrills.reduce((sum, d, i) => 
-      i === index ? sum : sum + d.duration, 0
+  const handleUpdateDuration = (sectionId: string, drillIndex: number, newDuration: number) => {
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) return;
+
+    // Check if new duration would exceed section's duration
+    const otherDrillsTotal = section.drills.reduce((sum, d, i) => 
+      i === drillIndex ? sum : sum + d.duration, 0
     );
     
-    if (otherDrillsTotal + newDuration > 120) {
-      alert('Cannot extend drill - would exceed 120-minute limit');
+    if (otherDrillsTotal + newDuration > section.duration) {
+      alert(`Cannot extend drill - would exceed section's ${section.duration}-minute duration`);
       return;
     }
     
-    const updated = [...timelineDrills];
-    updated[index] = { ...updated[index], duration: newDuration };
-    setTimelineDrills(calculateStartTimes(updated));
+    const updatedSections = sections.map(s => {
+      if (s.id === sectionId) {
+        const updated = [...s.drills];
+        updated[drillIndex] = { ...updated[drillIndex], duration: newDuration };
+        return { ...s, drills: calculateStartTimes(updated) };
+      }
+      return s;
+    });
+    setSections(updatedSections);
   };
 
-  const handleReorder = (oldIndex: number, newIndex: number) => {
-    const reordered = arrayMove(timelineDrills, oldIndex, newIndex);
-    setTimelineDrills(calculateStartTimes(reordered));
+  const handleReorder = (sectionId: string, oldIndex: number, newIndex: number) => {
+    const updatedSections = sections.map(section => {
+      if (section.id === sectionId) {
+        const reordered = arrayMove(section.drills, oldIndex, newIndex);
+        return { ...section, drills: calculateStartTimes(reordered) };
+      }
+      return section;
+    });
+    setSections(updatedSections);
   };
-
-  const totalDuration = timelineDrills.reduce((sum, d) => sum + d.duration, 0);
 
   // Section management functions
-  const handleAddSection = (name: string, startMinute: number, endMinute: number) => {
-    // Check maximum bracket limit
-    if (sections.length >= 4) {
-      alert('Maximum of 4 section brackets allowed.');
+  const handleAddSection = () => {
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#f97316'];
+    const usedColors = sections.map(s => s.color);
+    const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
+    
+    const newSection: PracticeSection = {
+      id: `section-${Date.now()}-${Math.random()}`,
+      name: `Section ${sections.length}`,
+      duration: DEFAULT_SECTION_DURATION, // Target/allocated time
+      drills: [],
+      isMainPractice: false,
+      color: availableColor
+    };
+
+    setSections([...sections, newSection]);
+  };
+
+  const handleDeleteSection = (sectionId: string) => {
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) return;
+
+    // Prevent deleting Main Practice
+    if (section.isMainPractice) {
+      alert('Cannot delete Main Practice section');
       return;
     }
-    
-    const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
-    
-    // Find a non-overlapping position for the new section
-    let proposedStart = startMinute;
-    let proposedEnd = endMinute;
-    
-    // Check for overlaps and adjust position
-    const hasOverlap = () => {
-      return sections.some(section => 
-        (proposedStart >= section.start_minute && proposedStart < section.end_minute) ||
-        (proposedEnd > section.start_minute && proposedEnd <= section.end_minute) ||
-        (proposedStart <= section.start_minute && proposedEnd >= section.end_minute)
-      );
-    };
-    
-    // If there's overlap, try to place it after the last section
-    if (hasOverlap() && sections.length > 0) {
-      const lastSection = sections.reduce((latest, section) => 
-        section.end_minute > latest.end_minute ? section : latest
-      );
-      proposedStart = lastSection.end_minute;
-      proposedEnd = Math.min(proposedStart + (endMinute - startMinute), PRACTICE_DURATION);
+
+    // Confirm if section has drills
+    if (section.drills.length > 0) {
+      if (!confirm(`Delete "${section.name}" and its ${section.drills.length} drill(s)?`)) {
+        return;
+      }
     }
-    
-    // Only add if it fits within practice duration
-    if (proposedStart < PRACTICE_DURATION && proposedEnd <= PRACTICE_DURATION) {
-      const newSection: DrillSection = {
-        id: `section-${Date.now()}`,
-        name,
-        start_minute: proposedStart,
-        end_minute: proposedEnd,
-        color: colors[sections.length % colors.length],
-      };
-      setSections([...sections, newSection]);
-    } else {
-      alert('Cannot add section: Not enough space in the practice timeline.');
+
+    // Remove section (no Main Practice adjustment needed)
+    setSections(sections.filter(s => s.id !== sectionId));
+  };
+
+  const handleResizeSection = (sectionId: string, newDuration: number) => {
+    // Minimum section target duration
+    if (newDuration < 10) {
+      return;
     }
+
+    // Simply update the section's target duration without scaling drills
+    const updatedSections = sections.map(s => {
+      if (s.id === sectionId) {
+        return { ...s, duration: newDuration };
+      }
+      return s;
+    });
+
+    setSections(updatedSections);
+  };
+
+  const handleReorderSections = (oldIndex: number, newIndex: number) => {
+    const reordered = arrayMove(sections, oldIndex, newIndex);
+    setSections(reordered);
+  };
+
+  const handleUpdateSectionName = (sectionId: string, newName: string) => {
+    const updatedSections = sections.map(section => {
+      if (section.id === sectionId) {
+        return { ...section, name: newName };
+      }
+      return section;
+    });
+    setSections(updatedSections);
   };
 
   const handleSavePlan = async (isTemplate: boolean) => {
@@ -442,16 +504,17 @@ export default function PlannerPage() {
       return;
     }
 
-    if (timelineDrills.length === 0) {
-      setSaveError({ message: 'Please add at least one drill to the timeline.' });
+    const allDrills = getAllDrills();
+    if (allDrills.length === 0) {
+      setSaveError({ message: 'Please add at least one drill to the practice plan.' });
       return;
     }
 
     // Validate all drills have valid data
-    console.log('Timeline drills before save:', timelineDrills);
+    console.log('Sections before save:', sections);
     
     const invalidDrills: any[] = [];
-    timelineDrills.forEach((d, index) => {
+    allDrills.forEach((d, index) => {
       if (!d.drill || !d.drill.id || !d.drill.exercise) {
         console.error(`Invalid drill at index ${index}:`, {
           index,
@@ -468,7 +531,7 @@ export default function PlannerPage() {
     if (invalidDrills.length > 0) {
       console.error('Invalid drills found:', invalidDrills);
       setSaveError({ 
-        message: `Timeline contains ${invalidDrills.length} invalid drill(s) at position(s): ${invalidDrills.map(x => x.index + 1).join(', ')}. Please remove and re-add these drills.` 
+        message: `Practice plan contains ${invalidDrills.length} invalid drill(s). Please remove and re-add these drills.` 
       });
       return;
     }
@@ -481,17 +544,24 @@ export default function PlannerPage() {
         formattedDate = `${planDate.trim()}T00:00:00`;
       }
 
+      // For backward compatibility with backend, flatten sections into a single timeline
+      // TODO: Update backend to support section-based structure
+      const timeline = sections.flatMap(section => 
+        section.drills.map(d => ({
+          drill_id: d.drill.id,
+          duration_minutes: d.duration,
+        }))
+      );
+
       const planData = {
         name: planName.trim(),
         date: formattedDate,
         practice_type: practiceType,
         is_template: isTemplate,
         is_public: false,
-        timeline: timelineDrills.map(d => ({
-          drill_id: d.drill.id,
-          duration_minutes: d.duration,
-        })),
-        sections: sections.length > 0 ? sections : undefined,
+        timeline,
+        // Note: Backend doesn't support section-based structure yet
+        // Sections will be reconstructed on load based on drill sequences
       };
 
       console.log('Saving plan with data:', planData);
@@ -538,6 +608,7 @@ export default function PlannerPage() {
 
   return (
     <DndContext 
+      sensors={sensors}
       onDragEnd={handleDragEnd} 
       onDragStart={handleDragStart} 
       onDragOver={handleDragOver}
@@ -625,12 +696,9 @@ export default function PlannerPage() {
                 Practice Type
               </label>
               <button
-                onClick={() => {
-                  const endTime = Math.max(45, totalDuration);
-                  handleAddSection('New Section', 0, Math.min(endTime, 120));
-                }}
+                onClick={handleAddSection}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
-                title="Add section bracket"
+                title="Add new section"
               >
                 <Plus className="w-4 h-4" />
                 Add Section
@@ -655,17 +723,17 @@ export default function PlannerPage() {
 
           <div className="flex-1 overflow-hidden">
             <TimelinePlanner
-              drills={timelineDrills}
-              onAddDrill={() => {}}
+              sections={sections}
               onRemoveDrill={handleRemoveDrill}
               onReorder={handleReorder}
               onUpdateDuration={handleUpdateDuration}
-              totalDuration={totalDuration}
+              onDeleteSection={handleDeleteSection}
+              onResizeSection={handleResizeSection}
+              onReorderSections={handleReorderSections}
+              onUpdateSectionName={handleUpdateSectionName}
               practiceType={practiceType}
               dropTimeSlot={dropTimeSlot}
               activeDrill={activeDrill}
-              sections={sections}
-              onSectionUpdate={setSections}
             />
           </div>
 
@@ -674,7 +742,7 @@ export default function PlannerPage() {
             {!showSaveDialog ? (
               <button
                 onClick={() => setShowSaveDialog(true)}
-                disabled={timelineDrills.length === 0}
+                disabled={getAllDrills().length === 0}
                 className="w-full btn-primary flex items-center justify-center gap-2"
               >
                 <Save className="w-5 h-5" />
