@@ -239,11 +239,13 @@ A Record: @ -> YOUR_SERVER_IP
 # Make script executable
 chmod +x nginx/init-letsencrypt.sh
 
-# Test with staging certificate first (recommended)
-./nginx/init-letsencrypt.sh your-domain.com your-email@example.com 1
+# Run the script (it reads DOMAIN and EMAIL from .env.production)
+# First with staging certificate for testing
+./nginx/init-letsencrypt.sh
 
-# If successful, get production certificate
-./nginx/init-letsencrypt.sh your-domain.com your-email@example.com 0
+# The script will prompt if there are issues
+# Alternatively, you can pass domain and email as arguments:
+# ./nginx/init-letsencrypt.sh skaterscript.com your-email@example.com 0
 ```
 
 **4. Start the application:**

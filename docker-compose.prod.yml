@@ -5,6 +5,8 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: cotrainer-postgres
+    env_file:
+      - .env.production
     environment:
       POSTGRES_DB: cotrainer
       POSTGRES_USER: cotrainer
@@ -26,6 +28,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile.prod
     container_name: cotrainer-backend
+    env_file:
+      - .env.production
     environment:
       - DATABASE_URL=postgresql://cotrainer:${POSTGRES_PASSWORD}@postgres:5432/cotrainer
       - SECRET_KEY=${SECRET_KEY}
@@ -50,8 +54,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL=https://${DOMAIN}/api
+        - VITE_API_URL=https://${DOMAIN}/api
     container_name: cotrainer-frontend
+    env_file:
+      - .env.production
     networks:
       - cotrainer-network
     restart: unless-stopped

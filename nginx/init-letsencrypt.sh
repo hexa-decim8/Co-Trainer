@@ -3,14 +3,21 @@
 # Exit on error
 set -e
 
+# Load environment variables from .env.production if it exists
+if [ -f ".env.production" ]; then
+    export $(grep -v '^#' .env.production | xargs)
+fi
+
 # Configuration
-DOMAIN=${1:-}
-EMAIL=${2:-}
+DOMAIN=${1:-$DOMAIN}
+EMAIL=${2:-$EMAIL}
 STAGING=${3:-0}  # Set to 1 for testing
 
 if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then
     echo "Usage: $0 <domain> <email> [staging]"
     echo "Example: $0 example.com admin@example.com 0"
+    echo ""
+    echo "Or set DOMAIN and EMAIL in .env.production and run: $0"
     exit 1
 fi
 
