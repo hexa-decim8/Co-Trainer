@@ -44,8 +44,8 @@ export default function DrillCard({
 
   // Memoize color calculations
   const contactColor = useMemo(() => getContactColor(drill.contact_level), [drill.contact_level]);
-  const drillTypeBorder = useMemo(() => getDrillTypeBorderColor(drill.drill_type), [drill.drill_type]);
-  const gradientColor = useMemo(() => getDrillTypeGradientColor(drill.drill_type), [drill.drill_type]);
+  const drillTypeBorder = useMemo(() => getDrillTypeBorderColor(drill.drill_type ?? undefined), [drill.drill_type]);
+  const gradientColor = useMemo(() => getDrillTypeGradientColor(drill.drill_type ?? undefined), [drill.drill_type]);
 
   return (
     <div
