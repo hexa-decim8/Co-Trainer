@@ -36,20 +36,19 @@ echo "### Creating dummy certificate for $DOMAIN ..."
 CERT_PATH="/etc/letsencrypt/live/$DOMAIN"
 mkdir -p "./certbot/conf/live/$DOMAIN"
 
-docker-compose -f docker-compose.prod.yml run --rm --entrypoint "\
-  openssl req -x509 -nodes -newkey rsa:4096 -days 1 \
-    -keyout '$CERT_PATH/privkey.pem' \
-    -out '$CERT_PATH/fullchain.pem' \
-    -subj '/CN=localhost'" certbot
+# Create dummy certificate locally first
+openssl req -x509 -nodes -newkey rsa:4096 -days 1 \
+    -keyout "./certbot/conf/live/$DOMAIN/privkey.pem" \
+    -out "./certbot/conf/live/$DOMAIN/fullchain.pem" \
+    -subj '/CN=localhost'
 
 echo "### Starting nginx ..."
 docker-compose -f docker-compose.prod.yml up -d nginx
 
 echo "### Deleting dummy certificate for $DOMAIN ..."
-docker-compose -f docker-compose.prod.yml run --rm --entrypoint "\
-  rm -Rf /etc/letsencrypt/live/$DOMAIN && \
-  rm -Rf /etc/letsencrypt/archive/$DOMAIN && \
-  rm -Rf /etc/letsencrypt/renewal/$DOMAIN.conf" certbot
+rm -rf "./certbot/conf/live/$DOMAIN"
+rm -rf "./certbot/conf/archive/$DOMAIN"
+rm -rf "./certbot/conf/renewal/$DOMAIN.conf"
 
 echo "### Requesting Let's Encrypt certificate for $DOMAIN ..."
 
