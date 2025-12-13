@@ -6,6 +6,7 @@ import PlannerPage from './pages/PlannerPage';
 import LibraryPage from './pages/LibraryPage';
 import MobileViewPage from './pages/MobileViewPage';
 import SettingsPage from './pages/SettingsPage';
+import StatisticsPage from './pages/StatisticsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminPage from './pages/AdminPage';
@@ -30,6 +31,7 @@ function App() {
               <Route index element={<Navigate to="/planner" replace />} />
               <Route path="planner" element={<PlannerPage />} />
               <Route path="library" element={<LibraryPage />} />
+              <Route path="statistics" element={<StatisticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="practice/:id" element={<MobileViewPage />} />
