@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Search, ChevronDown, ChevronUp, Filter as FilterIcon } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Filter as FilterIcon } from 'lucide-react';
 import type { DrillFilters, FilterOptions } from '../types';
 
 interface FilterSidebarProps {

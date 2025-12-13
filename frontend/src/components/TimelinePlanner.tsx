@@ -24,14 +24,6 @@ interface TimelineDrill {
   startTime: number;
 }
 
-interface Section {
-  id: string;
-  name: string;
-  startMinute: number;
-  endMinute: number;
-  color: string;
-}
-
 interface TimelinePlannerProps {
   drills: TimelineDrill[];
   onAddDrill: (drill: Drill, duration: number) => void;
@@ -71,12 +63,11 @@ function TimelineSlot({ minutes, isActive }: { minutes: number; isActive: boolea
 
 function TimelineDrillItem({ 
   drill, 
-  index,
   onRemove, 
   onUpdateDuration 
 }: { 
   drill: TimelineDrill; 
-  index: number;
+  index?: number;
   onRemove: () => void;
   onUpdateDuration: (duration: number) => void;
 }) {
@@ -151,13 +142,13 @@ function TimelineDrillItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white dark:bg-gray-800 border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type)} rounded-lg overflow-hidden relative group`}
+      className={`bg-white dark:bg-gray-800 border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type ?? undefined)} rounded-lg overflow-hidden relative group`}
     >
       {/* Gradient Overlay */}
       <div 
         className="absolute inset-0 pointer-events-none z-0"
         style={{
-          background: `linear-gradient(to right, ${getDrillTypeGradientColor(drill.drill.drill_type)} 0%, ${getDrillTypeGradientColor(drill.drill.drill_type)} 30%, transparent 60%, transparent 100%)`
+          background: `linear-gradient(to right, ${getDrillTypeGradientColor(drill.drill.drill_type ?? undefined)} 0%, ${getDrillTypeGradientColor(drill.drill.drill_type ?? undefined)} 30%, transparent 60%, transparent 100%)`
         }}
       />
       
@@ -231,7 +222,6 @@ function TimelineDrillItem({
 export default function TimelinePlanner({
   drills,
   onRemoveDrill,
-  onReorder,
   onUpdateDuration,
   totalDuration,
   practiceType,

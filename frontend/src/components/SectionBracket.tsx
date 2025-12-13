@@ -14,7 +14,6 @@ interface SectionBracketProps {
 }
 
 export default function SectionBracket({
-  id,
   name,
   startMinute,
   endMinute,
@@ -43,7 +42,7 @@ export default function SectionBracket({
     }
   }, [isEditingName]);
 
-  const handleMouseDown = (isStart: boolean) => (e: React.MouseEvent) => {
+  const handleMouseDown = (isStart: boolean) => (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     if (isStart) {
@@ -103,7 +102,7 @@ export default function SectionBracket({
     setIsEditingName(false);
   };
 
-  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleNameSubmit();
     } else if (e.key === 'Escape') {
@@ -157,7 +156,7 @@ export default function SectionBracket({
             ref={inputRef}
             type="text"
             value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditedName(e.target.value)}
             onBlur={handleNameSubmit}
             onKeyDown={handleNameKeyDown}
             className="px-1 py-0.5 text-xs font-bold border rounded bg-white dark:bg-gray-800"

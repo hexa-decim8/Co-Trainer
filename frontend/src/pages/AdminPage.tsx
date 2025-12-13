@@ -38,7 +38,7 @@ export default function AdminPage() {
   });
 
   // Fetch Notion settings
-  const { data: settings, error: settingsError } = useQuery({
+  const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
       const response = await api.get('/settings');
