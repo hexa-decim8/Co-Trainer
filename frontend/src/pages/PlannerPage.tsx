@@ -6,6 +6,7 @@ import { Save, Plus } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
+import CircularProgress from '../components/CircularProgress';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
@@ -638,14 +639,26 @@ export default function PlannerPage() {
             {isLoading || isStreaming ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                  <div className="text-gray-600 dark:text-gray-400 font-semibold">
-                    {isStreaming && progress > 0 ? (
-                      <>Loading drills... {progress}{total ? `/${total}` : ''}</>
-                    ) : (
-                      'Connecting to Notion...'
-                    )}
-                  </div>
+                  {progress > 0 ? (
+                    <>
+                      <CircularProgress 
+                        progress={progress} 
+                        total={total}
+                        size={120}
+                        strokeWidth={8}
+                      />
+                      <div className="text-gray-600 dark:text-gray-400 font-semibold mt-4">
+                        Loading drills...
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                      <div className="text-gray-600 dark:text-gray-400 font-semibold">
+                        Connecting to Notion...
+                      </div>
+                    </>
+                  )}
                   {streamError && (
                     <p className="text-red-600 dark:text-red-400 text-sm mt-2">{streamError}</p>
                   )}
