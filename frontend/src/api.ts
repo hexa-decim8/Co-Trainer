@@ -6,9 +6,7 @@ import type {
   PracticePlan, 
   PracticePlanSummary, 
   PracticePlanWithDrills,
-  PaginatedPlansResponse,
-  PlanCloneRequest,
-  PlanVisibilityUpdate
+  PaginatedPlansResponse
 } from './types';
 
 const api = axios.create({
@@ -173,9 +171,7 @@ export const drillsApi = {
                 break;
             }
           } catch (parseError) {
-            if (import.meta.env.DEV) {
-              console.error('Failed to parse SSE event:', parseError);
-            }
+            console.error('Failed to parse SSE event:', parseError);
           }
         }
       }

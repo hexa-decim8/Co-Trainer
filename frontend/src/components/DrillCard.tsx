@@ -44,8 +44,8 @@ export default function DrillCard({
 
   // Memoize color calculations
   const contactColor = useMemo(() => getContactColor(drill.contact_level), [drill.contact_level]);
-  const drillTypeBorder = useMemo(() => getDrillTypeBorderColor(drill.drill_type), [drill.drill_type]);
-  const gradientColor = useMemo(() => getDrillTypeGradientColor(drill.drill_type), [drill.drill_type]);
+  const drillTypeBorder = useMemo(() => getDrillTypeBorderColor(drill.drill_type ?? undefined), [drill.drill_type]);
+  const gradientColor = useMemo(() => getDrillTypeGradientColor(drill.drill_type ?? undefined), [drill.drill_type]);
 
   return (
     <div
@@ -372,14 +372,14 @@ export default function DrillCard({
               </div>
             )}
 
-            {drill.dependencies && drill.dependencies.length > 0 && (
+            {drill.depends_on && drill.depends_on.length > 0 && (
               <div>
                 <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                   <Link2 className="w-3 h-3 mr-1 text-amber-600 dark:text-amber-400" />
                   Dependencies
                 </h4>
                 <div className="flex flex-wrap gap-1">
-                  {drill.dependencies.map((d) => (
+                  {drill.depends_on.map((d: string) => (
                     <span key={d} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                       {d}
                     </span>

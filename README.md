@@ -206,7 +206,70 @@ frontend/
 
 ## Deployment
 
-### Docker Compose
+### Production Docker with HTTPS
+
+For a production deployment with automatic HTTPS/SSL certificates:
+
+**1. Configure your environment:**
+
+```bash
+# Copy the example environment file
+cp .env.production.example .env.production
+
+# Edit with your settings
+nano .env.production
+```
+
+Set these values in `.env.production`:
+- `DOMAIN` - Your domain name (e.g., `cotrainer.example.com`)
+- `EMAIL` - Your email for Let's Encrypt notifications
+- `POSTGRES_PASSWORD` - Strong database password
+- `SECRET_KEY` - Generate with: `openssl rand -hex 32`
+- `NOTION_API_KEY` - Your Notion integration API key
+- `NOTION_DATABASE_ID` - Your Notion database ID
+
+**2. Point your domain DNS to your server:**
+```
+A Record: @ -> YOUR_SERVER_IP
+```
+
+**3. Initialize SSL certificate:**
+
+```bash
+# Make script executable
+chmod +x nginx/init-letsencrypt.sh
+
+# Run the script (it reads DOMAIN and EMAIL from .env.production)
+# First with staging certificate for testing
+./nginx/init-letsencrypt.sh
+
+# The script will prompt if there are issues
+# Alternatively, you can pass domain and email as arguments:
+# ./nginx/init-letsencrypt.sh skaterscript.com your-email@example.com 0
+```
+
+**4. Start the application:**
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+Your application will be available at `https://your-domain.com` with automatic SSL certificate renewal every 90 days.
+
+**View logs:**
+```bash
+docker-compose -f docker-compose.prod.yml logs -f
+```
+
+**Update application:**
+```bash
+git pull
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+For complete deployment documentation, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Development Docker Compose
 
 ```yaml
 version: '3.8'

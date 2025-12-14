@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { PracticePlanSummary } from '../types';
 
 export default function LibraryPage() {
-  const { user } = useAuth();
+  const { } = useAuth();
   const [filter, setFilter] = useState<'all' | 'plans' | 'templates' | 'public'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
