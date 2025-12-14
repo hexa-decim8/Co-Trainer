@@ -20,7 +20,7 @@ export default function MobileViewPage() {
   });
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (isRunning) {
       interval = setInterval(() => {
         setElapsed((prev) => prev + 1);
@@ -49,7 +49,7 @@ export default function MobileViewPage() {
   const getCurrentDrillIndex = () => {
     if (!plan) return -1;
     const elapsedMinutes = elapsed / 60;
-    return plan.timeline.findIndex((item, idx) => {
+    return plan.timeline.findIndex((item) => {
       const drillStart = item.start_time_minutes;
       const drillEnd = drillStart + item.duration_minutes;
       return elapsedMinutes >= drillStart && elapsedMinutes < drillEnd;
