@@ -23,11 +23,11 @@ class Drill(BaseModel):
     drill_type: Optional[str] = None
     equipment: Optional[str] = None
     game_type: Optional[str] = None
-    players: Optional[int] = None
+    players: Optional[str] = None  # single relation
     position_focus: List[str] = []  # multi-relation
     skater_level: List[str] = []  # multi-relation
     skaters_needed: Optional[int] = None
-    type: List[str] = []  # multi-select
+    type: List[str] = []  # multi-relation
     video_link: Optional[str] = None
     
     @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)

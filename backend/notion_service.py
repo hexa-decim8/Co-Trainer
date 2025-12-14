@@ -166,11 +166,11 @@ class NotionService:
             drill_type=self._parse_property(props.get("Drill Type"), "relation"),
             equipment=self._parse_property(props.get("Equipment"), "select"),
             game_type=self._parse_property(props.get("Game Type"), "select"),
-            players=self._parse_property(props.get("Players"), "number"),
+            players=self._parse_property(props.get("Players"), "relation"),
             position_focus=self._parse_property(props.get("Position"), "multi_relation") or [],
             skater_level=self._parse_property(props.get("Skater Level"), "multi_relation") or [],
             skaters_needed=self._parse_property(props.get("Skaters Needed"), "number"),
-            type=self._parse_property(props.get("Type"), "multi_select") or [],
+            type=self._parse_property(props.get("Type"), "multi_relation") or [],
             video_link=self._parse_property(props.get("Video Link"), "url")
         )
     
