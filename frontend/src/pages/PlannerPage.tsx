@@ -10,6 +10,15 @@ import CircularProgress from '../components/CircularProgress';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
+import { 
+  PRACTICE_DURATION_MINUTES,
+  DEFAULT_SECTION_DURATION,
+  MIN_DRILL_DURATION_FOR_ADDING,
+  SECTION_COLORS,
+  MAIN_PRACTICE_COLOR,
+  DRAG_ACTIVATION_DISTANCE_PX,
+} from '../config/constants';
+import { QUERY_STALE_TIMES, QUERY_GC_TIMES } from '../config/queryConfig';
 
 interface SaveError {
   message: string;
@@ -28,15 +37,12 @@ const dropAnimation = {
   }),
 };
 
-const PRACTICE_DURATION = 120; // 2 hours in minutes
-const DEFAULT_SECTION_DURATION = 10; // Default duration for new sections
-
 export default function PlannerPage() {
   // Configure sensors with activation constraints to prevent accidental drags
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Require 8px of movement before drag starts
+        distance: DRAG_ACTIVATION_DISTANCE_PX,
       },
     })
   );
@@ -47,90 +53,42 @@ export default function PlannerPage() {
   const [sections, setSections] = useState<PracticeSection[]>([{
     id: `section-${Date.now()}`,
     name: 'Main Practice',
-    duration: PRACTICE_DURATION,
+    duration: PRACTICE_DURATION_MINUTES,
     drills: [],
     isMainPractice: true,
-    color: '#3b82f6' // Blue color for main practice
+    color: MAIN_PRACTICE_COLOR
   }]);
 
-  // Toggle-based badge click handlers
-  const handleContactLevelClick = useCallback((level: string) => {
+  // Generic filter toggle handler - replaces 6 individual handlers for better DRY
+  const handleFilterToggle = useCallback(<K extends keyof DrillFilters>(
+    filterKey: K,
+    value: string
+  ) => {
     setActiveFilters(prev => {
-      const current = prev.contact_level || [];
-      const newValues = current.includes(level)
-        ? current.filter(v => v !== level)
-        : [...current, level];
+      const current = (prev[filterKey] as string[] | undefined) || [];
+      const newValues = current.includes(value)
+        ? current.filter(v => v !== value)
+        : [...current, value];
       return {
         ...prev,
-        contact_level: newValues.length > 0 ? newValues : undefined
+        [filterKey]: newValues.length > 0 ? newValues : undefined
       };
     });
   }, []);
 
-  const handleDrillTypeClick = useCallback((type: string) => {
-    setActiveFilters(prev => {
-      const current = prev.drill_type || [];
-      const newValues = current.includes(type)
-        ? current.filter(v => v !== type)
-        : [...current, type];
-      return {
-        ...prev,
-        drill_type: newValues.length > 0 ? newValues : undefined
-      };
-    });
-  }, []);
-
-  const handleEquipmentClick = useCallback((equipment: string) => {
-    setActiveFilters(prev => {
-      const current = prev.equipment || [];
-      const newValues = current.includes(equipment)
-        ? current.filter(v => v !== equipment)
-        : [...current, equipment];
-      return {
-        ...prev,
-        equipment: newValues.length > 0 ? newValues : undefined
-      };
-    });
-  }, []);
-
-  const handlePositionFocusClick = useCallback((position: string) => {
-    setActiveFilters(prev => {
-      const current = prev.position_focus || [];
-      const newValues = current.includes(position)
-        ? current.filter(v => v !== position)
-        : [...current, position];
-      return {
-        ...prev,
-        position_focus: newValues.length > 0 ? newValues : undefined
-      };
-    });
-  }, []);
-
-  const handleSkaterLevelClick = useCallback((level: string) => {
-    setActiveFilters(prev => {
-      const current = prev.skater_level || [];
-      const newValues = current.includes(level)
-        ? current.filter(v => v !== level)
-        : [...current, level];
-      return {
-        ...prev,
-        skater_level: newValues.length > 0 ? newValues : undefined
-      };
-    });
-  }, []);
-
-  const handleTypeClick = useCallback((type: string) => {
-    setActiveFilters(prev => {
-      const current = prev.type || [];
-      const newValues = current.includes(type)
-        ? current.filter(v => v !== type)
-        : [...current, type];
-      return {
-        ...prev,
-        type: newValues.length > 0 ? newValues : undefined
-      };
-    });
-  }, []);
+  // Convenience wrappers for specific filter types (for clarity at call sites)
+  const handleContactLevelClick = useCallback((level: string) => 
+    handleFilterToggle('contact_level', level), [handleFilterToggle]);
+  const handleDrillTypeClick = useCallback((type: string) => 
+    handleFilterToggle('drill_type', type), [handleFilterToggle]);
+  const handleEquipmentClick = useCallback((equipment: string) => 
+    handleFilterToggle('equipment', equipment), [handleFilterToggle]);
+  const handlePositionFocusClick = useCallback((position: string) => 
+    handleFilterToggle('position_focus', position), [handleFilterToggle]);
+  const handleSkaterLevelClick = useCallback((level: string) => 
+    handleFilterToggle('skater_level', level), [handleFilterToggle]);
+  const handleTypeClick = useCallback((type: string) => 
+    handleFilterToggle('type', type), [handleFilterToggle]);
 
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [planName, setPlanName] = useState('');
@@ -151,77 +109,84 @@ export default function PlannerPage() {
     total,
   } = useStreamingDrills({ enabled: true });
 
-  // Apply filters client-side
+  // Apply filters client-side with single-pass optimization (O(n) instead of O(n*m))
   const drills = useMemo(() => {
-    let filtered = allDrills;
+    return allDrills.filter(drill => {
+      // Text search
+      if (activeFilters.search) {
+        const searchLower = activeFilters.search.toLowerCase();
+        const matchesSearch = 
+          drill.exercise.toLowerCase().includes(searchLower) ||
+          (drill.description && drill.description.toLowerCase().includes(searchLower));
+        if (!matchesSearch) return false;
+      }
 
-    // Text search
-    if (activeFilters.search) {
-      const searchLower = activeFilters.search.toLowerCase();
-      filtered = filtered.filter(
-        (d) =>
-          d.exercise.toLowerCase().includes(searchLower) ||
-          (d.description && d.description.toLowerCase().includes(searchLower))
-      );
-    }
+      // Contact level filter
+      if (activeFilters.contact_level?.length) {
+        if (!activeFilters.contact_level.some(cl => drill.contact_level.includes(cl))) {
+          return false;
+        }
+      }
 
-    // Contact level filter
-    if (activeFilters.contact_level?.length) {
-      filtered = filtered.filter((d) =>
-        activeFilters.contact_level!.some((cl) => d.contact_level.includes(cl))
-      );
-    }
+      // Difficulty filter
+      if (activeFilters.difficulty?.length) {
+        if (!activeFilters.difficulty.includes(drill.difficulty!)) {
+          return false;
+        }
+      }
 
-    // Difficulty filter
-    if (activeFilters.difficulty?.length) {
-      filtered = filtered.filter((d) => activeFilters.difficulty!.includes(d.difficulty!));
-    }
+      // Drill type filter
+      if (activeFilters.drill_type?.length) {
+        if (!activeFilters.drill_type.includes(drill.drill_type!)) {
+          return false;
+        }
+      }
 
-    // Drill type filter
-    if (activeFilters.drill_type?.length) {
-      filtered = filtered.filter((d) => activeFilters.drill_type!.includes(d.drill_type!));
-    }
+      // Equipment filter
+      if (activeFilters.equipment?.length) {
+        if (!activeFilters.equipment.includes(drill.equipment!)) {
+          return false;
+        }
+      }
 
-    // Equipment filter
-    if (activeFilters.equipment?.length) {
-      filtered = filtered.filter((d) => activeFilters.equipment!.includes(d.equipment!));
-    }
+      // Game type filter
+      if (activeFilters.game_type?.length) {
+        if (!activeFilters.game_type.includes(drill.game_type!)) {
+          return false;
+        }
+      }
 
-    // Game type filter
-    if (activeFilters.game_type?.length) {
-      filtered = filtered.filter((d) => activeFilters.game_type!.includes(d.game_type!));
-    }
+      // Position focus filter
+      if (activeFilters.position_focus?.length) {
+        if (!activeFilters.position_focus.some(pf => drill.position_focus.includes(pf))) {
+          return false;
+        }
+      }
 
-    // Position focus filter
-    if (activeFilters.position_focus?.length) {
-      filtered = filtered.filter((d) =>
-        activeFilters.position_focus!.some((pf) => d.position_focus.includes(pf))
-      );
-    }
+      // Skater level filter
+      if (activeFilters.skater_level?.length) {
+        if (!activeFilters.skater_level.some(sl => drill.skater_level.includes(sl))) {
+          return false;
+        }
+      }
 
-    // Skater level filter
-    if (activeFilters.skater_level?.length) {
-      filtered = filtered.filter((d) =>
-        activeFilters.skater_level!.some((sl) => d.skater_level.includes(sl))
-      );
-    }
+      // Type filter
+      if (activeFilters.type?.length) {
+        if (!activeFilters.type.some(t => drill.type.includes(t))) {
+          return false;
+        }
+      }
 
-    // Type filter
-    if (activeFilters.type?.length) {
-      filtered = filtered.filter((d) =>
-        activeFilters.type!.some((t) => d.type.includes(t))
-      );
-    }
-
-    return filtered;
+      return true;
+    });
   }, [allDrills, activeFilters]);
 
-  // Fetch filter options
+  // Fetch filter options with centralized config
   const { data: filterOptions } = useQuery({
     queryKey: ['filter-options'],
     queryFn: () => drillsApi.getFilterOptions(),
-    staleTime: 10 * 60 * 1000, // 10 minutes - filter options rarely change
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: QUERY_STALE_TIMES.FILTER_OPTIONS,
+    gcTime: QUERY_GC_TIMES.FILTER_OPTIONS,
   });
 
   const calculateStartTimes = (drills: Omit<TimelineDrill, 'startTime'>[]): TimelineDrill[] => {
@@ -350,13 +315,11 @@ export default function PlannerPage() {
       const drill = active.data.current as Drill;
       
       if (!drill || !drill.id) {
-        console.error('Invalid drill data:', drill);
         alert('Cannot add drill - invalid drill data');
-        setActiveDrill(null);
         return;
       }
       
-      const duration = Math.max(10, Number(drill.avg_time) || 15);
+      const duration = Math.max(MIN_DRILL_DURATION_FOR_ADDING, Number(drill.avg_time) || 15);
       
       // Add drill to section - no duration limits
       const newDrill: TimelineDrill = {
@@ -428,7 +391,7 @@ export default function PlannerPage() {
 
   // Section management functions
   const handleAddSection = () => {
-    const colors = ['#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#f97316'];
+    const colors = SECTION_COLORS;
     const usedColors = sections.map(s => s.color);
     const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
     
@@ -514,27 +477,13 @@ export default function PlannerPage() {
     }
 
     // Validate all drills have valid data
-    console.log('Sections before save:', sections);
+    const hasInvalidDrills = allDrills.some(d => 
+      !d.drill || !d.drill.id || !d.drill.exercise
+    );
     
-    const invalidDrills: any[] = [];
-    allDrills.forEach((d, index) => {
-      if (!d.drill || !d.drill.id || !d.drill.exercise) {
-        console.error(`Invalid drill at index ${index}:`, {
-          index,
-          timelineDrillId: d.id,
-          hasDrillObject: !!d.drill,
-          drillId: d.drill?.id,
-          drillExercise: d.drill?.exercise,
-          fullDrill: d
-        });
-        invalidDrills.push({ index, drill: d });
-      }
-    });
-    
-    if (invalidDrills.length > 0) {
-      console.error('Invalid drills found:', invalidDrills);
+    if (hasInvalidDrills) {
       setSaveError({ 
-        message: `Practice plan contains ${invalidDrills.length} invalid drill(s). Please remove and re-add these drills.` 
+        message: 'Practice plan contains invalid drill(s). Please remove and re-add these drills.' 
       });
       return;
     }
@@ -567,7 +516,6 @@ export default function PlannerPage() {
         // Sections will be reconstructed on load based on drill sequences
       };
 
-      console.log('Saving plan with data:', planData);
       await plansApi.create(planData);
 
       setSaveSuccess(isTemplate ? 'Template saved!' : 'Practice plan saved!');

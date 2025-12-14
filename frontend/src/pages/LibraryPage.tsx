@@ -3,11 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Calendar, Clock, Trash2, Copy, Search, User, Globe, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { plansApi } from '../api';
-import { useAuth } from '../contexts/AuthContext';
 import type { PracticePlanSummary } from '../types';
+import { LIBRARY_PAGE_SIZE, DEBOUNCE_SEARCH_MS } from '../config/constants';
+import { QUERY_STALE_TIMES, QUERY_GC_TIMES } from '../config/queryConfig';
 
 export default function LibraryPage() {
-  const { } = useAuth();
   const [filter, setFilter] = useState<'all' | 'plans' | 'templates' | 'public'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -15,14 +15,14 @@ export default function LibraryPage() {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [clonePlanId, setClonePlanId] = useState<number | null>(null);
   const [cloneName, setCloneName] = useState('');
-  const pageSize = 20;
+  const pageSize = LIBRARY_PAGE_SIZE;
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setPage(1); // Reset to first page on search
-    }, 300);
+    }, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -33,8 +33,8 @@ export default function LibraryPage() {
       const isTemplate = filter === 'templates' ? true : filter === 'plans' ? false : undefined;
       return plansApi.getAll(isTemplate, isPublic, debouncedSearch, page, pageSize);
     },
-    staleTime: 30 * 1000, // 30 seconds - plans list updates moderately
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: QUERY_STALE_TIMES.PLANS_LIST,
+    gcTime: QUERY_GC_TIMES.PLANS_LIST,
   });
 
   const plans = data?.items || [];

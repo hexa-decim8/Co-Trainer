@@ -40,7 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         } catch (error) {
           // Token might be expired, try refresh
-          console.log('Access token expired, attempting refresh');
         }
       }
       

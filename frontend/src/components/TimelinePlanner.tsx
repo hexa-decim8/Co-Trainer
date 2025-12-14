@@ -15,13 +15,14 @@ import {
   getDrillTypeBorderColor, 
   getDrillTypeGradientColor 
 } from '../utils/drillColors';
-
-interface TimelineDrill {
-  id: string;
-  drill: Drill;
-  duration: number;
-  startTime: number;
-}
+import {
+  MIN_DRILL_DURATION,
+  PIXELS_PER_MINUTE_TIMELINE,
+  MIN_DRILL_HEIGHT_PX,
+  PIXELS_PER_MINUTE_SECTION,
+  MIN_SECTION_HEIGHT_PX,
+  MIN_SECTION_DURATION,
+} from '../config/constants';
 
 interface TimelinePlannerProps {
   sections: PracticeSection[];
@@ -37,16 +38,12 @@ interface TimelinePlannerProps {
   activeDrill: Drill | null;
 }
 
-const MIN_DURATION = 5;
-const PIXELS_PER_MINUTE = 4;
-
 function TimelineDrillItem({ 
   drill, 
   onRemove, 
   onUpdateDuration 
 }: { 
-  drill: TimelineDrill; 
-  index?: number;
+  drill: TimelineDrill;
   onRemove: () => void;
   onUpdateDuration: (duration: number) => void;
 }) {
@@ -67,8 +64,8 @@ function TimelineDrillItem({
     isDragging,
   } = useSortable({ id: drill.id });
 
-  // Calculate visual height based on drill duration (min 40px for 5 min drills)
-  const drillHeight = Math.max(drill.duration * 8, 40); // 8px per minute
+  // Calculate visual height based on drill duration
+  const drillHeight = Math.max(drill.duration * PIXELS_PER_MINUTE_TIMELINE, MIN_DRILL_HEIGHT_PX);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -90,8 +87,8 @@ function TimelineDrillItem({
 
     const handleMouseMove = (e: MouseEvent) => {
       const deltaY = e.clientY - initialY;
-      const deltaMinutes = Math.round(deltaY / PIXELS_PER_MINUTE);
-      const newDuration = Math.max(MIN_DURATION, initialDuration + deltaMinutes);
+      const deltaMinutes = Math.round(deltaY / PIXELS_PER_MINUTE_TIMELINE);
+      const newDuration = Math.max(MIN_DRILL_DURATION, initialDuration + deltaMinutes);
       
       if (newDuration !== drill.duration) {
         onUpdateDuration(newDuration);
@@ -254,8 +251,7 @@ function SectionContainer({
   const displayDuration = isResizing ? tempDuration : section.duration;
   const remaining = displayDuration - totalUsed;
 
-  const PIXELS_PER_MINUTE_SECTION = 3; // Visual scaling for section height
-  const minHeight = Math.max(displayDuration * PIXELS_PER_MINUTE_SECTION, 120); // Minimum 120px
+  const minHeight = Math.max(displayDuration * PIXELS_PER_MINUTE_SECTION, MIN_SECTION_HEIGHT_PX);
 
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -273,7 +269,7 @@ function SectionContainer({
     const handleMouseMove = (e: MouseEvent) => {
       const deltaY = e.clientY - initialY;
       const deltaMinutes = Math.round(deltaY / PIXELS_PER_MINUTE_SECTION);
-      const newDuration = Math.max(10, initialDuration + deltaMinutes);
+      const newDuration = Math.max(MIN_SECTION_DURATION, initialDuration + deltaMinutes);
       
       // Update both state (for visual) and ref (for final value)
       setTempDuration(newDuration);

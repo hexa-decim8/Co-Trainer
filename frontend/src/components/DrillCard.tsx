@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Info, Clock, Shield, Users, Target, Zap, GripVertical, ChevronUp, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
 import type { Drill, DrillFilters } from '../types';
@@ -9,6 +9,7 @@ import {
   getDrillTypeBorderColor,
   getDrillTypeGradientColor,
 } from '../utils/drillColors';
+import { POSITION_FOCUS_PREVIEW_LIMIT, TYPE_TAGS_PREVIEW_LIMIT } from '../config/constants';
 
 interface DrillCardProps {
   drill: Drill;
@@ -33,10 +34,6 @@ export default function DrillCard({
 }: DrillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Detect mobile device
-  const isMobile = useMemo(() => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  }, []);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: drill.id,
     data: drill
@@ -46,6 +43,10 @@ export default function DrillCard({
   const contactColor = useMemo(() => getContactColor(drill.contact_level), [drill.contact_level]);
   const drillTypeBorder = useMemo(() => getDrillTypeBorderColor(drill.drill_type ?? undefined), [drill.drill_type]);
   const gradientColor = useMemo(() => getDrillTypeGradientColor(drill.drill_type ?? undefined), [drill.drill_type]);
+
+  // Base badge classes - use Tailwind responsive classes for mobile
+  const badgeClasses = 'inline-flex items-center text-xs font-medium rounded-md shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer px-2.5 py-1 sm:px-3 sm:py-2 sm:min-h-[44px]';
+  const staticBadgeClasses = 'inline-flex items-center text-xs font-medium rounded-md px-2.5 py-1 sm:px-3 sm:py-2 sm:min-h-[44px]';
 
   return (
     <div
@@ -119,7 +120,7 @@ export default function DrillCard({
                       e.stopPropagation();
                       onContactLevelClick?.(level);
                     }}
-                    className={`inline-flex items-center text-xs font-medium rounded-md ${getContactBadgeColor(level)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                    className={`${badgeClasses} ${getContactBadgeColor(level)} ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                   >
                     <Shield className="w-3 h-3 mr-1" />
                     {level}
@@ -142,7 +143,7 @@ export default function DrillCard({
                     e.stopPropagation();
                     onDrillTypeClick?.(drill.drill_type!);
                   }}
-                  className={`inline-flex items-center text-xs font-medium rounded-md ${getDrillTypeBadgeColor(drill.drill_type)} shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                  className={`${badgeClasses} ${getDrillTypeBadgeColor(drill.drill_type)} ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                 >
                   <Zap className="w-3 h-3 mr-1" />
                   {drill.drill_type}
@@ -158,7 +159,7 @@ export default function DrillCard({
                     e.stopPropagation();
                     onEquipmentClick?.(drill.equipment!);
                   }}
-                  className={`inline-flex items-center text-xs font-medium rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                  className={`${badgeClasses} bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                 >
                   {drill.equipment}
                   {isActive && <span className="ml-1 font-bold">✓</span>}
@@ -199,7 +200,7 @@ export default function DrillCard({
                       e.stopPropagation();
                       onPositionFocusClick?.(pos);
                     }}
-                    className={`inline-flex items-center text-xs font-medium rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                    className={`${badgeClasses} bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                   >
                     <Target className="w-3 h-3 mr-1" />
                     {pos}
@@ -208,7 +209,7 @@ export default function DrillCard({
                 );
               })}
               {drill.position_focus.length > 2 && (
-                <span className={`inline-flex items-center text-xs font-medium rounded-md bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}>
+                <span className={`${staticBadgeClasses} bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400`}>
                   +{drill.position_focus.length - 2}
                 </span>
               )}
@@ -229,7 +230,7 @@ export default function DrillCard({
                       e.stopPropagation();
                       onSkaterLevelClick?.(level);
                     }}
-                    className={`inline-flex items-center text-xs font-medium rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                    className={`${badgeClasses} bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                   >
                     {level}
                     {isActive && <span className="ml-1 font-bold">✓</span>}
@@ -252,7 +253,7 @@ export default function DrillCard({
                     e.stopPropagation();
                     onTypeClick?.(t);
                   }}
-                  className={`inline-flex items-center text-xs font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                  className={`${badgeClasses} bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                 >
                   {t}
                   {isActive && <span className="ml-1 font-bold">✓</span>}
@@ -260,7 +261,7 @@ export default function DrillCard({
               );
             })}
             {drill.type.length > 3 && (
-              <span className={`inline-flex items-center text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}>
+              <span className={`${staticBadgeClasses} bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400`}>
                 +{drill.type.length - 3} more
               </span>
             )}
@@ -316,7 +317,7 @@ export default function DrillCard({
                           e.stopPropagation();
                           onPositionFocusClick?.(pos);
                         }}
-                        className={`inline-flex items-center text-xs font-medium rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                        className={`${badgeClasses} bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                       >
                         {pos}
                         {isActive && <span className="ml-1 font-bold">✓</span>}
@@ -344,7 +345,7 @@ export default function DrillCard({
                           e.stopPropagation();
                           onTypeClick?.(t);
                         }}
-                        className={`inline-flex items-center text-xs font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''} ${isMobile ? 'px-3 py-2 min-h-[44px]' : 'px-2.5 py-1'}`}
+                        className={`${badgeClasses} bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                       >
                         {t}
                         {isActive && <span className="ml-1 font-bold">✓</span>}
@@ -364,22 +365,6 @@ export default function DrillCard({
                 </h4>
                 <div className="flex flex-wrap gap-1">
                   {drill.depends_on.map((d) => (
-                    <span key={d} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
-                      {d}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {drill.depends_on && drill.depends_on.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                  <Link2 className="w-3 h-3 mr-1 text-amber-600 dark:text-amber-400" />
-                  Dependencies
-                </h4>
-                <div className="flex flex-wrap gap-1">
-                  {drill.depends_on.map((d: string) => (
                     <span key={d} className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                       {d}
                     </span>
