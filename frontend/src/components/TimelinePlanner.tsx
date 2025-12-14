@@ -9,6 +9,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Clock, GripVertical, Shield, Zap, X, Plus } from 'lucide-react';
 import type { Drill, PracticeSection, TimelineDrill } from '../types';
 import {  
+  getContactColor,
   getContactBadgeColor, 
   getDrillTypeBadgeColor, 
   getDrillTypeBorderColor, 
@@ -399,17 +400,13 @@ function SectionContainer({
       </div>
 
       {/* Section Content */}
-      <div className="relative flex-1 bg-white dark:bg-gray-800">
-        {/* Invisible drop zone overlay */}
-        <div
-          ref={setDropRef}
-          className={`absolute inset-0 z-0 transition-colors pointer-events-auto ${
-            isOver ? 'bg-primary-50 dark:bg-primary-900/20' : 'bg-transparent'
-          }`}
-        />
-        
-        {/* Actual content */}
-        <div className="relative z-10 p-3 flex-1 flex flex-col">
+      <div 
+        ref={setDropRef}
+        className={`relative flex-1 bg-white dark:bg-gray-800 transition-colors ${
+          isOver ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+        }`}
+      >
+        <div className="p-3 flex-1 flex flex-col">
           {section.drills.length === 0 ? (
             <div className="min-h-[120px] flex items-center justify-center text-gray-400 dark:text-gray-500">
               <div className="text-center">

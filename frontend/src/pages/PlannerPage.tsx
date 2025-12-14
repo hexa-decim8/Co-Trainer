@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Plus } from 'lucide-react';
+import { Save, Plus, Clock, Shield } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -20,8 +20,12 @@ const dropAnimation = {
   duration: 300,
   easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
   sideEffects: defaultDropAnimationSideEffects({
-    styles: { active: { opacity: '0.5' } }
-  })
+    styles: {
+      active: {
+        opacity: '0.5',
+      },
+    },
+  }),
 };
 
 const PRACTICE_DURATION = 120; // 2 hours in minutes
@@ -263,6 +267,9 @@ export default function PlannerPage() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    
+    // Clear activeDrill immediately to hide overlay
+    setActiveDrill(null);
     setDropTimeSlot(null);
 
     // Check if reordering sections
@@ -277,7 +284,6 @@ export default function PlannerPage() {
       if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
         handleReorderSections(activeIndex, overIndex);
       }
-      setActiveDrill(null);
       return;
     }
 
@@ -299,13 +305,11 @@ export default function PlannerPage() {
 
     const targetSectionId = over ? getTargetSectionId(over.id) : null;
     if (!targetSectionId) {
-      setActiveDrill(null);
       return;
     }
 
     const targetSection = sections.find(s => s.id === targetSectionId);
     if (!targetSection) {
-      setActiveDrill(null);
       return;
     }
 
@@ -372,8 +376,6 @@ export default function PlannerPage() {
 
       setSections(updatedSections);
     }
-    
-    setActiveDrill(null);
   };
 
   const handleRemoveDrill = (sectionId: string, drillIndex: number) => {
@@ -829,21 +831,28 @@ export default function PlannerPage() {
         </div>
       </div>
 
-      <DragOverlay dropAnimation={dropAnimation}>
-        {activeDrill ? (
-          <div className="rotate-3 scale-105 shadow-2xl">
-            <DrillCard 
-              drill={activeDrill}
-              activeFilters={activeFilters}
-              onContactLevelClick={() => {}} 
-              onDrillTypeClick={() => {}}
-              onEquipmentClick={() => {}}
-              onPositionFocusClick={() => {}}
-              onSkaterLevelClick={() => {}}
-              onTypeClick={() => {}}
-            />
+      <DragOverlay>
+        {activeDrill && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-4 border-2 border-primary-500 max-w-sm opacity-90">
+            <h3 className="font-bold text-gray-900 dark:text-white text-base mb-2">
+              {activeDrill.exercise || 'Unnamed Drill'}
+            </h3>
+            <div className="flex gap-2 text-xs">
+              {activeDrill.avg_time && (
+                <span className="inline-flex items-center px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                  <Clock className="w-3 h-3 mr-1" />
+                  {activeDrill.avg_time} min
+                </span>
+              )}
+              {activeDrill.contact_level?.[0] && (
+                <span className="inline-flex items-center px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                  <Shield className="w-3 h-3 mr-1" />
+                  {activeDrill.contact_level[0]}
+                </span>
+              )}
+            </div>
           </div>
-        ) : null}
+        )}
       </DragOverlay>
     </DndContext>
   );
