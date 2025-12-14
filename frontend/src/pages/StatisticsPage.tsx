@@ -194,7 +194,6 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
     // Count by tag categories
     const contactLevelCounts = new Map<string, number>();
     const drillTypeCounts = new Map<string, number>();
-    const equipmentCounts = new Map<string, number>();
     const positionFocusCounts = new Map<string, number>();
     const skaterLevelCounts = new Map<string, number>();
     const typeCounts = new Map<string, number>();
@@ -208,11 +207,6 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
       // Drill Type
       if (drill.drill_type) {
         drillTypeCounts.set(drill.drill_type, (drillTypeCounts.get(drill.drill_type) || 0) + 1);
-      }
-
-      // Equipment
-      if (drill.equipment) {
-        equipmentCounts.set(drill.equipment, (equipmentCounts.get(drill.equipment) || 0) + 1);
       }
 
       // Position Focus
@@ -236,7 +230,6 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
       avgDuration: avgDuration.toFixed(1),
       contactLevel: Array.from(contactLevelCounts.entries()).map(([name, value]) => ({ name, value })),
       drillType: Array.from(drillTypeCounts.entries()).map(([name, value]) => ({ name, value })),
-      equipment: Array.from(equipmentCounts.entries()).map(([name, value]) => ({ name, value })),
       positionFocus: Array.from(positionFocusCounts.entries()).map(([name, value]) => ({ name, value })),
       skaterLevel: Array.from(skaterLevelCounts.entries()).map(([name, value]) => ({ name, value })),
       type: Array.from(typeCounts.entries()).map(([name, value]) => ({ name, value })),
@@ -267,7 +260,6 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TagDistributionPie data={stats.contactLevel} title="Contact Level Distribution" />
         <TagDistributionPie data={stats.drillType} title="Drill Type Distribution" />
-        <TagDistributionPie data={stats.equipment} title="Equipment Distribution" />
         <TagDistributionPie data={stats.positionFocus} title="Position Focus Distribution" />
         <TagDistributionPie data={stats.skaterLevel} title="Skater Level Distribution" />
         <TagDistributionPie data={stats.type} title="Category Distribution" />
