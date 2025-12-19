@@ -262,7 +262,16 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
         <TagDistributionPie data={stats.drillType} title="Drill Type Distribution" />
         <TagDistributionPie data={stats.positionFocus} title="Position Focus Distribution" />
         <TagDistributionPie data={stats.skaterLevel} title="Skater Level Distribution" />
-        <TagDistributionPie data={stats.type} title="Category Distribution" />
+      </div>
+
+      {/* Bar Chart for Categories (better for many items) */}
+      <div className="grid grid-cols-1 gap-6">
+        <CategoryComparisonBar 
+          data={stats.type.sort((a, b) => b.value - a.value).slice(0, 15)} 
+          title="Top 15 Categories Distribution" 
+          color="#f59e0b"
+          yAxisLabel="Number of Drills"
+        />
       </div>
 
       {/* Bar Chart Comparison */}
