@@ -18,6 +18,76 @@ class NotionService:
             self.client = Client(auth=settings.notion_api_key)
         self.database_id = settings.notion_database_id
         self._cache: Optional[List[Drill]] = None
+        self._relation_cache: Dict[str, str] = {}  # page_id -> title mapping
+    
+    def _build_relation_cache(self, pages: List[Dict[str, Any]]) -> None:
+        """
+        Build a cache of relation page IDs to their titles.
+        Scans all pages for relation fields and batch fetches their titles.
+        """
+        if not self.client:
+            return
+        
+        relation_fields = ["Contact Level", "Position", "Skater Level", "Type", "Drill Type", "Players"]
+        page_ids_to_fetch = set()
+        
+        # Scan all pages for relation IDs
+        logger.info("🔍 Scanning pages for relation fields...")
+        for page in pages:
+            props = page.get("properties", {})
+            for field_name in relation_fields:
+                if field_name not in props:
+                    continue
+                
+                prop = props[field_name]
+                relation_data = prop.get("relation", [])
+                
+                if relation_data:
+                    for item in relation_data:
+                        if page_id := item.get("id"):
+                            page_ids_to_fetch.add(page_id)
+        
+        logger.info(f"📦 Found {len(page_ids_to_fetch)} unique relation page IDs to cache")
+        
+        # Batch fetch related pages
+        cached_count = 0
+        failed_count = 0
+        
+        for page_id in page_ids_to_fetch:
+            try:
+                related_page = self.client.pages.retrieve(page_id=page_id)
+                related_props = related_page.get("properties", {})
+                
+                # Try common title property names
+                title = None
+                for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                    if title_prop in related_props:
+                        title_data = related_props[title_prop].get("title", [])
+                        if title_data and len(title_data) > 0:
+                            title = title_data[0].get("plain_text")
+                            break
+                
+                # Fallback: find any title-type property
+                if not title:
+                    for prop_name, prop_value in related_props.items():
+                        if prop_value.get("type") == "title":
+                            title_data = prop_value.get("title", [])
+                            if title_data and len(title_data) > 0:
+                                title = title_data[0].get("plain_text")
+                                break
+                
+                if title:
+                    self._relation_cache[page_id] = title
+                    cached_count += 1
+                else:
+                    logger.warning(f"No title found for relation page {page_id}")
+                    failed_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error fetching relation page {page_id}: {e}")
+                failed_count += 1
+        
+        logger.info(f"✓ Relation cache built: {cached_count} titles cached, {failed_count} failed")
     
     def _parse_property(self, prop: Dict[str, Any], prop_type: str) -> Any:
         """Parse a Notion property based on its type."""
@@ -57,10 +127,19 @@ class NotionService:
         elif prop_type == "relation":
             # Handle relation properties (links to other database pages like Global Tags)
             if prop_data and len(prop_data) > 0:
-                # Fetch the related page to get its name/title
+                page_id = prop_data[0].get("id")
+                if not page_id:
+                    return None
+                
+                # Check cache first
+                if page_id in self._relation_cache:
+                    logger.debug(f"[CACHE HIT] Relation {page_id[:8]}... -> '{self._relation_cache[page_id]}'")
+                    return self._relation_cache[page_id]
+                
+                # Fallback to API call
+                logger.debug(f"[CACHE MISS] Fetching relation {page_id[:8]}... via API")
                 try:
-                    page_id = prop_data[0].get("id")
-                    if page_id and self.client:
+                    if self.client:
                         related_page = self.client.pages.retrieve(page_id=page_id)
                         related_props = related_page.get("properties", {})
                         # Try common title property names (including "Tag Name" for Global Tags)
@@ -93,7 +172,19 @@ class NotionService:
                 try:
                     for relation_item in prop_data:
                         page_id = relation_item.get("id")
-                        if page_id and self.client:
+                        if not page_id:
+                            continue
+                        
+                        # Check cache first
+                        if page_id in self._relation_cache:
+                            tag_name = self._relation_cache[page_id]
+                            logger.debug(f"[CACHE HIT] Multi-relation {page_id[:8]}... -> '{tag_name}'")
+                            results.append(tag_name)
+                            continue
+                        
+                        # Fallback to API call
+                        logger.debug(f"[CACHE MISS] Fetching multi-relation {page_id[:8]}... via API")
+                        if self.client:
                             related_page = self.client.pages.retrieve(page_id=page_id)
                             related_props = related_page.get("properties", {})
                             found = False
@@ -212,11 +303,12 @@ class NotionService:
         
         try:
             logger.info("🔄 Syncing drills from Notion API...")
-            drills = []
+            all_pages = []
             has_more = True
             start_cursor = None
             page_count = 0
             
+            # First, fetch all pages
             while has_more:
                 page_count += 1
                 logger.info(f"→ Fetching page {page_count} from Notion...")
@@ -227,21 +319,27 @@ class NotionService:
                 
                 page_results = response.get("results", [])
                 logger.info(f"  Received {len(page_results)} items in page {page_count}")
-                
-                for page in page_results:
-                    try:
-                        drill = self._parse_drill(page)
-                        # Only include drills with an Exercise name
-                        if drill.exercise and drill.exercise != "Untitled":
-                            drills.append(drill)
-                    except Exception as e:
-                        logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
+                all_pages.extend(page_results)
                 
                 has_more = response.get("has_more", False)
                 start_cursor = response.get("next_cursor")
-                logger.info(f"  Progress: {len(drills)} drills parsed so far...")
+                logger.info(f"  Progress: {len(all_pages)} pages fetched so far...")
                 if has_more:
                     logger.info(f"  More pages available, continuing...")
+            
+            # Build relation cache before parsing
+            self._build_relation_cache(all_pages)
+            
+            # Now parse all drills
+            drills = []
+            for page in all_pages:
+                try:
+                    drill = self._parse_drill(page)
+                    # Only include drills with an Exercise name
+                    if drill.exercise and drill.exercise != "Untitled":
+                        drills.append(drill)
+                except Exception as e:
+                    logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
             
             self._cache = drills
             
@@ -310,12 +408,12 @@ class NotionService:
         
         try:
             logger.info("🔄 Streaming drills from Notion API...")
-            drills = []
-            count = 0
+            all_pages = []
             has_more = True
             start_cursor = None
             page_count = 0
             
+            # First, fetch all pages
             while has_more:
                 page_count += 1
                 logger.info(f"→ Fetching page {page_count} from Notion...")
@@ -326,28 +424,35 @@ class NotionService:
                 
                 page_results = response.get("results", [])
                 logger.info(f"  Received {len(page_results)} items in page {page_count}")
-                
-                for page in page_results:
-                    try:
-                        drill = self._parse_drill(page)
-                        # Only include drills with an Exercise name
-                        if drill.exercise and drill.exercise != "Untitled":
-                            drills.append(drill)
-                            count += 1
-                            yield {"type": "drill", "data": drill.dict()}
-                            
-                            # Send progress update every 10 drills
-                            if count % 10 == 0:
-                                logger.info(f"  Progress: {count} drills streamed...")
-                                yield {"type": "progress", "count": count}
-                    except Exception as e:
-                        logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
-                        yield {"type": "error", "message": f"Failed to parse drill: {str(e)}"}
+                all_pages.extend(page_results)
                 
                 has_more = response.get("has_more", False)
                 start_cursor = response.get("next_cursor")
                 if has_more:
                     logger.info(f"  More pages available, continuing...")
+            
+            # Build relation cache before parsing
+            self._build_relation_cache(all_pages)
+            
+            # Now parse and stream drills
+            drills = []
+            count = 0
+            for page in all_pages:
+                try:
+                    drill = self._parse_drill(page)
+                    # Only include drills with an Exercise name
+                    if drill.exercise and drill.exercise != "Untitled":
+                        drills.append(drill)
+                        count += 1
+                        yield {"type": "drill", "data": drill.dict()}
+                        
+                        # Send progress update every 10 drills
+                        if count % 10 == 0:
+                            logger.info(f"  Progress: {count} drills streamed...")
+                            yield {"type": "progress", "count": count}
+                except Exception as e:
+                    logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
+                    yield {"type": "error", "message": f"Failed to parse drill: {str(e)}"}
             
             # Cache the results
             self._cache = drills
@@ -406,6 +511,7 @@ class NotionService:
     def clear_cache(self):
         """Clear the cached drills."""
         self._cache = None
+        self._relation_cache = {}
 
 
 # Global instance
