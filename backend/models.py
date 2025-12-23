@@ -23,11 +23,11 @@ class Drill(BaseModel):
     drill_type: Optional[str] = None
     equipment: Optional[str] = None
     game_type: Optional[str] = None
-    players: Optional[int] = None
+    players: Optional[str] = None  # single relation
     position_focus: List[str] = []  # multi-relation
     skater_level: List[str] = []  # multi-relation
     skaters_needed: Optional[int] = None
-    type: List[str] = []  # multi-select
+    type: List[str] = []  # multi-relation
     video_link: Optional[str] = None
     
     @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)
@@ -70,11 +70,29 @@ class TimelineItem(BaseModel):
 
 
 class DrillSection(BaseModel):
-    """A labeled section bracket on the practice timeline."""
+    """A labeled section bracket on the practice timeline. DEPRECATED - use PracticeSection."""
     id: str
     name: str
     start_minute: int
     end_minute: int
+    color: str
+
+
+class TimelineDrill(BaseModel):
+    """A drill within a practice section with section-relative timing."""
+    id: str
+    drill_id: str  # Reference to Notion drill ID
+    duration: int  # Minutes
+    start_time: int  # Section-relative start time in minutes
+
+
+class PracticeSection(BaseModel):
+    """A section of practice containing drills with metadata."""
+    id: str
+    name: str
+    duration: int  # Total minutes allocated to this section
+    drills: List[TimelineDrill]
+    is_main_practice: bool
     color: str
 
 
@@ -88,7 +106,8 @@ class PracticePlan(BaseModel):
     is_public: bool = False
     notes: Optional[str] = None
     timeline: List[TimelineItem]
-    sections: Optional[List[DrillSection]] = None
+    sections: Optional[List[DrillSection]] = None  # Deprecated
+    sections_v2: Optional[List[PracticeSection]] = None  # New format
     original_plan_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -132,13 +151,15 @@ class PracticePlanSummary(BaseModel):
 class PracticePlanWithDrills(BaseModel):
     """Practice plan with full drill details hydrated from Notion."""
     id: int
+    user_id: int
     name: str
     date: Optional[datetime]
     practice_type: PracticeType
     is_template: bool
     notes: Optional[str]
     timeline: List[dict]  # Each item has drill details + duration + start_time
-    sections: Optional[List[DrillSection]] = None
+    sections: Optional[List[DrillSection]] = None  # Deprecated
+    sections_v2: Optional[List[PracticeSection]] = None  # New format
     total_duration: int
     created_at: datetime
     updated_at: datetime

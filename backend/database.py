@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -52,7 +52,8 @@ class PracticePlanDB(Base):
     is_template = Column(Boolean, default=False, index=True)
     notes = Column(Text, nullable=True)
     timeline_json = Column(Text, nullable=False)  # JSON string
-    sections_json = Column(Text, nullable=True)  # JSON string for section brackets
+    sections_json = Column(Text, nullable=True)  # JSON string for section brackets (deprecated)
+    sections_v2_json = Column(Text, nullable=True)  # JSON string for new PracticeSection format
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -64,6 +65,14 @@ class PracticePlanDB(Base):
     
     # Relationships
     user = relationship("UserDB", back_populates="practice_plans")
+    
+    # Composite indexes for common query patterns
+    __table_args__ = (
+        Index('idx_user_updated_at', 'user_id', 'updated_at'),  # List user's plans sorted by date
+        Index('idx_public_updated_at', 'is_public', 'updated_at'),  # List public plans sorted by date
+        Index('idx_public_type', 'is_public', 'practice_type'),  # Filter public plans by type
+        Index('idx_user_template', 'user_id', 'is_template'),  # Filter user's templates
+    )
 
 
 class DrillCache(Base):
@@ -73,6 +82,7 @@ class DrillCache(Base):
     id = Column(String, primary_key=True)  # Notion page ID
     data = Column(JSON, nullable=False)  # Full drill data as JSON
     last_synced = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    notion_last_edited_time = Column(DateTime, nullable=True)  # Notion's last_edited_time for change detection
 
 
 class PlanClone(Base):
@@ -96,6 +106,7 @@ class SyncMetadata(Base):
     
     id = Column(Integer, primary_key=True)
     last_full_sync = Column(DateTime, nullable=True)
+    last_incremental_sync = Column(DateTime, nullable=True)
     drill_count = Column(Integer, default=0)
 
 

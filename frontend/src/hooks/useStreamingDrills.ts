@@ -14,6 +14,8 @@ interface UseStreamingDrillsReturn {
   error: string | null;
   progress: number;
   total: number | null;
+  shouldSync: boolean;
+  cacheAgeMinutes: number | null;
   refetch: () => void;
 }
 
@@ -26,11 +28,13 @@ export function useStreamingDrills(options: UseStreamingDrillsOptions = {}): Use
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState<number | null>(null);
+  const [shouldSync, setShouldSync] = useState(false);
+  const [cacheAgeMinutes, setCacheAgeMinutes] = useState<number | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const fetchKeyRef = useRef(0);
 
-  const startStreaming = () => {
+  const startStreaming = async () => {
     // Cancel any in-flight request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -44,10 +48,30 @@ export function useStreamingDrills(options: UseStreamingDrillsOptions = {}): Use
     // Reset state
     setDrills([]);
     setIsLoading(true);
-    setIsStreaming(true);
     setError(null);
     setProgress(0);
     setTotal(null);
+    setShouldSync(false);
+    setCacheAgeMinutes(null);
+
+    // Pre-fetch cache info to get expected total and sync status
+    try {
+      const cacheInfo = await drillsApi.getCacheInfo();
+      if (fetchKeyRef.current === currentFetchKey) {
+        // Set total from metadata if available
+        if (cacheInfo.drill_count_in_metadata && cacheInfo.drill_count_in_metadata > 0) {
+          setTotal(cacheInfo.drill_count_in_metadata);
+        }
+        setShouldSync(cacheInfo.should_sync);
+        setCacheAgeMinutes(cacheInfo.cache_age_minutes ?? null);
+      }
+    } catch (err) {
+      // If cache info fails, continue with streaming (total will be set on complete)
+      console.warn('Failed to fetch cache info:', err);
+    }
+
+    // Now start streaming
+    setIsStreaming(true);
 
     drillsApi.streamAll(
       // onDrill
@@ -104,7 +128,8 @@ export function useStreamingDrills(options: UseStreamingDrillsOptions = {}): Use
         abortControllerRef.current.abort();
       }
     };
-  }, [enabled, forceSync]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
   return {
     drills,
@@ -113,6 +138,8 @@ export function useStreamingDrills(options: UseStreamingDrillsOptions = {}): Use
     error,
     progress,
     total,
+    shouldSync,
+    cacheAgeMinutes,
     refetch: startStreaming,
   };
 }

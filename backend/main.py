@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from typing import List, Optional, Dict
 import json
 import os
@@ -83,6 +83,48 @@ async def shutdown_event():
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok", "message": "Co-Trainer API is running"}
+
+
+@app.get("/api/database/status")
+async def database_status(db: Session = Depends(get_db)):
+    """Check database connection and return status."""
+    try:
+        # Test database connection
+        db.execute(text("SELECT 1"))
+        
+        # Get database type
+        db_url = settings.database_url
+        if db_url.startswith("sqlite"):
+            db_type = "SQLite"
+            persistent = False
+            warning = "Data will be lost on server restart (use PostgreSQL for persistence)"
+        elif db_url.startswith("postgresql"):
+            db_type = "PostgreSQL"
+            persistent = True
+            warning = None
+        else:
+            db_type = "Unknown"
+            persistent = False
+            warning = "Unknown database type"
+        
+        # Get user count
+        from database import UserDB
+        user_count = db.query(UserDB).count()
+        
+        return {
+            "status": "connected",
+            "database_type": db_type,
+            "persistent": persistent,
+            "user_count": user_count,
+            "warning": warning
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "database_type": "Unknown",
+            "persistent": False
+        }
 
 
 @app.get("/api/settings")
@@ -631,20 +673,68 @@ async def get_drills(
 
 @app.post("/api/drills/sync")
 async def sync_drills(
+    full_rebuild: bool = Query(False, description="Force full rebuild instead of incremental sync"),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    """Force sync drills from Notion."""
+    """
+    Sync drills from Notion.
+    
+    - full_rebuild=false (default): Incremental sync - only fetch changed drills
+    - full_rebuild=true: Full rebuild - fetch all drills and replace cache
+    """
     try:
-        drills = await notion_service.get_all_drills(db=db, force_sync=True)
-        return {
-            "success": True,
-            "message": f"Successfully synced {len(drills)} drills from Notion",
-            "count": len(drills)
-        }
+        if full_rebuild:
+            logger.info("Starting full rebuild of drill cache...")
+            drills = await notion_service.get_all_drills(db=db, force_sync=True)
+            return {
+                "success": True,
+                "message": f"Full rebuild complete: {len(drills)} drills synced from Notion",
+                "count": len(drills),
+                "sync_type": "full_rebuild"
+            }
+        else:
+            logger.info("Starting incremental sync...")
+            drills = await notion_service.sync_changed_drills(db=db)
+            if not drills:
+                return {
+                    "success": True,
+                    "message": "No changes detected since last sync",
+                    "count": 0,
+                    "sync_type": "incremental"
+                }
+            return {
+                "success": True,
+                "message": f"Incremental sync complete: {len(drills)} drills updated",
+                "count": len(drills),
+                "sync_type": "incremental"
+            }
     except Exception as e:
         logger.error(f"Drill sync failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/drills/count")
+async def get_drill_count(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Get expected drill count from cache metadata."""
+    from database import SyncMetadata, DrillCache
+    
+    sync_meta = db.query(SyncMetadata).first()
+    if sync_meta and sync_meta.drill_count:
+        return {
+            "count": sync_meta.drill_count,
+            "source": "metadata"
+        }
+    
+    # Fallback to actual count if metadata doesn't exist
+    cached_count = db.query(DrillCache).count()
+    return {
+        "count": cached_count,
+        "source": "cache"
+    }
 
 
 @app.get("/api/drills/cache-info")
@@ -654,7 +744,29 @@ async def get_cache_info(
 ):
     """Get information about the drill cache."""
     from drill_cache import drill_cache_manager
-    return drill_cache_manager.get_cache_info(db)
+    from database import SyncMetadata, DrillCache
+    from datetime import datetime, timedelta
+    
+    # Get sync metadata
+    sync_meta = db.query(SyncMetadata).first()
+    cached_count = db.query(DrillCache).count()
+    should_sync = drill_cache_manager.should_sync(db)
+    
+    info = {
+        "cached_drill_count": cached_count,
+        "should_sync": should_sync,
+        "has_sync_metadata": sync_meta is not None,
+    }
+    
+    if sync_meta:
+        if sync_meta.last_full_sync:
+            age = datetime.utcnow() - sync_meta.last_full_sync
+            info["last_full_sync"] = sync_meta.last_full_sync.isoformat()
+            info["cache_age_hours"] = round(age.total_seconds() / 3600, 1)
+            info["cache_age_minutes"] = round(age.total_seconds() / 60, 1)
+        info["drill_count_in_metadata"] = sync_meta.drill_count
+    
+    return info
 
 
 @app.get("/api/filter-options", response_model=FilterOptions)
@@ -709,7 +821,8 @@ async def create_plan(
     """Create a new practice plan."""
     logger.info(f"API: Creating plan '{plan.name}' for user {current_user.email} "
                 f"(template={plan.is_template}, public={plan.is_public}, "
-                f"drills={len(plan.timeline)}, sections={len(plan.sections) if plan.sections else 0})")
+                f"drills={len(plan.timeline)}, sections={len(plan.sections) if plan.sections else 0}, "
+                f"sections_v2={len(plan.sections_v2) if plan.sections_v2 else 0})")
     
     db_plan = PracticePlanDB(
         user_id=current_user.id,
@@ -719,7 +832,8 @@ async def create_plan(
         is_template=plan.is_template,
         notes=plan.notes,
         timeline_json=json.dumps([item.dict() for item in plan.timeline]),
-        sections_json=json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
+        sections_json=json.dumps([section.dict() for section in plan.sections]) if plan.sections else None,
+        sections_v2_json=json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
     )
     
     # Set new fields if they exist in the database
@@ -891,13 +1005,18 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         timeline_with_drills.append(timeline_item)
         current_time += duration
     
-    # Parse sections if they exist
+    # Parse sections - prefer new format (sections_v2) over old format
     sections = None
-    if hasattr(plan, 'sections_json') and plan.sections_json:
+    sections_v2 = None
+    if hasattr(plan, 'sections_v2_json') and plan.sections_v2_json:
+        sections_v2 = json.loads(plan.sections_v2_json)
+    elif hasattr(plan, 'sections_json') and plan.sections_json:
+        # Fall back to old format if new format not available
         sections = json.loads(plan.sections_json)
     
     return PracticePlanWithDrills(
         id=plan.id,
+        user_id=plan.user_id,
         name=plan.name,
         date=plan.date,
         practice_type=PracticeType(plan.practice_type),
@@ -905,6 +1024,7 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         notes=plan.notes,
         timeline=timeline_with_drills,
         sections=sections,
+        sections_v2=sections_v2,
         total_duration=current_time,
         created_at=plan.created_at,
         updated_at=plan.updated_at
@@ -935,6 +1055,7 @@ async def update_plan(
     db_plan.notes = plan.notes
     db_plan.timeline_json = json.dumps([item.dict() for item in plan.timeline])
     db_plan.sections_json = json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
+    db_plan.sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
@@ -1130,6 +1251,100 @@ async def list_templates(
 ):
     """List all practice plan templates."""
     return await list_plans(is_template=True, page=page, page_size=page_size, db=db, current_user=current_user)
+
+
+@app.post("/api/admin/migrate-sections")
+async def migrate_plans_to_sections_v2(
+    batch_size: int = Query(100, ge=1, le=1000),
+    skip_existing: bool = Query(True),
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """
+    Admin endpoint to migrate existing plans from timeline-only format to sections_v2 format.
+    Creates a single 'Main Practice' section containing all drills from the timeline.
+    """
+    # Check admin permissions
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    logger.info(f"Starting section migration (batch_size={batch_size}, skip_existing={skip_existing})")
+    
+    # Query plans that need migration
+    query = db.query(PracticePlanDB)
+    if skip_existing:
+        # Only migrate plans without sections_v2_json
+        query = query.filter(
+            (PracticePlanDB.sections_v2_json == None) | (PracticePlanDB.sections_v2_json == "null")
+        )
+    
+    plans_to_migrate = query.limit(batch_size).all()
+    
+    migrated_count = 0
+    error_count = 0
+    errors = []
+    
+    for plan in plans_to_migrate:
+        try:
+            # Parse existing timeline
+            timeline_data = json.loads(plan.timeline_json)
+            
+            # Calculate total duration
+            total_duration = sum(item["duration_minutes"] for item in timeline_data)
+            
+            # Create a single "Main Practice" section with all drills
+            section_id = f"section-main-{plan.id}"
+            drills_for_section = []
+            current_time = 0
+            
+            for item in timeline_data:
+                drill_item = {
+                    "id": f"drill-{plan.id}-{current_time}",
+                    "drill_id": item["drill_id"],
+                    "duration": item["duration_minutes"],
+                    "start_time": current_time
+                }
+                drills_for_section.append(drill_item)
+                current_time += item["duration_minutes"]
+            
+            # Create sections_v2 structure
+            sections_v2 = [{
+                "id": section_id,
+                "name": "Main Practice",
+                "duration": total_duration,
+                "drills": drills_for_section,
+                "is_main_practice": True,
+                "color": "#F97316"  # Orange color for main practice
+            }]
+            
+            # Save to sections_v2_json
+            plan.sections_v2_json = json.dumps(sections_v2)
+            migrated_count += 1
+            
+        except Exception as e:
+            error_count += 1
+            error_msg = f"Plan ID {plan.id}: {str(e)}"
+            errors.append(error_msg)
+            logger.error(f"Migration error - {error_msg}")
+    
+    # Commit all changes
+    try:
+        db.commit()
+        logger.info(f"Migration complete: {migrated_count} plans migrated, {error_count} errors")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Database commit failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Migration commit failed: {str(e)}")
+    
+    return {
+        "success": True,
+        "migrated_count": migrated_count,
+        "error_count": error_count,
+        "errors": errors[:10],  # Return first 10 errors
+        "total_errors": len(errors),
+        "batch_size": batch_size,
+        "skip_existing": skip_existing
+    }
 
 
 # Serve frontend for all non-API routes (SPA support) - MUST be last route

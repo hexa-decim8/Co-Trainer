@@ -1,0 +1,174 @@
+/* Print styles for practice plan view */
+@media print {
+  /* Hide all interactive elements */
+  button,
+  .no-print,
+  .stopwatch-controls,
+  .edit-mode-controls,
+  details summary::marker,
+  input[type="checkbox"] {
+    display: none !important;
+  }
+
+  /* Expand all collapsible sections */
+  details {
+    display: block !important;
+  }
+
+  details summary {
+    display: block !important;
+    cursor: default !important;
+    list-style: none !important;
+  }
+
+  details[open] summary ~ * {
+    display: block !important;
+  }
+
+  /* Force all details to be open */
+  details:not([open]) {
+    display: block !important;
+  }
+
+  details:not([open]) > *:not(summary) {
+    display: block !important;
+  }
+
+  /* Black text on white background */
+  body,
+  .bg-gray-50,
+  .bg-white,
+  .dark\:bg-gray-900,
+  .dark\:bg-gray-800,
+  .dark\:bg-gray-700 {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  /* Remove dark mode colors */
+  .dark\:text-white,
+  .dark\:text-gray-200,
+  .dark\:text-gray-300 {
+    color: black !important;
+  }
+
+  .dark\:text-gray-400,
+  .dark\:text-gray-500 {
+    color: #4a5568 !important;
+  }
+
+  /* Remove borders and shadows */
+  .border-gray-200,
+  .dark\:border-gray-700 {
+    border-color: #e2e8f0 !important;
+  }
+
+  .shadow-lg,
+  .shadow-md {
+    box-shadow: none !important;
+  }
+
+  /* Page breaks */
+  .section-break {
+    page-break-before: always;
+  }
+
+  .drill-card {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure drill details are visible */
+  .drill-expanded-details {
+    display: block !important;
+  }
+
+  /* Header styling */
+  .practice-header {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid black;
+  }
+
+  /* Badge styling for print */
+  .badge {
+    border: 1px solid #666 !important;
+    background-color: white !important;
+    color: black !important;
+  }
+
+  /* Equipment list */
+  .equipment-list {
+    background-color: #f7fafc !important;
+    border: 1px solid #cbd5e0 !important;
+  }
+
+  /* Notes section */
+  .practice-notes {
+    background-color: #fffbeb !important;
+    border: 1px solid #fbbf24 !important;
+    margin: 1rem 0;
+  }
+
+  /* Timeline items */
+  .timeline-item {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    page-break-inside: avoid;
+  }
+
+  /* Remove sticky positioning */
+  .sticky {
+    position: relative !important;
+    top: auto !important;
+  }
+
+  /* Ensure proper spacing */
+  .px-4 {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  /* Font sizes */
+  h1 {
+    font-size: 24pt;
+  }
+
+  h2 {
+    font-size: 18pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+  }
+
+  p, span, div {
+    font-size: 11pt;
+  }
+
+  /* Links */
+  a {
+    text-decoration: underline;
+    color: black !important;
+  }
+
+  a::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
+
+  /* Section brackets for print */
+  .section-bracket {
+    border-left: 3px solid black;
+    padding-left: 0.5rem;
+    margin: 1rem 0;
+    page-break-inside: avoid;
+  }
+
+  .section-name {
+    font-weight: bold;
+    font-size: 12pt;
+    margin-bottom: 0.5rem;
+  }
+}

@@ -47,11 +47,29 @@ export interface TimelineItem {
   duration_minutes: number;
 }
 
+// Deprecated - used for old bracket overlays
 export interface DrillSection {
   id: string;
   name: string;
   start_minute: number;
   end_minute: number;
+  color: string;
+}
+
+// New section-based structure where sections contain drills
+export interface TimelineDrill {
+  id: string;
+  drill: Drill;
+  duration: number;
+  startTime: number; // Section-relative time (0 to section.duration)
+}
+
+export interface PracticeSection {
+  id: string;
+  name: string;
+  duration: number; // Minutes allocated to this section
+  drills: TimelineDrill[];
+  isMainPractice: boolean;
   color: string;
 }
 
@@ -64,7 +82,8 @@ export interface PracticePlan {
   is_public?: boolean;
   notes?: string;
   timeline: TimelineItem[];
-  sections?: DrillSection[];
+  sections?: DrillSection[];  // Deprecated
+  sections_v2?: PracticeSection[];  // New format
   original_plan_id?: number;
   created_at?: string;
   updated_at?: string;
@@ -112,12 +131,15 @@ export interface TimelineItemWithDrill {
 
 export interface PracticePlanWithDrills {
   id: number;
+  user_id: number;
   name: string;
   date: string | null;
   practice_type: PracticeType;
   is_template: boolean;
   notes: string | null;
   timeline: TimelineItemWithDrill[];
+  sections?: DrillSection[];  // Deprecated
+  sections_v2?: PracticeSection[];  // New format
   total_duration: number;
   created_at: string;
   updated_at: string;
