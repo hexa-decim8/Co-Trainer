@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
@@ -10,6 +11,7 @@ import os
 import logging
 import math
 from datetime import datetime, timedelta
+from pathlib import Path
 from notion_client import Client
 
 from config import settings
@@ -41,14 +43,24 @@ app = FastAPI(title="Co-Trainer API", version="1.0.0")
 
 logger = logging.getLogger(__name__)
 
+# Get the directory where main.py is located
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev servers
+    allow_origins=["*"],  # Allow all origins since frontend is served from same domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static assets (CSS, JS, images)
+if STATIC_DIR.exists():
+    assets_dir = STATIC_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
 
 @app.on_event("startup")
@@ -67,8 +79,8 @@ async def shutdown_event():
     logger.info("Database connections closed")
 
 
-@app.get("/")
-async def root():
+@app.get("/api/health")
+async def health_check():
     """Health check endpoint."""
     return {"status": "ok", "message": "Co-Trainer API is running"}
 
@@ -1119,6 +1131,21 @@ async def list_templates(
 ):
     """List all practice plan templates."""
     return await list_plans(is_template=True, page=page, page_size=page_size, db=db, current_user=current_user)
+
+
+# Serve frontend for all non-API routes (SPA support) - MUST be last route
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve the React frontend for all non-API routes."""
+    # Don't serve SPA for API routes
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not built")
 
 
 if __name__ == "__main__":
