@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save, Plus, Clock, Shield } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
@@ -24,18 +24,6 @@ interface SaveError {
   message: string;
   field?: string;
 }
-
-const dropAnimation = {
-  duration: 300,
-  easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: '0.5',
-      },
-    },
-  }),
-};
 
 export default function PlannerPage() {
   // Configure sensors with activation constraints to prevent accidental drags
@@ -396,7 +384,7 @@ export default function PlannerPage() {
   const handleAddSection = () => {
     const colors = SECTION_COLORS;
     const usedColors = sections.map(s => s.color);
-    const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
+    const availableColor = colors.find((c: string) => !usedColors.includes(c)) || colors[0];
     
     const newSection: PracticeSection = {
       id: `section-${Date.now()}-${Math.random()}`,
@@ -518,7 +506,7 @@ export default function PlannerPage() {
           duration: d.duration,
           start_time: d.startTime,
         })),
-        is_main_practice: section.isMainPractice,
+        isMainPractice: section.isMainPractice,
         color: section.color,
       }));
 

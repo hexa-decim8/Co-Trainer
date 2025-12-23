@@ -6,7 +6,7 @@ import {
   useSortable 
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash2, Clock, GripVertical, Shield, Zap, X, Plus } from 'lucide-react';
+import { Trash2, GripVertical, Shield, Zap, X, Plus } from 'lucide-react';
 import type { Drill, PracticeSection, TimelineDrill } from '../types';
 import {  
   getContactColor,
@@ -34,8 +34,6 @@ interface TimelinePlannerProps {
   onReorderSections: (oldIndex: number, newIndex: number) => void;
   onUpdateSectionName: (sectionId: string, newName: string) => void;
   practiceType: string;
-  dropTimeSlot: number | null;
-  activeDrill: Drill | null;
 }
 
 function TimelineDrillItem({ 
@@ -420,8 +418,6 @@ function SectionContainer({
                 <TimelineDrillItem
                   key={drill.id}
                   drill={drill}
-                  index={index}
-                  sectionId={section.id}
                   onRemove={() => onRemoveDrill(section.id, index)}
                   onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
                 />
@@ -460,8 +456,6 @@ export default function TimelinePlanner({
   onReorderSections,
   onUpdateSectionName,
   practiceType,
-  dropTimeSlot,
-  activeDrill,
 }: TimelinePlannerProps) {
   const totalDuration = sections.reduce((sum, s) => sum + s.duration, 0);
   const totalDrills = sections.reduce((sum, s) => sum + s.drills.length, 0);

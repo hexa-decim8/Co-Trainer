@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Info, Clock, Shield, Users, Target, Zap, GripVertical, ChevronUp, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
 import type { Drill, DrillFilters } from '../types';
@@ -43,10 +43,6 @@ export default function DrillCard({
   const contactColor = useMemo(() => getContactColor(drill.contact_level), [drill.contact_level]);
   const drillTypeBorder = useMemo(() => getDrillTypeBorderColor(drill.drill_type ?? undefined), [drill.drill_type]);
   const gradientColor = useMemo(() => getDrillTypeGradientColor(drill.drill_type ?? undefined), [drill.drill_type]);
-
-  // Base badge classes - use Tailwind responsive classes for mobile
-  const badgeClasses = 'inline-flex items-center text-xs font-medium rounded-md shadow-sm transition-all hover:scale-105 hover:shadow-md cursor-pointer px-2.5 py-1 sm:px-3 sm:py-2 sm:min-h-[44px]';
-  const staticBadgeClasses = 'inline-flex items-center text-xs font-medium rounded-md px-2.5 py-1 sm:px-3 sm:py-2 sm:min-h-[44px]';
 
   return (
     <div

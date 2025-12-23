@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, HttpUrl, validator
+from pydantic import BaseModel, HttpUrl, validator, Field
 from datetime import datetime
 from enum import Enum
 
@@ -92,8 +92,11 @@ class PracticeSection(BaseModel):
     name: str
     duration: int  # Total minutes allocated to this section
     drills: List[TimelineDrill]
-    is_main_practice: bool
+    is_main_practice: bool = Field(alias='isMainPractice')  # Accept both snake_case and camelCase
     color: str
+    
+    class Config:
+        populate_by_name = True  # Allow both field name and alias
 
 
 class PracticePlan(BaseModel):

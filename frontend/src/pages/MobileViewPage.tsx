@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Play, Pause, RotateCcw, Check, ExternalLink, ChevronDown, ChevronUp, ArrowLeft, Edit3, Eye, Save, Plus } from 'lucide-react';
+import { Play, Pause, RotateCcw, Check, ExternalLink, ChevronDown, ChevronUp, ArrowLeft, Edit3, Eye } from 'lucide-react';
 import { plansApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import './MobileViewPage.print.css';
@@ -16,7 +16,7 @@ export default function MobileViewPage() {
   const [selectedDrill, setSelectedDrill] = useState<number>(0);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  const { data: plan, isLoading, refetch } = useQuery({
+  const { data: plan, isLoading } = useQuery({
     queryKey: ['plan', id],
     queryFn: () => plansApi.getById(Number(id)),
     enabled: !!id,
