@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import secrets
+import os
 
 
 class Settings(BaseSettings):
@@ -21,6 +22,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Override database URL from environment variable if provided
+if os.getenv("DATABASE_URL"):
+    database_url = os.getenv("DATABASE_URL")
+    # Fix postgres:// to postgresql:// for SQLAlchemy compatibility
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    settings.database_url = database_url
 
 # Load or generate JWT secret key
 try:
