@@ -206,18 +206,11 @@ export default function PlannerPage() {
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { over } = event;
-    if (over && String(over.id).startsWith('timeline-slot-')) {
-      const timeSlot = parseInt(String(over.id).replace('timeline-slot-', ''));
-      setDropTimeSlot(timeSlot);
-    } else {
-      setDropTimeSlot(null);
-    }
+    // Drag over handling removed - using section-based structure
   };
 
   const handleDragCancel = () => {
     setActiveDrill(null);
-    setDropTimeSlot(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -225,7 +218,6 @@ export default function PlannerPage() {
     
     // Clear activeDrill immediately to hide overlay
     setActiveDrill(null);
-    setDropTimeSlot(null);
 
     // Check if reordering sections
     const activeId = String(active.id);
