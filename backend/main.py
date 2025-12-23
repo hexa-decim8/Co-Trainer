@@ -11,6 +11,7 @@ import os
 import logging
 import math
 from datetime import datetime, timedelta
+from pathlib import Path
 from notion_client import Client
 
 from config import settings
@@ -42,6 +43,10 @@ app = FastAPI(title="Co-Trainer API", version="1.0.0")
 
 logger = logging.getLogger(__name__)
 
+# Get the directory where main.py is located
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -51,10 +56,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files (built frontend)
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+# Mount static assets (CSS, JS, images)
+if STATIC_DIR.exists():
+    assets_dir = STATIC_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
 
 @app.on_event("startup")
@@ -1150,16 +1156,14 @@ if __name__ == "__main__":
 
 # Serve frontend for all non-API routes (SPA support)
 @app.get("/{full_path:path}")
-async def serve_frontend(full_path: str):
+async def serve_spa(full_path: str):
     """Serve the React frontend for all non-API routes."""
-    # Don't serve frontend for API routes
-    if full_path.startswith("api/"):
+    # Don't serve SPA for API routes
+    if full_path.startswith("api"):
         raise HTTPException(status_code=404, detail="API endpoint not found")
     
-    static_dir = os.path.join(os.path.dirname(__file__), "static")
-    index_file = os.path.join(static_dir, "index.html")
-    
-    if os.path.exists(index_file):
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
         return FileResponse(index_file)
     else:
         raise HTTPException(status_code=404, detail="Frontend not built")
