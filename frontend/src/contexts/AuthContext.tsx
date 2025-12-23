@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     // OAuth2 password flow expects form data
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append('username', email); // OAuth2 spec uses 'username' field
     formData.append('password', password);
 
