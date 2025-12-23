@@ -495,7 +495,7 @@ export default function PlannerPage() {
         }))
       );
 
-      // Prepare sections_v2 for new API - convert TimelineDrill to match backend expected format
+      // Prepare sections_v2 for new API - send simplified drill references for backend
       const sectionsForSave = sections.map(section => ({
         id: section.id,
         name: section.name,
@@ -508,7 +508,7 @@ export default function PlannerPage() {
         })),
         isMainPractice: section.isMainPractice,
         color: section.color,
-      }));
+      })) as any;  // Backend expects different structure than frontend PracticeSection
 
       const planData = {
         name: planName.trim(),
@@ -713,8 +713,6 @@ export default function PlannerPage() {
               onReorderSections={handleReorderSections}
               onUpdateSectionName={handleUpdateSectionName}
               practiceType={practiceType}
-              dropTimeSlot={dropTimeSlot}
-              activeDrill={activeDrill}
             />
           </div>
 

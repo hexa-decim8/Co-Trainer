@@ -56,5 +56,4 @@ yarn-error.log*
 *.log
 
 # Secure config
-config/
-backend/config/
+/backend/config/
