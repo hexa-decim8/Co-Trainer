@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from typing import List, Optional, Dict
 import json
 import os
@@ -90,7 +90,7 @@ async def database_status(db: Session = Depends(get_db)):
     """Check database connection and return status."""
     try:
         # Test database connection
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         
         # Get database type
         db_url = settings.database_url
