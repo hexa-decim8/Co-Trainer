@@ -9,7 +9,6 @@ import {
   getDrillTypeBorderColor,
   getDrillTypeGradientColor,
 } from '../utils/drillColors';
-import { POSITION_FOCUS_PREVIEW_LIMIT, TYPE_TAGS_PREVIEW_LIMIT } from '../config/constants';
 
 interface DrillCardProps {
   drill: Drill;

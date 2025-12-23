@@ -83,7 +83,6 @@ export default function PlannerPage() {
   const [planDate, setPlanDate] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
-  const [dropTimeSlot, setDropTimeSlot] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<SaveError | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
@@ -710,7 +709,6 @@ export default function PlannerPage() {
               onUpdateDuration={handleUpdateDuration}
               onDeleteSection={handleDeleteSection}
               onResizeSection={handleResizeSection}
-              onReorderSections={handleReorderSections}
               onUpdateSectionName={handleUpdateSectionName}
               practiceType={practiceType}
             />
