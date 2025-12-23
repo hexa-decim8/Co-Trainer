@@ -206,6 +206,126 @@ frontend/
 
 ## Deployment
 
+### Render Deployment (Recommended for Free Hosting)
+
+Deploy Co-Trainer as a single monolithic service on Render with optional persistent database.
+
+#### Prerequisites
+
+- GitHub account with this repository
+- Render account (free tier available)
+- PostgreSQL database (optional, for data persistence)
+
+#### Quick Deploy to Render
+
+**1. Create a new Web Service:**
+- Go to [Render Dashboard](https://dashboard.render.com/)
+- Click **New +** → **Web Service**
+- Connect your GitHub repository
+- Configure service:
+
+```
+Name: co-trainer
+Environment: Docker
+Branch: main
+Root Directory: (leave blank)
+Dockerfile Path: ./Dockerfile
+Port: 8000
+Instance Type: Free
+```
+
+**2. Set Environment Variables:**
+
+Go to **Environment** tab and add:
+
+```bash
+# Required: JWT secret for authentication
+SECRET_KEY=your-generated-secret-key-at-least-32-chars
+
+# Optional: Notion integration (if using Notion features)
+NOTION_API_KEY=secret_xxxxxxxxxxxxx
+NOTION_DATABASE_ID=xxxxxxxxxxxxx
+
+# Optional: Remote PostgreSQL database (for data persistence)
+DATABASE_URL=postgresql://user:password@host:port/database
+```
+
+**Generate a SECRET_KEY:**
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+**3. Deploy:**
+
+Click **Create Web Service** - Render will build and deploy automatically.
+
+Your app will be available at: `https://your-service-name.onrender.com`
+
+#### Database Configuration
+
+**Default (SQLite):**
+- Uses local SQLite database
+- ⚠️ **Data is lost when instance suspends/restarts** on free tier
+- Good for testing only
+
+**Persistent Database (Recommended for Production):**
+
+Choose one of these free PostgreSQL options:
+
+**Option A: Supabase (Recommended)**
+1. Sign up at [supabase.com](https://supabase.com)
+2. Create new project
+3. Go to Settings → Database → Connection String
+4. Copy the `postgres://` URI
+5. Add to Render environment variables as `DATABASE_URL`
+- Free tier: 500MB storage, no time limit
+
+**Option B: Neon**
+1. Sign up at [neon.tech](https://neon.tech)
+2. Create database
+3. Copy connection string
+4. Add to Render as `DATABASE_URL`
+- Free tier: 0.5GB storage, serverless
+
+**Option C: PlanetScale**
+1. Sign up at [planetscale.com](https://planetscale.com)
+2. Create database (MySQL)
+3. Get connection string
+4. Add to Render as `DATABASE_URL`
+- Free tier: 5GB storage
+- Note: Requires MySQL-compatible SQLAlchemy settings
+
+**Option D: Self-hosted PostgreSQL**
+- Use Oracle Cloud Free Tier (2 VMs, 200GB forever free)
+- Run PostgreSQL in Docker
+- Connect via: `postgresql://user:pass@your-server-ip:5432/cotrainer`
+
+#### Health Checks
+
+Render will automatically ping `/api/health` to verify the service is running.
+
+#### Logs
+
+View application logs in Render dashboard under **Logs** tab.
+
+#### Updates
+
+Push to your `main` branch - Render auto-deploys on new commits.
+
+Manual deploy: Dashboard → **Manual Deploy** → **Deploy latest commit**
+
+#### Cost Summary
+
+**Free tier limits:**
+- Web Service: Free (750 hours/month, suspends after 15 min inactivity)
+- Database: Use external free PostgreSQL (Supabase recommended)
+- Total cost: **$0/month**
+
+**Paid tier ($7/month):**
+- No suspension
+- More resources
+- Still requires external database for best persistence
+
 ### Production Docker with HTTPS
 
 For a production deployment with automatic HTTPS/SSL certificates:
