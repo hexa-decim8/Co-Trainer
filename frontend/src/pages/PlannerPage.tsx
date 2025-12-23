@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, rectIntersection, defaultDropAnimationSideEffects, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save, Plus, Clock, Shield } from 'lucide-react';
-import { FixedSizeGrid as Grid } from 'react-window';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -181,24 +180,6 @@ export default function PlannerPage() {
       return true;
     });
   }, [allDrills, activeFilters]);
-
-  // Calculate grid columns based on window width
-  const getColumnCount = () => {
-    if (typeof window === 'undefined') return 1;
-    const width = window.innerWidth;
-    if (width >= 1536) return 3; // 2xl
-    if (width >= 1280) return 2; // xl
-    return 1;
-  };
-
-  const [columnCount, setColumnCount] = useState(getColumnCount());
-
-  // Update column count on resize
-  useMemo(() => {
-    const handleResize = () => setColumnCount(getColumnCount());
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Fetch filter options with centralized config
   const { data: filterOptions } = useQuery({
@@ -650,37 +631,21 @@ export default function PlannerPage() {
                 </div>
               </div>
             ) : (
-              <Grid
-                columnCount={columnCount}
-                columnWidth={columnCount === 3 ? 420 : columnCount === 2 ? 520 : 1000}
-                height={600}
-                rowCount={Math.ceil(drills.length / columnCount)}
-                rowHeight={240}
-                width={columnCount === 3 ? 1280 : columnCount === 2 ? 1060 : 1020}
-                style={{ margin: '0 auto' }}
-              >
-                {({ columnIndex, rowIndex, style }) => {
-                  const index = rowIndex * columnCount + columnIndex;
-                  if (index >= drills.length) return null;
-                  
-                  const drill = drills[index];
-                  return (
-                    <div style={{ ...style, padding: '8px' }}>
-                      <DrillCard
-                        key={drill.id}
-                        drill={drill}
-                        activeFilters={activeFilters}
-                        onContactLevelClick={handleContactLevelClick}
-                        onDrillTypeClick={handleDrillTypeClick}
-                        onEquipmentClick={handleEquipmentClick}
-                        onPositionFocusClick={handlePositionFocusClick}
-                        onSkaterLevelClick={handleSkaterLevelClick}
-                        onTypeClick={handleTypeClick}
-                      />
-                    </div>
-                  );
-                }}
-              </Grid>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {drills.map((drill) => (
+                  <DrillCard
+                    key={drill.id}
+                    drill={drill}
+                    activeFilters={activeFilters}
+                    onContactLevelClick={handleContactLevelClick}
+                    onDrillTypeClick={handleDrillTypeClick}
+                    onEquipmentClick={handleEquipmentClick}
+                    onPositionFocusClick={handlePositionFocusClick}
+                    onSkaterLevelClick={handleSkaterLevelClick}
+                    onTypeClick={handleTypeClick}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>
