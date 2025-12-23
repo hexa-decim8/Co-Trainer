@@ -1,0 +1,28 @@
+# Ignore backend secrets when building frontend
+backend/config/
+backend/__pycache__/
+backend/*.pyc
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Environment
+.env
+.env.*
+*.log
+
+# Version control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
