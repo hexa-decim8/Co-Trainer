@@ -79,8 +79,8 @@ async def shutdown_event():
     logger.info("Database connections closed")
 
 
-@app.get("/")
-async def root():
+@app.get("/api/health")
+async def health_check():
     """Health check endpoint."""
     return {"status": "ok", "message": "Co-Trainer API is running"}
 
