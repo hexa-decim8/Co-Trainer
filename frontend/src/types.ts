@@ -82,7 +82,8 @@ export interface PracticePlan {
   is_public?: boolean;
   notes?: string;
   timeline: TimelineItem[];
-  sections?: DrillSection[];
+  sections?: DrillSection[];  // Deprecated
+  sections_v2?: PracticeSection[];  // New format
   original_plan_id?: number;
   created_at?: string;
   updated_at?: string;
@@ -137,7 +138,8 @@ export interface PracticePlanWithDrills {
   is_template: boolean;
   notes: string | null;
   timeline: TimelineItemWithDrill[];
-  sections?: DrillSection[];
+  sections?: DrillSection[];  // Deprecated
+  sections_v2?: PracticeSection[];  // New format
   total_duration: number;
   created_at: string;
   updated_at: string;

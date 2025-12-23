@@ -70,11 +70,29 @@ class TimelineItem(BaseModel):
 
 
 class DrillSection(BaseModel):
-    """A labeled section bracket on the practice timeline."""
+    """A labeled section bracket on the practice timeline. DEPRECATED - use PracticeSection."""
     id: str
     name: str
     start_minute: int
     end_minute: int
+    color: str
+
+
+class TimelineDrill(BaseModel):
+    """A drill within a practice section with section-relative timing."""
+    id: str
+    drill_id: str  # Reference to Notion drill ID
+    duration: int  # Minutes
+    start_time: int  # Section-relative start time in minutes
+
+
+class PracticeSection(BaseModel):
+    """A section of practice containing drills with metadata."""
+    id: str
+    name: str
+    duration: int  # Total minutes allocated to this section
+    drills: List[TimelineDrill]
+    is_main_practice: bool
     color: str
 
 
@@ -88,7 +106,8 @@ class PracticePlan(BaseModel):
     is_public: bool = False
     notes: Optional[str] = None
     timeline: List[TimelineItem]
-    sections: Optional[List[DrillSection]] = None
+    sections: Optional[List[DrillSection]] = None  # Deprecated
+    sections_v2: Optional[List[PracticeSection]] = None  # New format
     original_plan_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -139,7 +158,8 @@ class PracticePlanWithDrills(BaseModel):
     is_template: bool
     notes: Optional[str]
     timeline: List[dict]  # Each item has drill details + duration + start_time
-    sections: Optional[List[DrillSection]] = None
+    sections: Optional[List[DrillSection]] = None  # Deprecated
+    sections_v2: Optional[List[PracticeSection]] = None  # New format
     total_duration: int
     created_at: datetime
     updated_at: datetime

@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Play, Pause, RotateCcw, Check, ExternalLink, ChevronDown, ChevronUp, ArrowLeft, Edit3, Eye, Save, Plus } from 'lucide-react';
 import { plansApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import type { DrillSection } from '../types';
 import './MobileViewPage.print.css';
 
 export default function MobileViewPage() {
@@ -16,7 +15,6 @@ export default function MobileViewPage() {
   const [expandedDrill, setExpandedDrill] = useState<number | null>(null);
   const [selectedDrill, setSelectedDrill] = useState<number>(0);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [sections, setSections] = useState<DrillSection[]>([]);
 
   const { data: plan, isLoading, refetch } = useQuery({
     queryKey: ['plan', id],
@@ -25,13 +23,6 @@ export default function MobileViewPage() {
     staleTime: 5 * 60 * 1000, // 5 minutes - plan details don't change during practice
     gcTime: 15 * 60 * 1000, // 15 minutes
   });
-
-  // Initialize sections from plan data
-  useEffect(() => {
-    if (plan?.sections) {
-      setSections(plan.sections);
-    }
-  }, [plan]);
 
   // Load practice session state from localStorage
   useEffect(() => {

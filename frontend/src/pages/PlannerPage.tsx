@@ -500,7 +500,6 @@ export default function PlannerPage() {
       }
 
       // For backward compatibility with backend, flatten sections into a single timeline
-      // TODO: Update backend to support section-based structure
       const timeline = sections.flatMap(section => 
         section.drills.map(d => ({
           drill_id: d.drill.id,
@@ -508,15 +507,29 @@ export default function PlannerPage() {
         }))
       );
 
+      // Prepare sections_v2 for new API - convert TimelineDrill to match backend expected format
+      const sectionsForSave = sections.map(section => ({
+        id: section.id,
+        name: section.name,
+        duration: section.duration,
+        drills: section.drills.map(d => ({
+          id: d.id,
+          drill_id: d.drill.id,
+          duration: d.duration,
+          start_time: d.startTime,
+        })),
+        is_main_practice: section.isMainPractice,
+        color: section.color,
+      }));
+
       const planData = {
         name: planName.trim(),
         date: formattedDate,
         practice_type: practiceType,
         is_template: isTemplate,
         is_public: false,
-        timeline,
-        // Note: Backend doesn't support section-based structure yet
-        // Sections will be reconstructed on load based on drill sequences
+        timeline,  // Keep for backward compatibility
+        sections_v2: sectionsForSave,  // New section structure - PRESERVES DATA!
       };
 
       await plansApi.create(planData);
