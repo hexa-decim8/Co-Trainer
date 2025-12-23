@@ -20,11 +20,13 @@
     "@dnd-kit/utilities": "^3.2.2",
     "date-fns": "^3.0.6",
     "lucide-react": "^0.303.0",
-    "recharts": "^2.10.3"
+    "recharts": "^2.10.3",
+    "react-window": "^1.8.10"
   },
   "devDependencies": {
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@types/react-window": "^1.8.8",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "@typescript-eslint/parser": "^6.18.1",
     "@vitejs/plugin-react": "^4.2.1",
