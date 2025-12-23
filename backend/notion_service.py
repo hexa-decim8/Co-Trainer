@@ -282,14 +282,15 @@ class NotionService:
         # Check database cache if db session provided
         if db and not force_sync:
             logger.info("Checking database cache...")
-            if not drill_cache_manager.should_sync(db):
+            # Pass None to disable auto-expiration - cache only rebuilds with force_sync=True
+            if not drill_cache_manager.should_sync(db, max_age_hours=None):
                 cached_drills = drill_cache_manager.load_from_cache(db)
                 if cached_drills:
                     logger.info(f"✓ Using database cache: {len(cached_drills)} drills")
                     self._cache = cached_drills
                     return cached_drills
             else:
-                logger.info("Cache expired, fetching fresh data from Notion...")
+                logger.info("Cache check determined sync needed, fetching from Notion...")
         
         # If no cache or force sync, fetch from Notion
         if not self.client or not self.database_id:
@@ -303,6 +304,9 @@ class NotionService:
             return []
         
         try:
+            import traceback
+            logger.warning("⚠️ FETCHING FROM NOTION API - this should only happen on force_sync=True!")
+            logger.warning(f"Call stack:\n{''.join(traceback.format_stack())}")
             logger.info("🔄 Syncing drills from Notion API...")
             all_pages = []
             has_more = True
@@ -483,21 +487,41 @@ class NotionService:
         """
         # Check if we can use cache
         if db and not force_sync:
-            logger.info("Checking cache for streaming...")
-            if not drill_cache_manager.should_sync(db):
-                cached_drills = drill_cache_manager.load_from_cache(db)
-                if cached_drills:
-                    logger.info(f"✓ Streaming {len(cached_drills)} drills from cache")
-                    for idx, drill in enumerate(cached_drills):
+            logger.info(f"stream_all_drills called with force_sync={force_sync}, checking cache...")
+            
+            # First try to load from cache regardless of age
+            cached_drills = drill_cache_manager.load_from_cache(db)
+            # Pass None to disable auto-expiration - cache only rebuilds with force_sync=True
+            should_rebuild = drill_cache_manager.should_sync(db, max_age_hours=None)
+            logger.info(f"Cache status: found {len(cached_drills) if cached_drills else 0} drills, should_sync={should_rebuild}")
+            
+            # If we have cached drills and shouldn't sync, use cache
+            if cached_drills and not should_rebuild:
+                logger.info(f"✓ Streaming {len(cached_drills)} drills from fresh cache")
+                for idx, drill in enumerate(cached_drills):
+                    yield {"type": "drill", "data": drill.dict()}
+                    if (idx + 1) % 10 == 0:
+                        yield {"type": "progress", "count": idx + 1}
+                logger.info(f"✓ Completed streaming {len(cached_drills)} drills from cache")
+                yield {"type": "complete", "total": len(cached_drills)}
+                return
+            # If we have cached drills but cache is old, still use it unless Notion is configured
+            elif cached_drills and should_rebuild:
+                if not self.client or not self.database_id:
+                    logger.info(f"✓ Using stale cache ({len(cached_drills)} drills) - Notion not configured")
+                    for drill in cached_drills:
                         yield {"type": "drill", "data": drill.dict()}
-                        if (idx + 1) % 10 == 0:
-                            yield {"type": "progress", "count": idx + 1}
-                            logger.info(f"  Streamed {idx + 1}/{len(cached_drills)} drills...")
-                    logger.info(f"✓ Completed streaming {len(cached_drills)} drills from cache")
                     yield {"type": "complete", "total": len(cached_drills)}
                     return
+                else:
+                    logger.info(f"Cache is stale ({len(cached_drills)} drills), will rebuild from Notion...")
             else:
-                logger.info("Cache expired, will stream from Notion...")
+                logger.info("No cached drills found, will fetch from Notion")
+        else:
+            if force_sync:
+                logger.info("force_sync=True, will rebuild cache from Notion")
+            else:
+                logger.info("No db session provided, cannot use cache")
         
         # If no cache or force sync, fetch from Notion
         if not self.client or not self.database_id:
@@ -515,6 +539,9 @@ class NotionService:
             return
         
         try:
+            import traceback
+            logger.warning("⚠️ stream_all_drills is FETCHING FROM NOTION - this should only happen on force_sync=True!")
+            logger.warning(f"Call stack:\n{''.join(traceback.format_stack())}")
             logger.info("🔄 Streaming drills from Notion API...")
             all_pages = []
             has_more = True

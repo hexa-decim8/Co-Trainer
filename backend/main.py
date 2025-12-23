@@ -714,6 +714,29 @@ async def sync_drills(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/drills/count")
+async def get_drill_count(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Get expected drill count from cache metadata."""
+    from database import SyncMetadata, DrillCache
+    
+    sync_meta = db.query(SyncMetadata).first()
+    if sync_meta and sync_meta.drill_count:
+        return {
+            "count": sync_meta.drill_count,
+            "source": "metadata"
+        }
+    
+    # Fallback to actual count if metadata doesn't exist
+    cached_count = db.query(DrillCache).count()
+    return {
+        "count": cached_count,
+        "source": "cache"
+    }
+
+
 @app.get("/api/drills/cache-info")
 async def get_cache_info(
     db: Session = Depends(get_db),
@@ -721,7 +744,29 @@ async def get_cache_info(
 ):
     """Get information about the drill cache."""
     from drill_cache import drill_cache_manager
-    return drill_cache_manager.get_cache_info(db)
+    from database import SyncMetadata, DrillCache
+    from datetime import datetime, timedelta
+    
+    # Get sync metadata
+    sync_meta = db.query(SyncMetadata).first()
+    cached_count = db.query(DrillCache).count()
+    should_sync = drill_cache_manager.should_sync(db)
+    
+    info = {
+        "cached_drill_count": cached_count,
+        "should_sync": should_sync,
+        "has_sync_metadata": sync_meta is not None,
+    }
+    
+    if sync_meta:
+        if sync_meta.last_full_sync:
+            age = datetime.utcnow() - sync_meta.last_full_sync
+            info["last_full_sync"] = sync_meta.last_full_sync.isoformat()
+            info["cache_age_hours"] = round(age.total_seconds() / 3600, 1)
+            info["cache_age_minutes"] = round(age.total_seconds() / 60, 1)
+        info["drill_count_in_metadata"] = sync_meta.drill_count
+    
+    return info
 
 
 @app.get("/api/filter-options", response_model=FilterOptions)

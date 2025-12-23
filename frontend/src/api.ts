@@ -9,6 +9,16 @@ import type {
   PaginatedPlansResponse
 } from './types';
 
+export interface DrillCacheInfo {
+  cached_drill_count: number;
+  should_sync: boolean;
+  has_sync_metadata: boolean;
+  last_full_sync?: string;
+  cache_age_hours?: number;
+  cache_age_minutes?: number;
+  drill_count_in_metadata?: number;
+}
+
 const api = axios.create({
   baseURL: '/api',
   headers: {
@@ -100,6 +110,11 @@ export const drillsApi = {
 
   getFilterOptions: async (): Promise<FilterOptions> => {
     const response = await api.get<FilterOptions>('/filter-options');
+    return response.data;
+  },
+
+  getCacheInfo: async (): Promise<DrillCacheInfo> => {
+    const response = await api.get<DrillCacheInfo>('/drills/cache-info');
     return response.data;
   },
 

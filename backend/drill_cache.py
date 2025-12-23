@@ -84,19 +84,51 @@ class DrillCacheManager:
             db.rollback()
             logger.error(f"Error saving to database cache: {e}")
     
-    def should_sync(self, db: Session, max_age_hours: int = 24) -> bool:
-        """Check if we should sync with Notion (cache older than max_age_hours)."""
+    def should_sync(self, db: Session, max_age_hours: int = None) -> bool:
+        """Check if we should sync with Notion.
+        
+        Args:
+            max_age_hours: Maximum cache age in hours. If None (default), cache never expires 
+                          automatically. Only force_sync=True will trigger a rebuild.
+        
+        Returns:
+            True if cache needs rebuilding, False if cache should be used
+        """
         try:
+            # If max_age_hours is None, never auto-expire the cache
+            if max_age_hours is None:
+                sync_meta = db.query(SyncMetadata).first()
+                if sync_meta and sync_meta.last_full_sync:
+                    age = datetime.utcnow() - sync_meta.last_full_sync
+                    logger.info(f"Auto-expiration disabled. Cache age: {age.total_seconds()/3600:.1f} hours - will use cache")
+                cached_count = db.query(DrillCache).count()
+                if cached_count > 0:
+                    logger.info(f"Found {cached_count} cached drills - using cache (no auto-expiration)")
+                    return False
+                else:
+                    logger.info("No cached drills found - needs initial sync")
+                    return True
+            
+            # If max_age_hours is specified, check cache age
             sync_meta = db.query(SyncMetadata).first()
             if not sync_meta or not sync_meta.last_full_sync:
+                logger.info("No sync metadata found")
+                cached_count = db.query(DrillCache).count()
+                if cached_count > 0:
+                    logger.info(f"Found {cached_count} cached drills without metadata - using cache")
+                    return False
                 return True
             
-            # Sync if cache is older than specified hours
             age = datetime.utcnow() - sync_meta.last_full_sync
-            return age > timedelta(hours=max_age_hours)
+            should_sync = age > timedelta(hours=max_age_hours)
+            if should_sync:
+                logger.info(f"Cache is {age.total_seconds()/3600:.1f} hours old (max: {max_age_hours}h) - sync needed")
+            else:
+                logger.info(f"Cache is fresh ({age.total_seconds()/3600:.1f} hours old)")
+            return should_sync
         except Exception as e:
             logger.error(f"Error checking sync status: {e}")
-            return True
+            return False  # On error, don't force sync
     
     def get_cache_info(self, db: Session) -> dict:
         """Get information about the current cache."""

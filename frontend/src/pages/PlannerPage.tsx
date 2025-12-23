@@ -107,6 +107,9 @@ export default function PlannerPage() {
     error: streamError,
     progress,
     total,
+    shouldSync,
+    cacheAgeMinutes,
+    refetch: refetchDrills,
   } = useStreamingDrills({ enabled: true });
 
   // Apply filters client-side with single-pass optimization (O(n) instead of O(n*m))
@@ -598,19 +601,33 @@ export default function PlannerPage() {
                         strokeWidth={8}
                       />
                       <div className="text-gray-600 dark:text-gray-400 font-semibold mt-4">
-                        Loading drills...
+                        {shouldSync 
+                          ? 'Syncing from Notion (this may take a minute)...'
+                          : total && total > 0
+                            ? `Loading ${total} drills${cacheAgeMinutes ? ` (synced ${Math.round(cacheAgeMinutes)} min ago)` : ''}...`
+                            : 'Loading drills...'}
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
                       <div className="text-gray-600 dark:text-gray-400 font-semibold">
-                        Connecting to Notion...
+                        {total && total > 0 
+                          ? `Preparing to load ${total} drills...`
+                          : 'Connecting to drill database...'}
                       </div>
                     </>
                   )}
                   {streamError && (
-                    <p className="text-red-600 dark:text-red-400 text-sm mt-2">{streamError}</p>
+                    <div className="mt-4">
+                      <p className="text-red-600 dark:text-red-400 text-sm mb-2">{streamError}</p>
+                      <button
+                        onClick={refetchDrills}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+                      >
+                        Retry Loading
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
