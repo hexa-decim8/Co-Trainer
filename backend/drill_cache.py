@@ -22,6 +22,7 @@ class DrillCacheManager:
             logger.info(f"Loaded {len(drills)} drills from database cache")
             return drills
         except Exception as e:
+            db.rollback()
             logger.error(f"Error loading from database cache: {e}")
             return None
     
@@ -37,8 +38,13 @@ class DrillCacheManager:
         try:
             if is_full_sync:
                 # Full rebuild: clear and replace all
-                db.query(DrillCache).delete()
-                logger.info("Full rebuild: cleared existing cache")
+                try:
+                    db.query(DrillCache).delete()
+                    logger.info("Full rebuild: cleared existing cache")
+                except Exception as delete_error:
+                    logger.error(f"Error clearing cache, rolling back: {delete_error}")
+                    db.rollback()
+                    raise
             
             # Upsert drills (insert new or update existing)
             for drill in drills:
@@ -83,6 +89,7 @@ class DrillCacheManager:
         except Exception as e:
             db.rollback()
             logger.error(f"Error saving to database cache: {e}")
+            raise  # Re-raise to let caller know save failed
     
     def should_sync(self, db: Session, max_age_hours: int = None) -> bool:
         """Check if we should sync with Notion.
@@ -127,6 +134,7 @@ class DrillCacheManager:
                 logger.info(f"Cache is fresh ({age.total_seconds()/3600:.1f} hours old)")
             return should_sync
         except Exception as e:
+            db.rollback()
             logger.error(f"Error checking sync status: {e}")
             return False  # On error, don't force sync
     
@@ -145,6 +153,7 @@ class DrillCacheManager:
                 "age_hours": (datetime.utcnow() - sync_meta.last_full_sync).total_seconds() / 3600 if sync_meta.last_full_sync else None
             }
         except Exception as e:
+            db.rollback()
             logger.error(f"Error getting cache info: {e}")
             return {"cached": False, "error": str(e)}
     
@@ -159,6 +168,7 @@ class DrillCacheManager:
             times = [t for t in [sync_meta.last_full_sync, sync_meta.last_incremental_sync] if t is not None]
             return max(times) if times else None
         except Exception as e:
+            db.rollback()
             logger.error(f"Error getting last sync time: {e}")
             return None
 
