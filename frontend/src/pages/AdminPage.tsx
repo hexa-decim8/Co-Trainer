@@ -50,6 +50,17 @@ export default function AdminPage() {
     refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
+  // Fetch database status
+  const { data: dbStatus, refetch: refetchDbStatus } = useQuery({
+    queryKey: ['database', 'status'],
+    queryFn: async () => {
+      const response = await api.get('/database/status');
+      return response.data;
+    },
+    staleTime: 30 * 1000,
+    refetchOnMount: true,
+  });
+
   // Update role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
@@ -248,6 +259,60 @@ export default function AdminPage() {
           </div>
         )}
         <p className="text-gray-600 dark:text-gray-400">Manage users, roles, and permissions</p>
+      </div>
+
+      {/* Database Status Section */}
+      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Database Status</h2>
+          <button
+            onClick={() => refetchDbStatus()}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
+
+        {dbStatus && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Status:</span>
+              <span className={`font-medium ${dbStatus.status === 'connected' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {dbStatus.status === 'connected' ? '✓ Connected' : '✗ Disconnected'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Database Type:</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{dbStatus.database_type}</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Persistent Storage:</span>
+              <span className={`font-medium ${dbStatus.persistent ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                {dbStatus.persistent ? 'Yes' : 'No'}
+              </span>
+            </div>
+            {dbStatus.user_count !== undefined && (
+              <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Total Users:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStatus.user_count}</span>
+              </div>
+            )}
+            {dbStatus.warning && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">{dbStatus.warning}</p>
+                </div>
+              </div>
+            )}
+            {dbStatus.error && (
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-800 dark:text-red-200">Error: {dbStatus.error}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Notion Configuration Section */}

@@ -85,6 +85,48 @@ async def health_check():
     return {"status": "ok", "message": "Co-Trainer API is running"}
 
 
+@app.get("/api/database/status")
+async def database_status(db: Session = Depends(get_db)):
+    """Check database connection and return status."""
+    try:
+        # Test database connection
+        db.execute("SELECT 1")
+        
+        # Get database type
+        db_url = settings.database_url
+        if db_url.startswith("sqlite"):
+            db_type = "SQLite"
+            persistent = False
+            warning = "Data will be lost on server restart (use PostgreSQL for persistence)"
+        elif db_url.startswith("postgresql"):
+            db_type = "PostgreSQL"
+            persistent = True
+            warning = None
+        else:
+            db_type = "Unknown"
+            persistent = False
+            warning = "Unknown database type"
+        
+        # Get user count
+        from database import UserDB
+        user_count = db.query(UserDB).count()
+        
+        return {
+            "status": "connected",
+            "database_type": db_type,
+            "persistent": persistent,
+            "user_count": user_count,
+            "warning": warning
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "database_type": "Unknown",
+            "persistent": False
+        }
+
+
 @app.get("/api/settings")
 async def get_settings():
     """Get current settings (without exposing full API key)."""
