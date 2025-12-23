@@ -673,17 +673,42 @@ async def get_drills(
 
 @app.post("/api/drills/sync")
 async def sync_drills(
+    full_rebuild: bool = Query(False, description="Force full rebuild instead of incremental sync"),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    """Force sync drills from Notion."""
+    """
+    Sync drills from Notion.
+    
+    - full_rebuild=false (default): Incremental sync - only fetch changed drills
+    - full_rebuild=true: Full rebuild - fetch all drills and replace cache
+    """
     try:
-        drills = await notion_service.get_all_drills(db=db, force_sync=True)
-        return {
-            "success": True,
-            "message": f"Successfully synced {len(drills)} drills from Notion",
-            "count": len(drills)
-        }
+        if full_rebuild:
+            logger.info("Starting full rebuild of drill cache...")
+            drills = await notion_service.get_all_drills(db=db, force_sync=True)
+            return {
+                "success": True,
+                "message": f"Full rebuild complete: {len(drills)} drills synced from Notion",
+                "count": len(drills),
+                "sync_type": "full_rebuild"
+            }
+        else:
+            logger.info("Starting incremental sync...")
+            drills = await notion_service.sync_changed_drills(db=db)
+            if not drills:
+                return {
+                    "success": True,
+                    "message": "No changes detected since last sync",
+                    "count": 0,
+                    "sync_type": "incremental"
+                }
+            return {
+                "success": True,
+                "message": f"Incremental sync complete: {len(drills)} drills updated",
+                "count": len(drills),
+                "sync_type": "incremental"
+            }
     except Exception as e:
         logger.error(f"Drill sync failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -81,6 +81,7 @@ class DrillCache(Base):
     id = Column(String, primary_key=True)  # Notion page ID
     data = Column(JSON, nullable=False)  # Full drill data as JSON
     last_synced = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    notion_last_edited_time = Column(DateTime, nullable=True)  # Notion's last_edited_time for change detection
 
 
 class PlanClone(Base):
@@ -104,6 +105,7 @@ class SyncMetadata(Base):
     
     id = Column(Integer, primary_key=True)
     last_full_sync = Column(DateTime, nullable=True)
+    last_incremental_sync = Column(DateTime, nullable=True)
     drill_count = Column(Integer, default=0)
 
 

@@ -330,23 +330,30 @@ class NotionService:
             # Build relation cache before parsing
             self._build_relation_cache(all_pages)
             
-            # Now parse all drills
+            # Now parse all drills and collect Notion timestamps
             drills = []
+            notion_timestamps = {}
+            
             for page in all_pages:
                 try:
                     drill = self._parse_drill(page)
                     # Only include drills with an Exercise name
                     if drill.exercise and drill.exercise != "Untitled":
                         drills.append(drill)
+                        # Extract Notion's last_edited_time
+                        last_edited = page.get("last_edited_time")
+                        if last_edited:
+                            from datetime import datetime as dt
+                            notion_timestamps[drill.id] = dt.fromisoformat(last_edited.replace('Z', '+00:00'))
                 except Exception as e:
                     logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
             
             self._cache = drills
             
-            # Save to database cache
+            # Save to database cache (full sync)
             if db:
                 logger.info(f"💾 Saving {len(drills)} drills to database cache...")
-                drill_cache_manager.save_to_cache(drills, db)
+                drill_cache_manager.save_to_cache(drills, db, is_full_sync=True, notion_timestamps=notion_timestamps)
                 logger.info("✓ Cache saved successfully")
             
             logger.info(f"✓ Successfully synced {len(drills)} drills from Notion (fetched {page_count} pages)")
@@ -360,6 +367,106 @@ class NotionService:
                 if cached_drills:
                     logger.info("Returning cached data due to Notion API error")
                     return cached_drills
+            raise
+    
+    async def sync_changed_drills(self, db: Session) -> List[Drill]:
+        """
+        Fetch only drills that have changed since the last sync (incremental update).
+        Returns list of updated/new drills.
+        
+        Args:
+            db: Database session (required for incremental sync)
+            
+        Returns:
+            List of changed drills with their Notion timestamps
+        """
+        if not self.client or not self.database_id:
+            logger.warning("⚠ Notion API not configured for incremental sync")
+            return []
+        
+        # Get last sync time
+        last_sync = drill_cache_manager.get_last_sync_time(db)
+        
+        # If no previous sync, do a full sync instead
+        if not last_sync:
+            logger.info("No previous sync found, performing full sync...")
+            drills = await self.get_all_drills(db=db, force_sync=True)
+            return drills
+        
+        try:
+            logger.info(f"🔄 Fetching drills changed since {last_sync.isoformat()}...")
+            
+            # Query Notion with last_edited_time filter
+            all_pages = []
+            has_more = True
+            start_cursor = None
+            page_count = 0
+            
+            while has_more:
+                page_count += 1
+                logger.info(f"→ Fetching page {page_count} of changed drills...")
+                
+                # Build query filter for last_edited_time
+                response = self.client.databases.query(
+                    database_id=self.database_id,
+                    start_cursor=start_cursor,
+                    filter={
+                        "timestamp": "last_edited_time",
+                        "last_edited_time": {
+                            "after": last_sync.isoformat()
+                        }
+                    }
+                )
+                
+                page_results = response.get("results", [])
+                logger.info(f"  Received {len(page_results)} changed items in page {page_count}")
+                all_pages.extend(page_results)
+                
+                has_more = response.get("has_more", False)
+                start_cursor = response.get("next_cursor")
+            
+            if not all_pages:
+                logger.info("✓ No changes detected since last sync")
+                return []
+            
+            # Build relation cache for changed pages
+            self._build_relation_cache(all_pages)
+            
+            # Parse changed drills and collect their Notion timestamps
+            drills = []
+            notion_timestamps = {}
+            
+            for page in all_pages:
+                try:
+                    drill = self._parse_drill(page)
+                    if drill.exercise and drill.exercise != "Untitled":
+                        drills.append(drill)
+                        # Extract Notion's last_edited_time
+                        last_edited = page.get("last_edited_time")
+                        if last_edited:
+                            from datetime import datetime
+                            notion_timestamps[drill.id] = datetime.fromisoformat(last_edited.replace('Z', '+00:00'))
+                except Exception as e:
+                    logger.error(f"  ✗ Error parsing changed drill {page.get('id')}: {e}")
+            
+            # Save to cache with incremental flag
+            if drills:
+                logger.info(f"💾 Updating {len(drills)} changed drills in cache...")
+                drill_cache_manager.save_to_cache(drills, db, is_full_sync=False, notion_timestamps=notion_timestamps)
+                logger.info("✓ Incremental sync complete")
+                
+                # Update in-memory cache for changed drills
+                if self._cache:
+                    cache_dict = {d.id: d for d in self._cache}
+                    for drill in drills:
+                        cache_dict[drill.id] = drill
+                    self._cache = list(cache_dict.values())
+            
+            logger.info(f"✓ Incremental sync: {len(drills)} drills updated")
+            return drills
+            
+        except Exception as e:
+            logger.error(f"Error during incremental sync: {e}")
             raise
     
     async def stream_all_drills(self, db=None, force_sync: bool = False) -> AsyncGenerator[Dict[str, Any], None]:
@@ -436,6 +543,7 @@ class NotionService:
             
             # Now parse and stream drills
             drills = []
+            notion_timestamps = {}
             count = 0
             for page in all_pages:
                 try:
@@ -443,6 +551,11 @@ class NotionService:
                     # Only include drills with an Exercise name
                     if drill.exercise and drill.exercise != "Untitled":
                         drills.append(drill)
+                        # Extract Notion's last_edited_time
+                        last_edited = page.get("last_edited_time")
+                        if last_edited:
+                            from datetime import datetime as dt
+                            notion_timestamps[drill.id] = dt.fromisoformat(last_edited.replace('Z', '+00:00'))
                         count += 1
                         yield {"type": "drill", "data": drill.dict()}
                         
@@ -454,11 +567,11 @@ class NotionService:
                     logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
                     yield {"type": "error", "message": f"Failed to parse drill: {str(e)}"}
             
-            # Cache the results
+            # Cache the results (full sync)
             self._cache = drills
             if db:
                 logger.info(f"💾 Saving {count} drills to database cache...")
-                drill_cache_manager.save_to_cache(drills, db)
+                drill_cache_manager.save_to_cache(drills, db, is_full_sync=True, notion_timestamps=notion_timestamps)
                 logger.info("✓ Cache saved successfully")
             
             logger.info(f"✓ Successfully streamed {count} drills from Notion (fetched {page_count} pages)")

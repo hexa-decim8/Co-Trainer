@@ -104,10 +104,22 @@ export default function AdminPage() {
     },
   });
 
-  // Clear cache mutation
-  const clearCacheMutation = useMutation({
+  // Incremental sync mutation
+  const syncChangesMutation = useMutation({
     mutationFn: async () => {
-      const response = await api.post('/drills/sync');
+      const response = await api.post('/drills/sync?full_rebuild=false');
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate drills cache so they reload with fresh data
+      queryClient.invalidateQueries({ queryKey: ['drills'] });
+    },
+  });
+
+  // Full rebuild mutation
+  const fullRebuildMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/drills/sync?full_rebuild=true');
       return response.data;
     },
     onSuccess: () => {
@@ -239,23 +251,45 @@ export default function AdminPage() {
             <Shield className="w-8 h-8 text-primary-600 dark:text-primary-400" />
             <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-gray-100">Admin Panel</h1>
           </div>
-          <button
-            onClick={() => clearCacheMutation.mutate()}
-            disabled={clearCacheMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${clearCacheMutation.isPending ? 'animate-spin' : ''}`} />
-            {clearCacheMutation.isPending ? 'Clearing...' : 'Clear Drill Cache'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => syncChangesMutation.mutate()}
+              disabled={syncChangesMutation.isPending || fullRebuildMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncChangesMutation.isPending ? 'animate-spin' : ''}`} />
+              {syncChangesMutation.isPending ? 'Syncing...' : 'Sync Changes'}
+            </button>
+            <button
+              onClick={() => fullRebuildMutation.mutate()}
+              disabled={syncChangesMutation.isPending || fullRebuildMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${fullRebuildMutation.isPending ? 'animate-spin' : ''}`} />
+              {fullRebuildMutation.isPending ? 'Rebuilding...' : 'Full Rebuild'}
+            </button>
+          </div>
         </div>
-        {clearCacheMutation.isSuccess && (
+        {syncChangesMutation.isSuccess && (
           <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
-            Cache cleared! Drills resynced from Notion.
+            {syncChangesMutation.data?.count === 0
+              ? 'No changes detected since last sync.'
+              : `Incremental sync complete! ${syncChangesMutation.data?.count} drills updated.`}
           </div>
         )}
-        {clearCacheMutation.isError && (
+        {fullRebuildMutation.isSuccess && (
+          <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
+            Full rebuild complete! {fullRebuildMutation.data?.count} drills synced from Notion.
+          </div>
+        )}
+        {syncChangesMutation.isError && (
           <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-            Failed to clear cache. Please try again.
+            Failed to sync changes. Please try again.
+          </div>
+        )}
+        {fullRebuildMutation.isError && (
+          <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+            Failed to rebuild cache. Please try again.
           </div>
         )}
         <p className="text-gray-600 dark:text-gray-400">Manage users, roles, and permissions</p>
