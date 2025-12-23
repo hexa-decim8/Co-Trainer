@@ -104,7 +104,8 @@ export function useStreamingDrills(options: UseStreamingDrillsOptions = {}): Use
         abortControllerRef.current.abort();
       }
     };
-  }, [enabled, forceSync]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
   return {
     drills,
