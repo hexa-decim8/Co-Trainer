@@ -1,4 +1,5 @@
 from typing import List, Dict, Optional, Any, AsyncGenerator
+from sqlalchemy.orm import Session
 from notion_client import Client
 from config import settings
 from models import Drill
