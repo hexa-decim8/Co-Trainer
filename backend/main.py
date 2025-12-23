@@ -1132,6 +1132,21 @@ async def list_templates(
     return await list_plans(is_template=True, page=page, page_size=page_size, db=db, current_user=current_user)
 
 
+# Serve frontend for all non-API routes (SPA support) - MUST be last route
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve the React frontend for all non-API routes."""
+    # Don't serve SPA for API routes
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not built")
+
+
 if __name__ == "__main__":
     import uvicorn
     import signal
@@ -1153,17 +1168,3 @@ if __name__ == "__main__":
         log_level="info",
         access_log=True
     )
-
-# Serve frontend for all non-API routes (SPA support)
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """Serve the React frontend for all non-API routes."""
-    # Don't serve SPA for API routes
-    if full_path.startswith("api"):
-        raise HTTPException(status_code=404, detail="API endpoint not found")
-    
-    index_file = STATIC_DIR / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
-    else:
-        raise HTTPException(status_code=404, detail="Frontend not built")
