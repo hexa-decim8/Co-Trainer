@@ -130,12 +130,14 @@ export interface TimelineItemWithDrill {
 
 export interface PracticePlanWithDrills {
   id: number;
+  user_id: number;
   name: string;
   date: string | null;
   practice_type: PracticeType;
   is_template: boolean;
   notes: string | null;
   timeline: TimelineItemWithDrill[];
+  sections?: DrillSection[];
   total_duration: number;
   created_at: string;
   updated_at: string;

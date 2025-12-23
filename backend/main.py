@@ -886,6 +886,7 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
     
     return PracticePlanWithDrills(
         id=plan.id,
+        user_id=plan.user_id,
         name=plan.name,
         date=plan.date,
         practice_type=PracticeType(plan.practice_type),

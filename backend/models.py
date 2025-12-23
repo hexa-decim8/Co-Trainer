@@ -132,6 +132,7 @@ class PracticePlanSummary(BaseModel):
 class PracticePlanWithDrills(BaseModel):
     """Practice plan with full drill details hydrated from Notion."""
     id: int
+    user_id: int
     name: str
     date: Optional[datetime]
     practice_type: PracticeType
