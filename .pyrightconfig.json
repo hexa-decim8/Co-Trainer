@@ -1,0 +1,20 @@
+{
+  "typeCheckingMode": "standard",
+  "reportIncompatibleMethodOverride": false,
+  "reportIncompatibleVariableOverride": false,
+  "reportGeneralTypeIssues": true,
+  "reportOptionalMemberAccess": false,
+  "reportOptionalSubscript": false,
+  "reportOptionalCallOperand": false,
+  "reportOptionalOperand": false,
+  "reportOptionalIterable": false,
+  "reportOptionalContextManager": false,
+  "reportOptionalArgumentType": false,
+  "reportOptionalParameterType": false,
+  "reportOptionalReturnType": false,
+  "reportOptionalAssignment": false,
+  "reportCallInDefaultArgumentValue": false,
+  "reportIncompatibleMethodOverride": false,
+  "reportIncompatibleVariableOverride": false,
+  "reportInvalidStringEscapeSequence": false
+}

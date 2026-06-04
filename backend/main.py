@@ -67,6 +67,34 @@ if STATIC_DIR.exists():
 async def startup_event():
     """Initialize database on startup."""
     init_db()
+    
+    # Warm the in-memory cache from DB and trigger background incremental sync
+    import asyncio
+    async def _background_sync():
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            # Load cached drills into memory for fast first response
+            cached = await notion_service.get_all_drills(db=db, force_sync=False)
+            if cached:
+                logger.info(f"Startup: warmed in-memory cache with {len(cached)} drills from DB")
+                # Trigger incremental sync to pick up any Notion changes
+                try:
+                    changed = await notion_service.sync_changed_drills(db=db)
+                    if changed:
+                        logger.info(f"Startup: incremental sync found {len(changed)} changed drills")
+                    else:
+                        logger.info("Startup: no changes detected in Notion")
+                except Exception as e:
+                    logger.warning(f"Startup: incremental sync failed (will retry on next request): {e}")
+            else:
+                logger.info("Startup: no cached drills found, first request will trigger full sync")
+        except Exception as e:
+            logger.warning(f"Startup: cache warming failed: {e}")
+        finally:
+            db.close()
+    
+    asyncio.create_task(_background_sync())
 
 
 @app.on_event("shutdown")
@@ -188,7 +216,7 @@ async def test_notion_connection():
         return {
             "success": True,
             "message": "Successfully connected to Notion",
-            "drill_count": len(response.get("results", []))
+            "drill_count": len(response.get("results", []))  # type: ignore
         }
     except Exception as e:
         logger.error(f"Notion connection test failed: {e}")
@@ -234,7 +262,7 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
     refresh_token = create_refresh_token(data={"sub": db_user.email})
     
     # Store refresh token in database
-    db_user.refresh_token = refresh_token
+    db_user.refresh_token = refresh_token  # type: ignore
     db.commit()
     
     # Set refresh token as HTTP-only cookie
@@ -252,12 +280,12 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
         refresh_token=refresh_token,
         token_type="bearer",
         user=UserResponse(
-            id=db_user.id,
-            email=db_user.email,
-            derby_name=db_user.derby_name,
-            role=db_user.role,
-            dark_mode=db_user.dark_mode,
-            created_at=db_user.created_at
+            id=db_user.id,  # type: ignore
+            email=db_user.email,  # type: ignore
+            derby_name=db_user.derby_name,  # type: ignore
+            role=db_user.role,  # type: ignore
+            dark_mode=db_user.dark_mode,  # type: ignore
+            created_at=db_user.created_at  # type: ignore
         )
     )
 
@@ -278,7 +306,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
     refresh_token = create_refresh_token(data={"sub": user.email})
     
     # Store refresh token in database
-    user.refresh_token = refresh_token
+    user.refresh_token = refresh_token  # type: ignore
     db.commit()
     
     # Set refresh token as HTTP-only cookie
@@ -296,12 +324,12 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
         refresh_token=refresh_token,
         token_type="bearer",
         user=UserResponse(
-            id=user.id,
-            email=user.email,
-            derby_name=user.derby_name,
-            role=user.role,
-            dark_mode=user.dark_mode,
-            created_at=user.created_at
+            id=user.id,  # type: ignore
+            email=user.email,  # type: ignore
+            derby_name=user.derby_name,  # type: ignore
+            role=user.role,  # type: ignore
+            dark_mode=user.dark_mode,  # type: ignore
+            created_at=user.created_at  # type: ignore
         )
     )
 
@@ -331,7 +359,7 @@ async def refresh_token(
     new_refresh_token = create_refresh_token(data={"sub": user.email})
     
     # Update refresh token in database
-    user.refresh_token = new_refresh_token
+    user.refresh_token = new_refresh_token  # type: ignore
     db.commit()
     
     # Update cookie
@@ -349,12 +377,12 @@ async def refresh_token(
         refresh_token=new_refresh_token,
         token_type="bearer",
         user=UserResponse(
-            id=user.id,
-            email=user.email,
-            derby_name=user.derby_name,
-            role=user.role,
-            dark_mode=user.dark_mode,
-            created_at=user.created_at
+            id=user.id,  # type: ignore
+            email=user.email,  # type: ignore
+            derby_name=user.derby_name,  # type: ignore
+            role=user.role,  # type: ignore
+            dark_mode=user.dark_mode,  # type: ignore
+            created_at=user.created_at  # type: ignore
         )
     )
 
@@ -366,7 +394,7 @@ async def logout(
     db: Session = Depends(get_db)
 ):
     """Logout user by invalidating refresh token."""
-    current_user.refresh_token = None
+    current_user.refresh_token = None  # type: ignore
     db.commit()
     
     # Clear cookie
@@ -379,12 +407,12 @@ async def logout(
 async def get_current_user_info(current_user: UserDB = Depends(get_current_user)):
     """Get current authenticated user information."""
     return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        derby_name=current_user.derby_name,
-        role=current_user.role,
-        dark_mode=current_user.dark_mode,
-        created_at=current_user.created_at
+        id=current_user.id,  # type: ignore
+        email=current_user.email,  # type: ignore
+        derby_name=current_user.derby_name,  # type: ignore
+        role=current_user.role,  # type: ignore
+        dark_mode=current_user.dark_mode,  # type: ignore
+        created_at=current_user.created_at  # type: ignore
     )
 
 
@@ -396,21 +424,21 @@ async def update_profile(
 ):
     """Update user profile information."""
     if profile_data.derby_name is not None:
-        current_user.derby_name = profile_data.derby_name
+        current_user.derby_name = profile_data.derby_name  # type: ignore
     
     if profile_data.dark_mode is not None:
-        current_user.dark_mode = profile_data.dark_mode
+        current_user.dark_mode = profile_data.dark_mode  # type: ignore
     
     db.commit()
     db.refresh(current_user)
     
     return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        derby_name=current_user.derby_name,
-        role=current_user.role,
-        dark_mode=current_user.dark_mode,
-        created_at=current_user.created_at
+        id=current_user.id,  # type: ignore
+        email=current_user.email,  # type: ignore
+        derby_name=current_user.derby_name,  # type: ignore
+        role=current_user.role,  # type: ignore
+        dark_mode=current_user.dark_mode,  # type: ignore
+        created_at=current_user.created_at  # type: ignore
     )
 
 
@@ -422,14 +450,14 @@ async def change_password(
 ):
     """Change user password."""
     # Verify current password
-    if not verify_password(password_data.current_password, current_user.hashed_password):
+    if not verify_password(password_data.current_password, current_user.hashed_password):  # type: ignore
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
         )
     
     # Update password
-    current_user.hashed_password = get_password_hash(password_data.new_password)
+    current_user.hashed_password = get_password_hash(password_data.new_password)  # type: ignore
     db.commit()
     
     return {"success": True, "message": "Password updated successfully"}
@@ -448,11 +476,11 @@ async def list_users(
     users = db.query(UserDB).all()
     return [
         UserListResponse(
-            id=user.id,
-            email=user.email,
-            derby_name=user.derby_name,
-            role=user.role,
-            created_at=user.created_at
+            id=user.id,  # type: ignore
+            email=user.email,  # type: ignore
+            derby_name=user.derby_name,  # type: ignore
+            role=user.role,  # type: ignore
+            created_at=user.created_at  # type: ignore
         )
         for user in users
     ]
@@ -482,7 +510,7 @@ async def update_user_role(
         )
     
     # Prevent admin from demoting themselves if they're the only admin
-    if target_user.id == admin_user.id and role_data.role != "admin":
+    if target_user.id == admin_user.id and role_data.role != "admin":  # type: ignore
         admin_count = db.query(UserDB).filter(UserDB.role == "admin").count()
         if admin_count <= 1:
             raise HTTPException(
@@ -491,7 +519,7 @@ async def update_user_role(
             )
     
     # Update role
-    target_user.role = role_data.role
+    target_user.role = role_data.role  # type: ignore
     db.commit()
     
     return {"success": True, "message": f"User role updated to {role_data.role}"}
@@ -514,7 +542,7 @@ async def admin_reset_password(
         )
     
     # Update password
-    target_user.hashed_password = get_password_hash(password_data.new_password)
+    target_user.hashed_password = get_password_hash(password_data.new_password)  # type: ignore
     db.commit()
     
     return {"success": True, "message": "Password reset successfully"}
@@ -536,7 +564,7 @@ async def delete_user(
         )
     
     # Prevent admin from deleting themselves if they're the only admin
-    if target_user.id == admin_user.id:
+    if target_user.id == admin_user.id:  # type: ignore
         admin_count = db.query(UserDB).filter(UserDB.role == "admin").count()
         if admin_count <= 1:
             raise HTTPException(
@@ -582,7 +610,6 @@ async def stream_drills(
     )
 
 
-@app.get("/api/drills", response_model=List[Drill])
 @app.get("/api/drills", response_model=List[Drill])
 async def get_drills(
     search: Optional[str] = Query(None),
@@ -723,7 +750,7 @@ async def get_drill_count(
     from database import SyncMetadata, DrillCache
     
     sync_meta = db.query(SyncMetadata).first()
-    if sync_meta and sync_meta.drill_count:
+    if sync_meta and sync_meta.drill_count:  # type: ignore
         return {
             "count": sync_meta.drill_count,
             "source": "metadata"
@@ -759,8 +786,8 @@ async def get_cache_info(
     }
     
     if sync_meta:
-        if sync_meta.last_full_sync:
-            age = datetime.utcnow() - sync_meta.last_full_sync
+        if sync_meta.last_full_sync:  # type: ignore
+            age = datetime.utcnow() - sync_meta.last_full_sync  # type: ignore
             info["last_full_sync"] = sync_meta.last_full_sync.isoformat()
             info["cache_age_hours"] = round(age.total_seconds() / 3600, 1)
             info["cache_age_minutes"] = round(age.total_seconds() / 60, 1)
@@ -770,9 +797,12 @@ async def get_cache_info(
 
 
 @app.get("/api/filter-options", response_model=FilterOptions)
-async def get_filter_options(current_user: UserDB = Depends(get_current_user)):
+async def get_filter_options(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Get all available filter options from drills."""
-    drills = await notion_service.get_all_drills()
+    drills = await notion_service.get_all_drills(db=db)
     
     contact_levels = set()
     difficulties = set()
@@ -838,12 +868,12 @@ async def create_plan(
     
     # Set new fields if they exist in the database
     if hasattr(db_plan, 'is_public'):
-        db_plan.is_public = plan.is_public
+        db_plan.is_public = plan.is_public  # type: ignore
     else:
         logger.warning(f"Database schema missing 'is_public' column - plan will not be publicly accessible")
     
     if hasattr(db_plan, 'clone_count'):
-        db_plan.clone_count = 0
+        db_plan.clone_count = 0  # type: ignore
     else:
         logger.warning(f"Database schema missing 'clone_count' column - clone tracking unavailable")
     
@@ -852,24 +882,24 @@ async def create_plan(
     db.refresh(db_plan)
     
     # Calculate total duration
-    timeline_data = json.loads(db_plan.timeline_json)
+    timeline_data = json.loads(db_plan.timeline_json)  # type: ignore
     total_duration = sum(item["duration_minutes"] for item in timeline_data)
     
     logger.info(f"API: Successfully created plan ID {db_plan.id} - '{db_plan.name}' "
                 f"({total_duration} min, {len(timeline_data)} drills)")
     
     return PracticePlanSummary(
-        id=db_plan.id,
-        name=db_plan.name,
-        date=db_plan.date,
-        practice_type=PracticeType(db_plan.practice_type),
-        is_template=db_plan.is_template,
+        id=db_plan.id,  # type: ignore
+        name=db_plan.name,  # type: ignore
+        date=db_plan.date,  # type: ignore
+        practice_type=PracticeType(db_plan.practice_type),  # type: ignore
+        is_template=db_plan.is_template,  # type: ignore
         is_public=getattr(db_plan, 'is_public', False),
         total_duration=total_duration,
         drill_count=len(timeline_data),
         clone_count=getattr(db_plan, 'clone_count', 0),
-        created_at=db_plan.created_at,
-        updated_at=db_plan.updated_at
+        created_at=db_plan.created_at,  # type: ignore
+        updated_at=db_plan.updated_at  # type: ignore
     )
 
 

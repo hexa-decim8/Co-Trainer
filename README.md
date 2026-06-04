@@ -326,9 +326,11 @@ Manual deploy: Dashboard → **Manual Deploy** → **Deploy latest commit**
 - More resources
 - Still requires external database for best persistence
 
-### Production Docker with HTTPS
+### Production Docker (Single Image)
 
-For a production deployment with automatic HTTPS/SSL certificates:
+Production now runs as a single image using the root `Dockerfile`. The container serves both API and frontend on port `8000`.
+
+TLS/HTTPS is expected to be handled externally (load balancer, reverse proxy, or hosting platform).
 
 **1. Configure your environment:**
 
@@ -341,53 +343,55 @@ nano .env.production
 ```
 
 Set these values in `.env.production`:
-- `DOMAIN` - Your domain name (e.g., `cotrainer.example.com`)
-- `EMAIL` - Your email for Let's Encrypt notifications
-- `POSTGRES_PASSWORD` - Strong database password
+- `DATABASE_URL` - External PostgreSQL connection string
 - `SECRET_KEY` - Generate with: `openssl rand -hex 32`
-- `NOTION_API_KEY` - Your Notion integration API key
-- `NOTION_DATABASE_ID` - Your Notion database ID
+- `NOTION_API_KEY` - Your Notion integration API key (optional)
+- `NOTION_DATABASE_ID` - Your Notion database ID (optional)
 
-**2. Point your domain DNS to your server:**
-```
-A Record: @ -> YOUR_SERVER_IP
-```
-
-**3. Initialize SSL certificate:**
+**2. Start the application:**
 
 ```bash
-# Make script executable
-chmod +x nginx/init-letsencrypt.sh
-
-# Run the script (it reads DOMAIN and EMAIL from .env.production)
-# First with staging certificate for testing
-./nginx/init-letsencrypt.sh
-
-# The script will prompt if there are issues
-# Alternatively, you can pass domain and email as arguments:
-# ./nginx/init-letsencrypt.sh skaterscript.com your-email@example.com 0
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-**4. Start the application:**
+**3. Verify health:**
 
 ```bash
-docker-compose -f docker-compose.prod.yml up -d --build
+curl http://localhost:8000/api/health
+curl -I http://localhost:8000/
 ```
-
-Your application will be available at `https://your-domain.com` with automatic SSL certificate renewal every 90 days.
 
 **View logs:**
 ```bash
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f app
 ```
 
 **Update application:**
 ```bash
 git pull
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 For complete deployment documentation, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Docker Hub Publishing via GitHub Actions
+
+The CI workflow at `.github/workflows/docker-build-test.yml`:
+- Builds and smoke-tests the container on pull requests and pushes
+- Publishes to Docker Hub on successful pushes to `main`
+
+Set GitHub repository secrets:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Optional GitHub repository variable:
+- `DOCKERHUB_REPOSITORY` (example: `yourname/co-trainer`)
+
+If `DOCKERHUB_REPOSITORY` is unset, image name defaults to `${DOCKERHUB_USERNAME}/co-trainer`.
+
+Published tags:
+- `latest`
+- `sha-<short_commit>`
 
 ### Development Docker Compose
 

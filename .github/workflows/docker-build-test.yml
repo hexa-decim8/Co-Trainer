@@ -1,0 +1,220 @@
+name: Docker Build and Release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  docker-build-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t co-trainer:ci .
+
+      - name: Start container
+        run: |
+          docker run -d --name co-trainer-ci \
+            -p 8000:8000 \
+            -e SECRET_KEY=ci-secret-key-please-change \
+            -e DATABASE_URL=sqlite:////app/data/ci.db \
+            -e NOTION_API_KEY=ci-placeholder \
+            -e NOTION_DATABASE_ID=ci-placeholder \
+            co-trainer:ci
+
+      - name: Wait for API health
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then
+              echo "API health check passed"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API health check failed"
+          docker logs co-trainer-ci
+          exit 1
+
+      - name: Smoke test frontend root
+        run: |
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:8000/ | grep -qi "<html"
+
+      - name: Detect backend tests
+        id: backend_tests
+        run: |
+          set -euo pipefail
+          if find backend -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run backend tests (if present)
+        if: steps.backend_tests.outputs.has_tests == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm co-trainer:ci sh -c "python -m pip install --no-cache-dir pytest && cd /app && pytest -q"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs co-trainer-ci || true
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f co-trainer-ci || true
+
+  dockerhub-publish-release:
+    runs-on: ubuntu-latest
+    needs: docker-build-smoke
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      IMAGE_NAME: ${{ vars.DOCKERHUB_REPOSITORY != '' && vars.DOCKERHUB_REPOSITORY || format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'co-trainer') }}
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          set -euo pipefail
+          # Generate semantic version based on date and commit count
+          DATE=$(date +%Y.%m.%d)
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          VERSION="v${DATE}.${COMMIT_COUNT}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Generated version: ${VERSION}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=sha,format=short
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: dockerhub-publish-release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.dockerhub-publish-release.outputs.version }}
+          name: Docker Release ${{ needs.dockerhub-publish-release.outputs.version }}
+          body: |
+            # Docker Release ${{ needs.dockerhub-publish-release.outputs.version }}
+
+            **Build Details:**
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref }}
+            - Author: ${{ github.actor }}
+
+            **Docker Image:**
+            ```
+            docker pull ${{ vars.DOCKERHUB_REPOSITORY != '' && vars.DOCKERHUB_REPOSITORY || format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'co-trainer') }}:${{ needs.dockerhub-publish-release.outputs.version }}
+            ```
+
+            **Latest Tag:**
+            ```
+            docker pull ${{ vars.DOCKERHUB_REPOSITORY != '' && vars.DOCKERHUB_REPOSITORY || format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'co-trainer') }}:latest
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  cleanup-docker-images:
+    runs-on: ubuntu-latest
+    needs: dockerhub-publish-release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cleanup old Docker Hub images (keep 4 latest)
+        run: |
+          set -euo pipefail
+
+          DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+          DOCKERHUB_TOKEN="${{ secrets.DOCKERHUB_TOKEN }}"
+          IMAGE_NAME="${{ vars.DOCKERHUB_REPOSITORY != '' && vars.DOCKERHUB_REPOSITORY || format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'co-trainer') }}"
+          REPO_NAME="${IMAGE_NAME#*/}"
+
+          # Get Docker Hub API token
+          TOKEN=$(curl -s -X POST "https://hub.docker.com/v2/users/login/" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${DOCKERHUB_USERNAME}\",\"password\":\"${DOCKERHUB_TOKEN}\"}" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+          if [ -z "$TOKEN" ]; then
+            echo "Failed to authenticate with Docker Hub"
+            exit 1
+          fi
+
+          # Fetch all tags, sort by creation date (newest first), and keep only the first 4
+          TAGS=$(curl -s -H "Authorization: JWT ${TOKEN}" \
+            "https://hub.docker.com/v2/repositories/${DOCKERHUB_USERNAME}/${REPO_NAME}/tags/?page_size=100" | \
+            grep -o '"name":"[^"]*"' | cut -d'"' -f4 | grep -v '^latest$')
+
+          TAG_COUNT=$(echo "$TAGS" | wc -l)
+          TAGS_TO_DELETE=$((TAG_COUNT - 4))
+
+          if [ "$TAGS_TO_DELETE" -le 0 ]; then
+            echo "Only $TAG_COUNT tags found. No cleanup needed (keeping 4 latest)."
+            exit 0
+          fi
+
+          echo "Found $TAG_COUNT tags. Will delete $TAGS_TO_DELETE old tags (keeping 4 latest)."
+
+          # Delete old tags
+          DELETED_COUNT=0
+          echo "$TAGS" | tail -n "$TAGS_TO_DELETE" | while read -r TAG; do
+            if [ -n "$TAG" ]; then
+              echo "Deleting tag: $TAG"
+              curl -s -X DELETE \
+                -H "Authorization: JWT ${TOKEN}" \
+                "https://hub.docker.com/v2/repositories/${DOCKERHUB_USERNAME}/${REPO_NAME}/tags/${TAG}/" || echo "Failed to delete $TAG"
+              DELETED_COUNT=$((DELETED_COUNT + 1))
+            fi
+          done
+
+          echo "Cleanup complete. Attempted to delete $DELETED_COUNT old tags."

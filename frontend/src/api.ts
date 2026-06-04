@@ -194,6 +194,11 @@ export const drillsApi = {
       reader.releaseLock();
     }
   },
+
+  incrementalSync: async (): Promise<{ success: boolean; count: number; sync_type: string }> => {
+    const response = await api.post('/drills/sync?full_rebuild=false');
+    return response.data;
+  },
 };
 
 export const plansApi = {
