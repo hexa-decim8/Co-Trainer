@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, rectIntersection, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save, Plus, Clock, Shield } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
@@ -102,12 +102,19 @@ export default function PlannerPage() {
   // Apply filters client-side with single-pass optimization (O(n) instead of O(n*m))
   const drills = useMemo(() => {
     return allDrills.filter(drill => {
-      // Text search
+      // Text search - check exercise, description, and all tag fields
       if (activeFilters.search) {
         const searchLower = activeFilters.search.toLowerCase();
         const matchesSearch = 
           drill.exercise.toLowerCase().includes(searchLower) ||
-          (drill.description && drill.description.toLowerCase().includes(searchLower));
+          (drill.description && drill.description.toLowerCase().includes(searchLower)) ||
+          drill.type.some(t => t.toLowerCase().includes(searchLower)) ||
+          drill.contact_level.some(cl => cl.toLowerCase().includes(searchLower)) ||
+          drill.position_focus.some(pf => pf.toLowerCase().includes(searchLower)) ||
+          drill.skater_level.some(sl => sl.toLowerCase().includes(searchLower)) ||
+          (drill.drill_type && drill.drill_type.toLowerCase().includes(searchLower)) ||
+          (drill.equipment && drill.equipment.toLowerCase().includes(searchLower)) ||
+          (drill.game_type && drill.game_type.toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
       }
 
@@ -205,105 +212,120 @@ export default function PlannerPage() {
     }
   };
 
-  const handleDragOver = () => {
-    // Drag over handling removed - using section-based structure
-  };
-
   const handleDragCancel = () => {
     setActiveDrill(null);
   };
 
+  // Resolve an over-target ID to {sectionId, insertIndex}
+  const resolveDropTarget = (overId: string): { sectionId: string; insertIndex: number } | null => {
+    // Case 1: dropped on a section drop zone (e.g. "section-123-drop")
+    if (overId.endsWith('-drop')) {
+      const sectionId = overId.replace('-drop', '');
+      const section = sections.find(s => s.id === sectionId);
+      if (section) {
+        return { sectionId, insertIndex: section.drills.length };
+      }
+    }
+
+    // Case 2: dropped on a drill inside a section
+    const parentSection = findSectionByDrillId(overId);
+    if (parentSection) {
+      const drillIndex = parentSection.drills.findIndex(d => d.id === overId);
+      return { sectionId: parentSection.id, insertIndex: drillIndex !== -1 ? drillIndex : parentSection.drills.length };
+    }
+
+    // Case 3: dropped on a section-sortable wrapper (shouldn't happen for drills, but handle gracefully)
+    if (overId.startsWith('section-sortable-')) {
+      const sectionId = overId.replace('section-sortable-', '');
+      const section = sections.find(s => s.id === sectionId);
+      if (section) {
+        return { sectionId, insertIndex: section.drills.length };
+      }
+    }
+
+    return null;
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     // Clear activeDrill immediately to hide overlay
     setActiveDrill(null);
 
-    // Check if reordering sections
+    if (!over) return;
+
     const activeId = String(active.id);
-    const overId = over ? String(over.id) : null;
-    
-    if (activeId.startsWith('section-sortable-') && overId?.startsWith('section-sortable-')) {
-      // Reordering sections
+    const overId = String(over.id);
+
+    // --- Section reorder ---
+    if (activeId.startsWith('section-sortable-') && overId.startsWith('section-sortable-')) {
       const activeIndex = sections.findIndex(s => `section-sortable-${s.id}` === activeId);
       const overIndex = sections.findIndex(s => `section-sortable-${s.id}` === overId);
-      
+
       if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
         handleReorderSections(activeIndex, overIndex);
       }
       return;
     }
 
-    // Extract section ID from drop target
-    const getTargetSectionId = (id: any): string | null => {
-      const idStr = String(id);
-      if (idStr.startsWith('section-') && idStr.includes('-drop')) {
-        return idStr.replace('-drop', '');
-      }
-      if (idStr.startsWith('timeline-slot-')) {
-        // Extract section from slot ID format: timeline-slot-{sectionId}-{time}
-        const parts = idStr.split('-');
-        if (parts.length >= 4) {
-          return `${parts[2]}-${parts[3]}`;
+    // --- Drill operations (reorder / move / add from library) ---
+    const sourceSection = findSectionByDrillId(activeId);
+    const isExistingDrill = !!sourceSection;
+
+    // Within-section reorder: both active and over are drills in the same section
+    if (isExistingDrill && sourceSection) {
+      const overSection = findSectionByDrillId(overId);
+
+      if (overSection && overSection.id === sourceSection.id && activeId !== overId) {
+        // Same-section reorder
+        const oldIndex = sourceSection.drills.findIndex(d => d.id === activeId);
+        const newIndex = sourceSection.drills.findIndex(d => d.id === overId);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          handleReorder(sourceSection.id, oldIndex, newIndex);
         }
+        return;
       }
-      return null;
-    };
 
-    const targetSectionId = over ? getTargetSectionId(over.id) : null;
-    if (!targetSectionId) {
-      return;
-    }
+      // Cross-section move (or drop on section drop zone)
+      const target = resolveDropTarget(overId);
+      if (!target) return;
 
-    const targetSection = sections.find(s => s.id === targetSectionId);
-    if (!targetSection) {
-      return;
-    }
-
-    // Check if dragging an existing drill from any section
-    const sourceSection = findSectionByDrillId(String(active.id));
-    const isTimelineDrill = !!sourceSection;
-
-    if (isTimelineDrill && sourceSection) {
-      // Moving existing drill (within same section or to different section)
-      const draggedDrill = sourceSection.drills.find(d => d.id === active.id);
+      const draggedDrill = sourceSection.drills.find(d => d.id === activeId);
       if (!draggedDrill) return;
 
-      // Remove drill from source section
-      const updatedSections = sections.map(section => {
+      // Remove from source, insert at correct position in target
+      const afterRemove = sections.map(section => {
         if (section.id === sourceSection.id) {
-          return {
-            ...section,
-            drills: section.drills.filter(d => d.id !== String(active.id))
-          };
+          return { ...section, drills: section.drills.filter(d => d.id !== activeId) };
         }
         return section;
       });
 
-      // Add to target section - no duration limits
-      const newDrill = { ...draggedDrill, startTime: 0 }; // Reset start time for new section
+      const movedDrill = { ...draggedDrill, startTime: 0 };
 
-      const finalSections = updatedSections.map(section => {
-        if (section.id === targetSectionId) {
-          const updatedDrills = calculateStartTimes([...section.drills, newDrill]);
-          return { ...section, drills: updatedDrills };
+      const finalSections = afterRemove.map(section => {
+        if (section.id === target.sectionId) {
+          const drills = [...section.drills];
+          drills.splice(target.insertIndex, 0, movedDrill);
+          return { ...section, drills: calculateStartTimes(drills) };
         }
         return section;
       });
 
       setSections(finalSections);
-    } else if (active.data?.current) {
-      // Adding new drill from library
+      return;
+    }
+
+    // --- Adding new drill from library ---
+    if (active.data?.current) {
       const drill = active.data.current as Drill;
-      
-      if (!drill || !drill.id) {
-        alert('Cannot add drill - invalid drill data');
-        return;
-      }
-      
+      if (!drill || !drill.id) return;
+
+      const target = resolveDropTarget(overId);
+      if (!target) return;
+
       const duration = Math.max(MIN_DRILL_DURATION_FOR_ADDING, Number(drill.avg_time) || 15);
-      
-      // Add drill to section - no duration limits
+
       const newDrill: TimelineDrill = {
         id: `drill-${Date.now()}-${Math.random()}`,
         drill,
@@ -312,9 +334,10 @@ export default function PlannerPage() {
       };
 
       const updatedSections = sections.map(section => {
-        if (section.id === targetSectionId) {
-          const updatedDrills = calculateStartTimes([...section.drills, newDrill]);
-          return { ...section, drills: updatedDrills };
+        if (section.id === target.sectionId) {
+          const drills = [...section.drills];
+          drills.splice(target.insertIndex, 0, newDrill);
+          return { ...section, drills: calculateStartTimes(drills) };
         }
         return section;
       });
@@ -339,16 +362,6 @@ export default function PlannerPage() {
     const section = sections.find(s => s.id === sectionId);
     if (!section) return;
 
-    // Check if new duration would exceed section's duration
-    const otherDrillsTotal = section.drills.reduce((sum, d, i) => 
-      i === drillIndex ? sum : sum + d.duration, 0
-    );
-    
-    if (otherDrillsTotal + newDuration > section.duration) {
-      alert(`Cannot extend drill - would exceed section's ${section.duration}-minute duration`);
-      return;
-    }
-    
     const updatedSections = sections.map(s => {
       if (s.id === sectionId) {
         const updated = [...s.drills];
@@ -557,9 +570,8 @@ export default function PlannerPage() {
       sensors={sensors}
       onDragEnd={handleDragEnd} 
       onDragStart={handleDragStart} 
-      onDragOver={handleDragOver}
       onDragCancel={handleDragCancel} 
-      collisionDetection={rectIntersection}
+      collisionDetection={closestCenter}
     >
       <div className="h-[calc(100vh-5rem)] flex gap-1 dark:bg-gray-900">
         {/* Left: Filters */}

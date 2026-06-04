@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateProfile = async (data: { derby_name?: string }) => {
+  const updateProfile = async (data: { derby_name?: string; dark_mode?: boolean }) => {
     const response = await api.put('/auth/profile', data);
     setUser(response.data);
   };

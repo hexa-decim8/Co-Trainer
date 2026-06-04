@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Info, Clock, Shield, Users, Target, Zap, GripVertical, ChevronUp, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Clock, Shield, Users, Target, Zap, GripVertical, ChevronDown, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
 import type { Drill, DrillFilters } from '../types';
 import {
   getContactColor,
@@ -69,14 +69,22 @@ export default function DrillCard({
 
       {/* Card Content */}
       <div 
-        className="flex-1 p-4 relative z-10"
+        className="flex-1 p-4 relative z-10 cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          setIsExpanded(!isExpanded);
+        }}
       >
-        <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
-          {/* Left side - Title and main info */}
-          <div className="space-y-2">
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-2">
             <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight">
               {drill.exercise || 'Unnamed Drill'}
             </h3>
+            <span className={`flex-shrink-0 mt-0.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            </span>
+          </div>
             
             {/* Compact badges row */}
             <div className="flex flex-wrap gap-1.5">
@@ -219,33 +227,12 @@ export default function DrillCard({
               )}
             </div>
             
-            {/* Description Preview (when collapsed) */}
-            {!isExpanded && drill.description && (
-              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">
-                {drill.description}
-              </p>
-            )}
-          </div>
-
-          {/* Right side - Expand button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              setIsExpanded(!isExpanded);
-            }}
-            onTouchEnd={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              setIsExpanded(!isExpanded);
-            }}
-            className={`flex-shrink-0 hover:bg-primary-50 dark:hover:bg-primary-900/20 active:bg-primary-100 dark:active:bg-primary-900/30 p-2 rounded-lg transition-all touch-manipulation ${
-              isExpanded ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400'
-            }`}
-            type="button"
-          >
-            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <Info className="w-5 h-5" />}
-          </button>
+          {/* Description Preview (when collapsed) */}
+          {!isExpanded && drill.description && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">
+              {drill.description}
+            </p>
+          )}
         </div>
 
         {/* Expanded Details Section */}

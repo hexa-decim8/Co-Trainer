@@ -6,6 +6,7 @@ from models import Drill
 from drill_cache import drill_cache_manager
 import logging
 import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,38 @@ class NotionService:
         self._cache: Optional[List[Drill]] = None
         self._relation_cache: Dict[str, str] = {}  # page_id -> title mapping
     
+    def _find_property_by_name(self, props: Dict[str, Any], target_names: List[str]) -> Optional[Dict[str, Any]]:
+        """
+        Find a property by name with case-insensitive and fuzzy matching.
+        
+        Args:
+            props: The properties dict from a Notion page
+            target_names: List of property names to search for (in order of preference)
+        
+        Returns:
+            The property dict if found, None otherwise
+        """
+        # First try exact matches (preserves original order)
+        for target in target_names:
+            if target in props:
+                return props[target]
+        
+        # Then try case-insensitive matches
+        props_lower = {k.lower(): (k, v) for k, v in props.items()}
+        for target in target_names:
+            target_lower = target.lower()
+            if target_lower in props_lower:
+                _, prop_value = props_lower[target_lower]
+                logger.debug(f"Property name '{target}' matched via case-insensitive lookup to '{props_lower[target_lower][0]}'")
+                return prop_value
+        
+        return None
+    
     def _build_relation_cache(self, pages: List[Dict[str, Any]]) -> None:
         """
         Build a cache of relation page IDs to their titles.
         Scans all pages for relation fields and batch fetches their titles.
+        Includes rate limiting to respect Notion API limits (~3 req/sec).
         """
         if not self.client:
             return
@@ -50,11 +79,15 @@ class NotionService:
         
         logger.info(f"📦 Found {len(page_ids_to_fetch)} unique relation page IDs to cache")
         
-        # Batch fetch related pages
+        # Batch fetch related pages with rate limiting
         cached_count = 0
         failed_count = 0
         
-        for page_id in page_ids_to_fetch:
+        for idx, page_id in enumerate(page_ids_to_fetch):
+            # Rate limiting: Notion API ~3 req/sec, so 0.35s = 1 req / 0.35s = ~2.9 req/sec
+            if idx > 0:
+                time.sleep(0.35)
+            
             try:
                 related_page = self.client.pages.retrieve(page_id=page_id)
                 related_props = related_page.get("properties", {})
@@ -80,6 +113,7 @@ class NotionService:
                 if title:
                     self._relation_cache[page_id] = title
                     cached_count += 1
+                    logger.debug(f"Cached relation page {page_id[:8]}... -> '{title}'")
                 else:
                     logger.warning(f"No title found for relation page {page_id}")
                     failed_count += 1
@@ -137,31 +171,47 @@ class NotionService:
                     logger.debug(f"[CACHE HIT] Relation {page_id[:8]}... -> '{self._relation_cache[page_id]}'")
                     return self._relation_cache[page_id]
                 
-                # Fallback to API call
+                # Fallback to API call with retry on transient errors
                 logger.debug(f"[CACHE MISS] Fetching relation {page_id[:8]}... via API")
-                try:
-                    if self.client:
-                        related_page = self.client.pages.retrieve(page_id=page_id)
-                        related_props = related_page.get("properties", {})
-                        # Try common title property names (including "Tag Name" for Global Tags)
-                        for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
-                            if title_prop in related_props:
-                                title_data = related_props[title_prop].get("title", [])
-                                if title_data and len(title_data) > 0:
-                                    tag_name = title_data[0].get("plain_text")
-                                    logger.debug(f"Found tag name '{tag_name}' from related page {page_id}")
-                                    return tag_name
-                        # If no title property found, try to find any title-type property
-                        for prop_name, prop_value in related_props.items():
-                            if prop_value.get("type") == "title":
-                                title_data = prop_value.get("title", [])
-                                if title_data and len(title_data) > 0:
-                                    tag_name = title_data[0].get("plain_text")
-                                    logger.debug(f"Found tag name '{tag_name}' from title property '{prop_name}' in related page {page_id}")
-                                    return tag_name
-                        logger.warning(f"No title property found in related page {page_id}. Available properties: {list(related_props.keys())}")
-                except Exception as e:
-                    logger.error(f"Error fetching related page: {e}")
+                retry_count = 0
+                max_retries = 1
+                last_error = None
+                
+                while retry_count <= max_retries:
+                    try:
+                        if self.client:
+                            related_page = self.client.pages.retrieve(page_id=page_id)
+                            related_props = related_page.get("properties", {})
+                            # Try common title property names (including "Tag Name" for Global Tags)
+                            for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                                if title_prop in related_props:
+                                    title_data = related_props[title_prop].get("title", [])
+                                    if title_data and len(title_data) > 0:
+                                        tag_name = title_data[0].get("plain_text")
+                                        # **CRITICAL FIX**: Cache the result for future use
+                                        self._relation_cache[page_id] = tag_name
+                                        logger.debug(f"Found tag name '{tag_name}' from related page {page_id} (cached)")
+                                        return tag_name
+                            # If no title property found, try to find any title-type property
+                            for prop_name, prop_value in related_props.items():
+                                if prop_value.get("type") == "title":
+                                    title_data = prop_value.get("title", [])
+                                    if title_data and len(title_data) > 0:
+                                        tag_name = title_data[0].get("plain_text")
+                                        # **CRITICAL FIX**: Cache the result for future use
+                                        self._relation_cache[page_id] = tag_name
+                                        logger.debug(f"Found tag name '{tag_name}' from title property '{prop_name}' in related page {page_id} (cached)")
+                                        return tag_name
+                            logger.warning(f"No title property found in related page {page_id}. Available properties: {list(related_props.keys())}")
+                        break
+                    except Exception as e:
+                        last_error = e
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            logger.debug(f"[RETRY] Transient error fetching relation {page_id[:8]}...: {e}")
+                            time.sleep(0.5)  # Brief backoff before retry
+                        else:
+                            logger.error(f"Error fetching related page after {max_retries} retries: {e}")
             return None
         
         elif prop_type == "multi_relation":
@@ -183,32 +233,49 @@ class NotionService:
                             results.append(tag_name)
                             continue
                         
-                        # Fallback to API call
+                        # Fallback to API call with retry
                         logger.debug(f"[CACHE MISS] Fetching multi-relation {page_id[:8]}... via API")
-                        if self.client:
-                            related_page = self.client.pages.retrieve(page_id=page_id)
-                            related_props = related_page.get("properties", {})
-                            found = False
-                            for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
-                                if title_prop in related_props:
-                                    title_data = related_props[title_prop].get("title", [])
-                                    if title_data and len(title_data) > 0:
-                                        tag_name = title_data[0].get("plain_text")
-                                        logger.debug(f"[MULTI-RELATION] Found tag: '{tag_name}'")
-                                        results.append(tag_name)
-                                        found = True
-                                        break
-                            if not found:
-                                for prop_name, prop_value in related_props.items():
-                                    if prop_value.get("type") == "title":
-                                        title_data = prop_value.get("title", [])
-                                        if title_data and len(title_data) > 0:
-                                            tag_name = title_data[0].get("plain_text")
-                                            logger.debug(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}'")
-                                            results.append(tag_name)
-                                            break
-                            if not found:
-                                logger.debug(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
+                        retry_count = 0
+                        max_retries = 1
+                        
+                        while retry_count <= max_retries:
+                            try:
+                                if self.client:
+                                    related_page = self.client.pages.retrieve(page_id=page_id)
+                                    related_props = related_page.get("properties", {})
+                                    found = False
+                                    for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                                        if title_prop in related_props:
+                                            title_data = related_props[title_prop].get("title", [])
+                                            if title_data and len(title_data) > 0:
+                                                tag_name = title_data[0].get("plain_text")
+                                                # **CRITICAL FIX**: Cache the result for future use
+                                                self._relation_cache[page_id] = tag_name
+                                                logger.debug(f"[MULTI-RELATION] Found tag: '{tag_name}' (cached)")
+                                                results.append(tag_name)
+                                                found = True
+                                                break
+                                    if not found:
+                                        for prop_name, prop_value in related_props.items():
+                                            if prop_value.get("type") == "title":
+                                                title_data = prop_value.get("title", [])
+                                                if title_data and len(title_data) > 0:
+                                                    tag_name = title_data[0].get("plain_text")
+                                                    # **CRITICAL FIX**: Cache the result for future use
+                                                    self._relation_cache[page_id] = tag_name
+                                                    logger.debug(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}' (cached)")
+                                                    results.append(tag_name)
+                                                    break
+                                    if not found:
+                                        logger.debug(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
+                                break
+                            except Exception as e:
+                                retry_count += 1
+                                if retry_count <= max_retries:
+                                    logger.debug(f"[RETRY] Transient error in multi-relation {page_id[:8]}...: {e}")
+                                    time.sleep(0.5)
+                                else:
+                                    logger.error(f"[MULTI-RELATION] Error after {max_retries} retries: {e}")
                 except Exception as e:
                     logger.error(f"[MULTI-RELATION] Error: {e}")
             logger.debug(f"[MULTI-RELATION] Returning: {results}")
@@ -236,34 +303,63 @@ class NotionService:
         return None
     
     def _parse_drill(self, page: Dict[str, Any]) -> Drill:
-        """Parse a Notion page into a Drill model."""
+        """Parse a Notion page into a Drill model with property name diagnostics and case-insensitive lookup."""
         props = page.get("properties", {})
         
-        # Debug Position property
-        position_prop = props.get("Position")
-        if position_prop:
-            relation_data = position_prop.get('relation')
-            logger.debug(f"[DEBUG] Position: type={position_prop.get('type')}, relation_data={relation_data}")
-        else:
-            logger.debug(f"[DEBUG] Position NOT FOUND. Available: {list(props.keys())}")
+        # Log property names for diagnostics (debug level)
+        logger.debug(f"Available properties in drill '{page.get('id')[:8]}...': {list(props.keys())}")
+        
+        # Define expected property names (in order of preference for case-insensitive lookup)
+        property_map = {
+            "exercise": ["Exercise"],
+            "avg_time": ["Avg Time", "Average Time"],
+            "contact_level": ["Contact Level", "Contact"],
+            "depends_on": ["Depends on", "Depends On", "Dependencies"],
+            "description": ["Description"],
+            "difficulty": ["Difficulty 1-5", "Difficulty"],
+            "drill_type": ["Drill Type", "Category"],
+            "equipment": ["Equipment"],
+            "game_type": ["Game Type"],
+            "players": ["Players"],
+            "position_focus": ["Position", "Position Focus"],
+            "skater_level": ["Skater Level", "Level"],
+            "skaters_needed": ["Skaters Needed", "Skaters"],
+            "type": ["Type"],
+            "video_link": ["Video Link", "Video"],
+        }
+        
+        # Helper to get property with case-insensitive matching
+        def get_prop_value(prop_names: List[str], prop_type: str):
+            prop = self._find_property_by_name(props, prop_names)
+            if prop is None:
+                logger.debug(f"Property {prop_names} not found (checked: {prop_names})")
+                return None
+            return self._parse_property(prop, prop_type)
+        
+        exercise = get_prop_value(property_map["exercise"], "title") or "Untitled"
+        
+        # Log if expected properties are missing
+        for field, prop_names in property_map.items():
+            if field != "exercise" and not self._find_property_by_name(props, prop_names):
+                logger.debug(f"Expected property '{prop_names[0]}' not found in drill {page['id'][:8]}...")
         
         return Drill(
             id=page["id"],
-            exercise=self._parse_property(props.get("Exercise"), "title") or "Untitled",
-            avg_time=self._parse_property(props.get("Avg Time"), "number"),
-            contact_level=self._parse_property(props.get("Contact Level"), "multi_relation") or [],
-            depends_on=self._parse_property(props.get("Depends on"), "multi_select") or [],
-            description=self._parse_property(props.get("Description"), "rich_text"),
-            difficulty=self._parse_property(props.get("Difficulty 1-5"), "number"),
-            drill_type=self._parse_property(props.get("Drill Type"), "relation"),
-            equipment=self._parse_property(props.get("Equipment"), "select"),
-            game_type=self._parse_property(props.get("Game Type"), "select"),
-            players=self._parse_property(props.get("Players"), "relation"),
-            position_focus=self._parse_property(props.get("Position"), "multi_relation") or [],
-            skater_level=self._parse_property(props.get("Skater Level"), "multi_relation") or [],
-            skaters_needed=self._parse_property(props.get("Skaters Needed"), "number"),
-            type=self._parse_property(props.get("Type"), "multi_relation") or [],
-            video_link=self._parse_property(props.get("Video Link"), "url")
+            exercise=exercise,
+            avg_time=get_prop_value(property_map["avg_time"], "number"),
+            contact_level=get_prop_value(property_map["contact_level"], "multi_relation") or [],
+            depends_on=get_prop_value(property_map["depends_on"], "multi_select") or [],
+            description=get_prop_value(property_map["description"], "rich_text"),
+            difficulty=get_prop_value(property_map["difficulty"], "number"),
+            drill_type=get_prop_value(property_map["drill_type"], "relation"),
+            equipment=get_prop_value(property_map["equipment"], "select"),
+            game_type=get_prop_value(property_map["game_type"], "select"),
+            players=get_prop_value(property_map["players"], "relation"),
+            position_focus=get_prop_value(property_map["position_focus"], "multi_relation") or [],
+            skater_level=get_prop_value(property_map["skater_level"], "multi_relation") or [],
+            skaters_needed=get_prop_value(property_map["skaters_needed"], "number"),
+            type=get_prop_value(property_map["type"], "multi_relation") or [],
+            video_link=get_prop_value(property_map["video_link"], "url")
         )
     
     async def get_all_drills(self, db=None, force_sync: bool = False) -> List[Drill]:
@@ -304,10 +400,7 @@ class NotionService:
             return []
         
         try:
-            import traceback
-            logger.warning("⚠️ FETCHING FROM NOTION API - this should only happen on force_sync=True!")
-            logger.warning(f"Call stack:\n{''.join(traceback.format_stack())}")
-            logger.info("🔄 Syncing drills from Notion API...")
+            logger.info("Fetching drills from Notion API...")
             all_pages = []
             has_more = True
             start_cursor = None
@@ -539,10 +632,7 @@ class NotionService:
             return
         
         try:
-            import traceback
-            logger.warning("⚠️ stream_all_drills is FETCHING FROM NOTION - this should only happen on force_sync=True!")
-            logger.warning(f"Call stack:\n{''.join(traceback.format_stack())}")
-            logger.info("🔄 Streaming drills from Notion API...")
+            logger.info("Streaming drills from Notion API...")
             all_pages = []
             has_more = True
             start_cursor = None

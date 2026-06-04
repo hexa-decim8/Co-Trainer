@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./cotrainer.db"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    debug: bool = True  # Set to False in production for secure cookies
     secret_key: str = ""  # JWT signing key - will be loaded or generated
     
     model_config = SettingsConfigDict(

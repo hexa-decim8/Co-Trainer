@@ -22,22 +22,6 @@ class UserDB(Base):
     
     # Relationships
     practice_plans = relationship("PracticePlanDB", back_populates="user", cascade="all, delete-orphan")
-    notion_config = relationship("UserNotionConfig", back_populates="user", uselist=False, cascade="all, delete-orphan")
-
-
-class UserNotionConfig(Base):
-    """SQLAlchemy model for per-user Notion configuration."""
-    __tablename__ = "user_notion_configs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
-    notion_api_key = Column(String, nullable=False)  # Encrypted
-    notion_database_id = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    user = relationship("UserDB", back_populates="notion_config")
 
 
 class PracticePlanDB(Base):
@@ -52,8 +36,7 @@ class PracticePlanDB(Base):
     is_template = Column(Boolean, default=False, index=True)
     notes = Column(Text, nullable=True)
     timeline_json = Column(Text, nullable=False)  # JSON string
-    sections_json = Column(Text, nullable=True)  # JSON string for section brackets (deprecated)
-    sections_v2_json = Column(Text, nullable=True)  # JSON string for new PracticeSection format
+    sections_v2_json = Column(Text, nullable=True)  # JSON string for PracticeSection format
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

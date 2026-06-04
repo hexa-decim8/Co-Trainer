@@ -1,10 +1,11 @@
 version: '3.8'
 
+name: cotrainer
+
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+  cotrainer:
+    image: ${COTRAINER_IMAGE:-hexadecim8/co-trainer:latest}
+    container_name: cotrainer
     ports:
       - "8000:8000"
     environment:
@@ -14,16 +15,3 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-volumes:
-  data:

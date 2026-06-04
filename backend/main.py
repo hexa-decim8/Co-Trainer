@@ -21,7 +21,8 @@ from models import (
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
     UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange,
     UserRoleUpdate, AdminPasswordReset, UserListResponse,
-    PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate
+    PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
+    PlanRenameRequest
 )
 from notion_service import notion_service
 from database import PracticePlanDB, PlanClone
@@ -270,7 +271,7 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=not settings.debug,
         samesite="lax",
         max_age=60 * 60 * 24 * 30  # 30 days
     )
@@ -314,7 +315,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=not settings.debug,
         samesite="lax",
         max_age=60 * 60 * 24 * 30  # 30 days
     )
@@ -367,7 +368,7 @@ async def refresh_token(
         key="refresh_token",
         value=new_refresh_token,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=not settings.debug,
         samesite="lax",
         max_age=60 * 60 * 24 * 30  # 30 days
     )
@@ -469,7 +470,7 @@ async def change_password(
 
 @app.get("/api/admin/users", response_model=List[UserListResponse])
 async def list_users(
-    admin_user: UserDB = Depends(require_admin),
+    _admin_user: UserDB = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Get list of all users (admin only)."""
@@ -529,7 +530,7 @@ async def update_user_role(
 async def admin_reset_password(
     user_id: int,
     password_data: AdminPasswordReset,
-    admin_user: UserDB = Depends(require_admin),
+    _admin_user: UserDB = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Reset a user's password (admin only)."""
@@ -851,7 +852,7 @@ async def create_plan(
     """Create a new practice plan."""
     logger.info(f"API: Creating plan '{plan.name}' for user {current_user.email} "
                 f"(template={plan.is_template}, public={plan.is_public}, "
-                f"drills={len(plan.timeline)}, sections={len(plan.sections) if plan.sections else 0}, "
+                f"drills={len(plan.timeline)}, "
                 f"sections_v2={len(plan.sections_v2) if plan.sections_v2 else 0})")
     
     db_plan = PracticePlanDB(
@@ -862,7 +863,6 @@ async def create_plan(
         is_template=plan.is_template,
         notes=plan.notes,
         timeline_json=json.dumps([item.dict() for item in plan.timeline]),
-        sections_json=json.dumps([section.dict() for section in plan.sections]) if plan.sections else None,
         sections_v2_json=json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
     )
     
@@ -1000,12 +1000,20 @@ async def list_plans(
 
 
 @app.get("/api/plans/{plan_id}", response_model=PracticePlanWithDrills)
-async def get_plan(plan_id: int, db: Session = Depends(get_db)):
+async def get_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """Get a practice plan with full drill details hydrated from Notion."""
     plan = db.query(PracticePlanDB).filter(PracticePlanDB.id == plan_id).first()
     
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+    
+    # Verify the user owns this plan or it is public
+    if plan.user_id != current_user.id and not plan.is_public:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     timeline_data = json.loads(plan.timeline_json)
     
@@ -1035,14 +1043,10 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         timeline_with_drills.append(timeline_item)
         current_time += duration
     
-    # Parse sections - prefer new format (sections_v2) over old format
-    sections = None
+    # Parse sections_v2
     sections_v2 = None
     if hasattr(plan, 'sections_v2_json') and plan.sections_v2_json:
         sections_v2 = json.loads(plan.sections_v2_json)
-    elif hasattr(plan, 'sections_json') and plan.sections_json:
-        # Fall back to old format if new format not available
-        sections = json.loads(plan.sections_json)
     
     return PracticePlanWithDrills(
         id=plan.id,
@@ -1053,7 +1057,6 @@ async def get_plan(plan_id: int, db: Session = Depends(get_db)):
         is_template=plan.is_template,
         notes=plan.notes,
         timeline=timeline_with_drills,
-        sections=sections,
         sections_v2=sections_v2,
         total_duration=current_time,
         created_at=plan.created_at,
@@ -1084,7 +1087,6 @@ async def update_plan(
     db_plan.is_public = plan.is_public
     db_plan.notes = plan.notes
     db_plan.timeline_json = json.dumps([item.dict() for item in plan.timeline])
-    db_plan.sections_json = json.dumps([section.dict() for section in plan.sections]) if plan.sections else None
     db_plan.sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
     db_plan.updated_at = datetime.utcnow()
     
@@ -1112,7 +1114,7 @@ async def update_plan(
 @app.patch("/api/plans/{plan_id}/rename")
 async def rename_plan(
     plan_id: int,
-    data: dict,
+    data: PlanRenameRequest,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
@@ -1125,13 +1127,12 @@ async def rename_plan(
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     
-    new_name = data.get("new_name")
-    db_plan.name = new_name
+    db_plan.name = data.new_name
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
     
-    return {"success": True, "name": new_name}
+    return {"success": True, "name": data.new_name}
 
 
 @app.patch("/api/plans/{plan_id}/visibility")
@@ -1281,100 +1282,6 @@ async def list_templates(
 ):
     """List all practice plan templates."""
     return await list_plans(is_template=True, page=page, page_size=page_size, db=db, current_user=current_user)
-
-
-@app.post("/api/admin/migrate-sections")
-async def migrate_plans_to_sections_v2(
-    batch_size: int = Query(100, ge=1, le=1000),
-    skip_existing: bool = Query(True),
-    db: Session = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    """
-    Admin endpoint to migrate existing plans from timeline-only format to sections_v2 format.
-    Creates a single 'Main Practice' section containing all drills from the timeline.
-    """
-    # Check admin permissions
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    logger.info(f"Starting section migration (batch_size={batch_size}, skip_existing={skip_existing})")
-    
-    # Query plans that need migration
-    query = db.query(PracticePlanDB)
-    if skip_existing:
-        # Only migrate plans without sections_v2_json
-        query = query.filter(
-            (PracticePlanDB.sections_v2_json == None) | (PracticePlanDB.sections_v2_json == "null")
-        )
-    
-    plans_to_migrate = query.limit(batch_size).all()
-    
-    migrated_count = 0
-    error_count = 0
-    errors = []
-    
-    for plan in plans_to_migrate:
-        try:
-            # Parse existing timeline
-            timeline_data = json.loads(plan.timeline_json)
-            
-            # Calculate total duration
-            total_duration = sum(item["duration_minutes"] for item in timeline_data)
-            
-            # Create a single "Main Practice" section with all drills
-            section_id = f"section-main-{plan.id}"
-            drills_for_section = []
-            current_time = 0
-            
-            for item in timeline_data:
-                drill_item = {
-                    "id": f"drill-{plan.id}-{current_time}",
-                    "drill_id": item["drill_id"],
-                    "duration": item["duration_minutes"],
-                    "start_time": current_time
-                }
-                drills_for_section.append(drill_item)
-                current_time += item["duration_minutes"]
-            
-            # Create sections_v2 structure
-            sections_v2 = [{
-                "id": section_id,
-                "name": "Main Practice",
-                "duration": total_duration,
-                "drills": drills_for_section,
-                "is_main_practice": True,
-                "color": "#F97316"  # Orange color for main practice
-            }]
-            
-            # Save to sections_v2_json
-            plan.sections_v2_json = json.dumps(sections_v2)
-            migrated_count += 1
-            
-        except Exception as e:
-            error_count += 1
-            error_msg = f"Plan ID {plan.id}: {str(e)}"
-            errors.append(error_msg)
-            logger.error(f"Migration error - {error_msg}")
-    
-    # Commit all changes
-    try:
-        db.commit()
-        logger.info(f"Migration complete: {migrated_count} plans migrated, {error_count} errors")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Database commit failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Migration commit failed: {str(e)}")
-    
-    return {
-        "success": True,
-        "migrated_count": migrated_count,
-        "error_count": error_count,
-        "errors": errors[:10],  # Return first 10 errors
-        "total_errors": len(errors),
-        "batch_size": batch_size,
-        "skip_existing": skip_existing
-    }
 
 
 # Serve frontend for all non-API routes (SPA support) - MUST be last route

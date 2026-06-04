@@ -69,15 +69,6 @@ class TimelineItem(BaseModel):
     duration_minutes: int
 
 
-class DrillSection(BaseModel):
-    """A labeled section bracket on the practice timeline. DEPRECATED - use PracticeSection."""
-    id: str
-    name: str
-    start_minute: int
-    end_minute: int
-    color: str
-
-
 class TimelineDrill(BaseModel):
     """A drill within a practice section with section-relative timing."""
     id: str
@@ -109,8 +100,7 @@ class PracticePlan(BaseModel):
     is_public: bool = False
     notes: Optional[str] = None
     timeline: List[TimelineItem]
-    sections: Optional[List[DrillSection]] = None  # Deprecated
-    sections_v2: Optional[List[PracticeSection]] = None  # New format
+    sections_v2: Optional[List[PracticeSection]] = None
     original_plan_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -161,8 +151,7 @@ class PracticePlanWithDrills(BaseModel):
     is_template: bool
     notes: Optional[str]
     timeline: List[dict]  # Each item has drill details + duration + start_time
-    sections: Optional[List[DrillSection]] = None  # Deprecated
-    sections_v2: Optional[List[PracticeSection]] = None  # New format
+    sections_v2: Optional[List[PracticeSection]] = None
     total_duration: int
     created_at: datetime
     updated_at: datetime
@@ -276,3 +265,17 @@ class PlanCloneRequest(BaseModel):
 class PlanVisibilityUpdate(BaseModel):
     """Request model for updating plan visibility."""
     is_public: bool
+
+
+class PlanRenameRequest(BaseModel):
+    """Request model for renaming a practice plan."""
+    new_name: str
+    
+    @validator('new_name')
+    def validate_new_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Plan name is required')
+        v = v.strip()
+        if len(v) > 200:
+            raise ValueError('Plan name must be 200 characters or less')
+        return v

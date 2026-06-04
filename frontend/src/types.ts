@@ -11,7 +11,7 @@ export interface Drill {
   drill_type: string | null;
   equipment: string | null;
   game_type: string | null;
-  players: number | null;
+  players: string | null;
   position_focus: string[];
   skater_level: string[];
   skaters_needed: number | null;
@@ -47,15 +47,6 @@ export interface TimelineItem {
   duration_minutes: number;
 }
 
-// Deprecated - used for old bracket overlays
-export interface DrillSection {
-  id: string;
-  name: string;
-  start_minute: number;
-  end_minute: number;
-  color: string;
-}
-
 // New section-based structure where sections contain drills
 export interface TimelineDrill {
   id: string;
@@ -82,8 +73,7 @@ export interface PracticePlan {
   is_public?: boolean;
   notes?: string;
   timeline: TimelineItem[];
-  sections?: DrillSection[];  // Deprecated
-  sections_v2?: PracticeSection[];  // New format
+  sections_v2?: PracticeSection[];
   original_plan_id?: number;
   created_at?: string;
   updated_at?: string;
@@ -138,8 +128,7 @@ export interface PracticePlanWithDrills {
   is_template: boolean;
   notes: string | null;
   timeline: TimelineItemWithDrill[];
-  sections?: DrillSection[];  // Deprecated
-  sections_v2?: PracticeSection[];  // New format
+  sections_v2?: PracticeSection[];
   total_duration: number;
   created_at: string;
   updated_at: string;
