@@ -2,14 +2,13 @@
  * Shared color utility functions for drill cards and timeline
  */
 
-export const getContactColor = (levels: string[] | undefined): string => {
-  if (!levels || levels.length === 0) return 'border-gray-300';
-  // Use the highest/most severe contact level for border color
-  const level = levels[0].toLowerCase();
-  if (level.includes('full')) return 'border-contact-full';
-  if (level.includes('medium')) return 'border-contact-medium';
-  if (level.includes('light') || level.includes('some')) return 'border-contact-light';
-  if (level.includes('no') || level.includes('none')) return 'border-contact-none';
+export const getContactColor = (level: string | null | undefined): string => {
+  if (!level) return 'border-gray-300';
+  const normalized = level.toLowerCase();
+  if (normalized.includes('full')) return 'border-contact-full';
+  if (normalized.includes('medium')) return 'border-contact-medium';
+  if (normalized.includes('light') || normalized.includes('some')) return 'border-contact-light';
+  if (normalized.includes('no') || normalized.includes('none')) return 'border-contact-none';
   return 'border-gray-300';
 };
 

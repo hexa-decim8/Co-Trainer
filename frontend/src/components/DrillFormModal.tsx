@@ -50,7 +50,7 @@ export default function DrillFormModal({
       setGameType(drill.game_type ? [drill.game_type] : []);
       setDrillType(drill.drill_type ? [drill.drill_type] : []);
       setPlayers(drill.players ? [drill.players] : []);
-      setContactLevel(drill.contact_level || []);
+      setContactLevel(drill.contact_level ? [drill.contact_level] : []);
       setPositionFocus(drill.position_focus || []);
       setSkaterLevel(drill.skater_level || []);
       setType(drill.type || []);
@@ -108,7 +108,7 @@ export default function DrillFormModal({
       game_type: gameType[0] || null,
       drill_type: drillType[0] || null,
       players: players[0] || null,
-      contact_level: contactLevel,
+      contact_level: contactLevel[0] || null,
       position_focus: positionFocus,
       skater_level: skaterLevel,
       type: type,
@@ -144,7 +144,7 @@ export default function DrillFormModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <form id="drill-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400">
               {error}
@@ -283,6 +283,8 @@ export default function DrillFormModal({
             availableTags={availableTags.contact_level || []}
             selectedTags={contactLevel}
             onChange={setContactLevel}
+            allowCreate={false}
+            multiple={false}
             colorClass="bg-amber-100 text-amber-800"
           />
 
@@ -312,7 +314,7 @@ export default function DrillFormModal({
 
           <TagSelector
             label="Depends On"
-            availableTags={[]}
+            availableTags={availableTags.depends_on || []}
             selectedTags={dependsOn}
             onChange={setDependsOn}
             allowCreate={true}
@@ -330,7 +332,8 @@ export default function DrillFormModal({
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
+            type="submit"
+            form="drill-form"
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >

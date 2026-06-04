@@ -46,8 +46,10 @@ export default function DrillManagerPage() {
   const { data: availableTags = {} as AvailableTags } = useQuery({
     queryKey: ['available-tags'],
     queryFn: () => drillsApi.getAvailableTags(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 
   // Client-side filtering
@@ -59,7 +61,7 @@ export default function DrillManagerPage() {
           drill.exercise.toLowerCase().includes(q) ||
           (drill.description && drill.description.toLowerCase().includes(q)) ||
           drill.type.some((t) => t.toLowerCase().includes(q)) ||
-          drill.contact_level.some((cl) => cl.toLowerCase().includes(q)) ||
+          (drill.contact_level && drill.contact_level.toLowerCase().includes(q)) ||
           drill.position_focus.some((pf) => pf.toLowerCase().includes(q)) ||
           drill.skater_level.some((sl) => sl.toLowerCase().includes(q)) ||
           (drill.drill_type && drill.drill_type.toLowerCase().includes(q)) ||
@@ -68,7 +70,7 @@ export default function DrillManagerPage() {
         if (!matches) return false;
       }
       if (activeFilters.contact_level?.length) {
-        if (!activeFilters.contact_level.some((cl) => drill.contact_level?.includes(cl))) return false;
+        if (!drill.contact_level || !activeFilters.contact_level.includes(drill.contact_level)) return false;
       }
       if (activeFilters.difficulty?.length) {
         if (drill.difficulty == null || !activeFilters.difficulty.includes(drill.difficulty)) return false;
@@ -161,6 +163,7 @@ export default function DrillManagerPage() {
             </p>
           </div>
           <button
+            type="button"
             onClick={() => {
               setEditingDrill(null);
               setModalOpen(true);
@@ -213,6 +216,7 @@ export default function DrillManagerPage() {
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Yet</h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">Create your first drill or configure Notion to sync existing drills.</p>
                 <button
+                  type="button"
                   onClick={() => {
                     setEditingDrill(null);
                     setModalOpen(true);
@@ -362,11 +366,11 @@ function DrillManagerCard({
               {drill.drill_type}
             </span>
           )}
-          {drill.contact_level.map((cl) => (
-            <span key={cl} className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getContactBadgeColor(cl)}`}>
-              {cl}
+          {drill.contact_level && (
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getContactBadgeColor(drill.contact_level)}`}>
+              {drill.contact_level}
             </span>
-          ))}
+          )}
           {drill.equipment && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
               {drill.equipment}

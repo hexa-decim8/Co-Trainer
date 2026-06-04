@@ -4,7 +4,7 @@ export interface Drill {
   id: string;
   exercise: string;
   avg_time: number | null;
-  contact_level: string[];
+  contact_level: string | null;
   depends_on: string[];
   description: string | null;
   difficulty: number | null;
@@ -138,7 +138,7 @@ export interface PracticePlanWithDrills {
 export interface DrillCreate {
   exercise: string;
   avg_time?: number | null;
-  contact_level?: string[];
+  contact_level?: string | null;
   depends_on?: string[];
   description?: string | null;
   difficulty?: number | null;
@@ -160,6 +160,7 @@ export interface AvailableTags {
   position_focus?: string[];
   skater_level?: string[];
   type?: string[];
+  depends_on?: string[];
   drill_type?: string[];
   players?: string[];
   equipment?: string[];

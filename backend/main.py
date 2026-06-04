@@ -653,11 +653,15 @@ async def get_drills(
             (d.description and search_lower in d.description.lower())
         ]
     
-    # Contact level filter (multi-relation, match if ANY value in filter appears in drill)
+    # Contact level filter (single select with legacy list compatibility)
     if contact_level:
         filtered_drills = [
             d for d in filtered_drills
-            if any(cl in d.contact_level for cl in contact_level)
+            if (
+                isinstance(d.contact_level, str) and d.contact_level in contact_level
+            ) or (
+                isinstance(d.contact_level, list) and any(cl in d.contact_level for cl in contact_level)
+            )
         ]
     
     # Difficulty filter
@@ -817,8 +821,13 @@ async def get_filter_options(
     types = set()
     
     for drill in drills:
-        # Multi-relation/select fields that are now lists
-        contact_levels.update(drill.contact_level)
+        # Contact level is now a single select (legacy list-compatible)
+        if isinstance(drill.contact_level, str):
+            contact_levels.add(drill.contact_level)
+        elif isinstance(drill.contact_level, list):
+            contact_levels.update(drill.contact_level)
+
+        # Multi-relation fields
         skater_levels.update(drill.skater_level)
         position_focus_list.update(drill.position_focus)
         types.update(drill.type)

@@ -16,7 +16,7 @@ class Drill(BaseModel):
     id: str
     exercise: str
     avg_time: Optional[int] = None  # in minutes
-    contact_level: List[str] = []  # multi-relation
+    contact_level: Optional[str] = None  # select (legacy list values normalized)
     depends_on: List[str] = []  # multi-select
     description: Optional[str] = None
     difficulty: Optional[int] = None  # 1-5
@@ -24,13 +24,22 @@ class Drill(BaseModel):
     equipment: Optional[str] = None
     game_type: Optional[str] = None
     players: Optional[str] = None  # single relation
-    position_focus: List[str] = []  # multi-relation
-    skater_level: List[str] = []  # multi-relation
+    position_focus: List[str] = []  # multi-select
+    skater_level: List[str] = []  # multi-select
     skaters_needed: Optional[int] = None
-    type: List[str] = []  # multi-relation
+    type: List[str] = []  # multi-select
     video_link: Optional[str] = None
     
-    @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    @validator('contact_level', pre=True)
+    def normalize_contact_level(cls, v):
+        """Accept legacy list payloads but normalize to a single select value."""
+        if isinstance(v, list):
+            return next((item for item in v if item), None)
+        if isinstance(v, str):
+            return v or None
+        return None
+
+    @validator('depends_on', 'position_focus', 'skater_level', 'type', pre=True)
     def ensure_list(cls, v):
         """Convert string to list for fields that should be lists."""
         if isinstance(v, str):
@@ -286,7 +295,7 @@ class DrillCreate(BaseModel):
     """Model for creating a new drill."""
     exercise: str
     avg_time: Optional[int] = None
-    contact_level: List[str] = []
+    contact_level: Optional[str] = None
     depends_on: List[str] = []
     description: Optional[str] = None
     difficulty: Optional[int] = None
@@ -312,7 +321,15 @@ class DrillCreate(BaseModel):
             raise ValueError('Difficulty must be between 1 and 5')
         return v
 
-    @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    @validator('contact_level', pre=True)
+    def normalize_contact_level(cls, v):
+        if isinstance(v, list):
+            return next((item for item in v if item), None)
+        if isinstance(v, str):
+            return v or None
+        return None
+
+    @validator('depends_on', 'position_focus', 'skater_level', 'type', pre=True)
     def ensure_list(cls, v):
         if isinstance(v, str):
             return [v] if v else []
@@ -323,7 +340,7 @@ class DrillUpdate(BaseModel):
     """Model for updating an existing drill. All fields optional."""
     exercise: Optional[str] = None
     avg_time: Optional[int] = None
-    contact_level: Optional[List[str]] = None
+    contact_level: Optional[str] = None
     depends_on: Optional[List[str]] = None
     description: Optional[str] = None
     difficulty: Optional[int] = None
@@ -348,4 +365,11 @@ class DrillUpdate(BaseModel):
         if v is not None and (v < 1 or v > 5):
             raise ValueError('Difficulty must be between 1 and 5')
         return v
-        return v
+
+    @validator('contact_level', pre=True)
+    def normalize_contact_level(cls, v):
+        if isinstance(v, list):
+            return next((item for item in v if item), None)
+        if isinstance(v, str):
+            return v or None
+        return None

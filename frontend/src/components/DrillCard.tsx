@@ -97,28 +97,24 @@ export default function DrillCard({
                 </span>
               )}
               
-              {/* Contact Level badges */}
-              {drill.contact_level && drill.contact_level.length > 0 && (
-                <>
-                  {drill.contact_level.map((level) => {
-                    const isActive = activeFilters?.contact_level?.includes(level);
-                    return (
-                      <button
-                        key={level}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onContactLevelClick?.(level);
-                        }}
-                        className={`inline-flex items-center text-xs font-medium rounded-md shadow-sm transition-all hover:scale-105 cursor-pointer px-2 py-0.5 ${getContactBadgeColor(level)} ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
-                      >
-                        <Shield className="w-3 h-3 mr-1" />
-                        {level}
-                        {isActive && <span className="ml-1 font-bold">✓</span>}
-                      </button>
-                    );
-                  })}
-                </>
-              )}
+              {/* Contact Level badge */}
+              {drill.contact_level && (() => {
+                const level = drill.contact_level;
+                const isActive = activeFilters?.contact_level?.includes(level);
+                return (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onContactLevelClick?.(level);
+                    }}
+                    className={`inline-flex items-center text-xs font-medium rounded-md shadow-sm transition-all hover:scale-105 cursor-pointer px-2 py-0.5 ${getContactBadgeColor(level)} ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+                  >
+                    <Shield className="w-3 h-3 mr-1" />
+                    {level}
+                    {isActive && <span className="ml-1 font-bold">✓</span>}
+                  </button>
+                );
+              })()}
 
               {drill.drill_type && (() => {
                 const isActive = activeFilters?.drill_type?.includes(drill.drill_type);

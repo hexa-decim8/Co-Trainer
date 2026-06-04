@@ -114,7 +114,7 @@ export default function PlannerPage() {
           drill.exercise.toLowerCase().includes(searchLower) ||
           (drill.description && drill.description.toLowerCase().includes(searchLower)) ||
           drill.type.some(t => t.toLowerCase().includes(searchLower)) ||
-          drill.contact_level.some(cl => cl.toLowerCase().includes(searchLower)) ||
+          (drill.contact_level && drill.contact_level.toLowerCase().includes(searchLower)) ||
           drill.position_focus.some(pf => pf.toLowerCase().includes(searchLower)) ||
           drill.skater_level.some(sl => sl.toLowerCase().includes(searchLower)) ||
           (drill.drill_type && drill.drill_type.toLowerCase().includes(searchLower)) ||
@@ -125,7 +125,7 @@ export default function PlannerPage() {
 
       // Contact level filter
       if (activeFilters.contact_level?.length) {
-        if (!activeFilters.contact_level.some(cl => drill.contact_level?.includes(cl))) {
+        if (!drill.contact_level || !activeFilters.contact_level.includes(drill.contact_level)) {
           return false;
         }
       }
@@ -957,10 +957,10 @@ export default function PlannerPage() {
                   {activeDrill.avg_time} min
                 </span>
               )}
-              {activeDrill.contact_level?.[0] && (
+              {activeDrill.contact_level && (
                 <span className="inline-flex items-center px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                   <Shield className="w-3 h-3 mr-1" />
-                  {activeDrill.contact_level[0]}
+                  {activeDrill.contact_level}
                 </span>
               )}
             </div>

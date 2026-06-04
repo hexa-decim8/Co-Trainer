@@ -58,6 +58,7 @@ class NotionService:
         if not self.client:
             return
         
+        # Keep legacy relation fields for backward-compatibility reads.
         relation_fields = ["Contact Level", "Position", "Skater Level", "Type", "Drill Type", "Players"]
         page_ids_to_fetch = set()
         
@@ -337,6 +338,32 @@ class NotionService:
             return self._parse_property(prop, prop_type)
         
         exercise = get_prop_value(property_map["exercise"], "title") or "Untitled"
+
+        # These fields migrated to select/multi-select. Keep relation fallback for legacy data.
+        contact_level_select = get_prop_value(property_map["contact_level"], "select")
+        if contact_level_select is not None:
+            contact_level = contact_level_select
+        else:
+            legacy_contact_levels = get_prop_value(property_map["contact_level"], "multi_relation") or []
+            contact_level = legacy_contact_levels[0] if legacy_contact_levels else None
+
+        drill_type_select = get_prop_value(property_map["drill_type"], "select")
+        if drill_type_select is not None:
+            drill_type = drill_type_select
+        else:
+            drill_type = get_prop_value(property_map["drill_type"], "relation")
+
+        position_focus_values = get_prop_value(property_map["position_focus"], "multi_select")
+        if position_focus_values is None:
+            position_focus_values = get_prop_value(property_map["position_focus"], "multi_relation") or []
+
+        skater_level_values = get_prop_value(property_map["skater_level"], "multi_select")
+        if skater_level_values is None:
+            skater_level_values = get_prop_value(property_map["skater_level"], "multi_relation") or []
+
+        type_values = get_prop_value(property_map["type"], "multi_select")
+        if type_values is None:
+            type_values = get_prop_value(property_map["type"], "multi_relation") or []
         
         # Log if expected properties are missing
         for field, prop_names in property_map.items():
@@ -347,18 +374,18 @@ class NotionService:
             id=page["id"],
             exercise=exercise,
             avg_time=get_prop_value(property_map["avg_time"], "number"),
-            contact_level=get_prop_value(property_map["contact_level"], "multi_relation") or [],
+            contact_level=contact_level,
             depends_on=get_prop_value(property_map["depends_on"], "multi_select") or [],
             description=get_prop_value(property_map["description"], "rich_text"),
             difficulty=get_prop_value(property_map["difficulty"], "number"),
-            drill_type=get_prop_value(property_map["drill_type"], "relation"),
+            drill_type=drill_type,
             equipment=get_prop_value(property_map["equipment"], "select"),
             game_type=get_prop_value(property_map["game_type"], "select"),
             players=get_prop_value(property_map["players"], "relation"),
-            position_focus=get_prop_value(property_map["position_focus"], "multi_relation") or [],
-            skater_level=get_prop_value(property_map["skater_level"], "multi_relation") or [],
+            position_focus=position_focus_values,
+            skater_level=skater_level_values,
             skaters_needed=get_prop_value(property_map["skaters_needed"], "number"),
-            type=get_prop_value(property_map["type"], "multi_relation") or [],
+            type=type_values,
             video_link=get_prop_value(property_map["video_link"], "url")
         )
     
@@ -743,9 +770,13 @@ class NotionService:
     # Notion Write Operations
     # ========================================================================
     
-    def _get_database_schema(self) -> Dict[str, Any]:
-        """Retrieve and cache the Notion database schema, including relation database IDs."""
-        if hasattr(self, '_db_schema') and self._db_schema:
+    def _get_database_schema(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Retrieve and cache the Notion database schema, including relation database IDs.
+        
+        Args:
+            force_refresh: If True, ignore cache and fetch fresh schema from Notion.
+        """
+        if not force_refresh and hasattr(self, '_db_schema') and self._db_schema:
             return self._db_schema
         
         if not self.client or not self.database_id:
@@ -760,14 +791,23 @@ class NotionService:
             logger.error(f"Error retrieving database schema: {e}")
             raise
     
-    def _get_relation_database_id(self, property_name: str) -> Optional[str]:
-        """Get the related database ID for a relation property."""
-        schema = self._get_database_schema()
+    def _get_relation_database_id(self, property_name: str, force_refresh: bool = False) -> Optional[str]:
+        """Get the related database ID for a relation property.
+        
+        Args:
+            property_name: Name of the relation property to look up.
+            force_refresh: If True, ignore cache and fetch fresh schema.
+        """
+        schema = self._get_database_schema(force_refresh=force_refresh)
         # Case-insensitive lookup
         for prop_name, prop_def in schema.items():
             if prop_name.lower() == property_name.lower():
                 if prop_def.get("type") == "relation":
-                    return prop_def.get("relation", {}).get("database_id")
+                    db_id = prop_def.get("relation", {}).get("database_id")
+                    if db_id:
+                        logger.debug(f"Found relation database '{property_name}' -> {db_id[:8]}...")
+                        return db_id
+        logger.debug(f"Relation database not found for property '{property_name}'")
         return None
     
     def _resolve_tag_to_page_id(self, database_id: str, tag_name: str) -> Optional[str]:
@@ -879,18 +919,22 @@ class NotionService:
         field_map = {
             "exercise": ("Exercise", "title"),
             "avg_time": ("Avg Time", "number"),
+            "contact_level": ("Contact Level", "select"),
             "description": ("Description", "rich_text"),
             "difficulty": ("Difficulty 1-5", "number"),
+            "drill_type": ("Drill Type", "select"),
             "equipment": ("Equipment", "select"),
             "game_type": ("Game Type", "select"),
+            "position_focus": ("Position", "multi_select"),
+            "skater_level": ("Skater Level", "multi_select"),
             "skaters_needed": ("Skaters Needed", "number"),
+            "type": ("Type", "multi_select"),
             "video_link": ("Video Link", "url"),
             "depends_on": ("Depends on", "multi_select"),
         }
         
         # Relation fields (need tag resolution)
         relation_fields = {
-            "contact_level": "Contact Level",
             "position_focus": "Position",
             "skater_level": "Skater Level",
             "type": "Type",
@@ -898,7 +942,6 @@ class NotionService:
         
         # Single-relation fields
         single_relation_fields = {
-            "drill_type": "Drill Type",
             "players": "Players",
         }
         
@@ -916,11 +959,14 @@ class NotionService:
             return name
         
         for field, (notion_name, prop_type) in field_map.items():
-            if field not in drill_data or drill_data[field] is None:
+            if field not in drill_data:
                 continue
             
             value = drill_data[field]
             actual_name = resolve_prop_name(notion_name)
+
+            if value is None and prop_type != "select":
+                continue
             
             if prop_type == "title":
                 properties[actual_name] = {
@@ -933,7 +979,14 @@ class NotionService:
                     "rich_text": [{"text": {"content": str(value)}}]
                 }
             elif prop_type == "select":
-                properties[actual_name] = {"select": {"name": str(value)}}
+                # Send null to clear select values when explicitly provided as null/empty.
+                if value in (None, ""):
+                    properties[actual_name] = {"select": None}
+                elif isinstance(value, list):
+                    first_value = next((item for item in value if item), None)
+                    properties[actual_name] = {"select": {"name": str(first_value)}} if first_value else {"select": None}
+                else:
+                    properties[actual_name] = {"select": {"name": str(value)}}
             elif prop_type == "multi_select":
                 if isinstance(value, list):
                     properties[actual_name] = {
@@ -944,25 +997,41 @@ class NotionService:
         
         # Handle multi-relation fields
         for field, notion_name in relation_fields.items():
-            if field not in drill_data or drill_data[field] is None:
+            if field not in drill_data:
                 continue
             value = drill_data[field]
-            if isinstance(value, list) and value:
-                actual_name = resolve_prop_name(notion_name)
+            actual_name = resolve_prop_name(notion_name)
+
+            # Explicit empty/null values should clear existing Notion relations.
+            if value is None or (isinstance(value, list) and len(value) == 0):
+                properties[actual_name] = {"relation": []}
+                continue
+
+            if isinstance(value, list):
                 relations = self._resolve_tags_to_relation(field, value, actual_name)
                 if relations:
                     properties[actual_name] = {"relation": relations}
+                else:
+                    # If no relations were resolved, clear stale values.
+                    properties[actual_name] = {"relation": []}
         
         # Handle single-relation fields
         for field, notion_name in single_relation_fields.items():
-            if field not in drill_data or drill_data[field] is None:
+            if field not in drill_data:
                 continue
             value = drill_data[field]
+            actual_name = resolve_prop_name(notion_name)
+
+            if value in (None, ""):
+                properties[actual_name] = {"relation": []}
+                continue
+
             if value:
-                actual_name = resolve_prop_name(notion_name)
                 relations = self._resolve_tags_to_relation(field, [value], actual_name)
                 if relations:
                     properties[actual_name] = {"relation": relations}
+                else:
+                    properties[actual_name] = {"relation": []}
         
         return properties
     
@@ -1001,7 +1070,8 @@ class NotionService:
         if not self.client:
             raise RuntimeError("Notion API not configured")
         
-        data_dict = drill_data.model_dump(exclude_none=True)
+        # Use exclude_unset so explicit nulls can clear fields in Notion.
+        data_dict = drill_data.model_dump(exclude_unset=True)
         if not data_dict:
             raise ValueError("No fields to update")
         
@@ -1026,7 +1096,7 @@ class NotionService:
             logger.info(f"✓ Updated drill '{drill.exercise}' ({drill_id[:8]}...)")
             return drill
         except Exception as e:
-            logger.error(f"Error updating drill {drill_id}: {e}")
+            logger.error(f"Error updating drill {drill_id}: {e}; input={data_dict}; properties={properties}")
             raise
     
     async def archive_drill(self, drill_id: str, db: Session = None) -> None:
@@ -1053,23 +1123,33 @@ class NotionService:
             raise
     
     async def get_available_tags(self) -> Dict[str, List[str]]:
-        """Get all available tags for each relation field."""
+        """Get available tag options for all drill tag fields.
+        
+        This endpoint refreshes the schema to ensure newly-created tags in Notion
+        are immediately available in Co-Trainer, supporting full interoperability.
+        """
         if not self.client or not self.database_id:
             return {}
         
-        result = {}
+        result: Dict[str, List[str]] = {}
+
+        def merge_values(field_name: str, values: List[str]) -> None:
+            """Merge values into a field while keeping output sorted and unique."""
+            merged = set(result.get(field_name, []))
+            merged.update(v for v in values if v)
+            result[field_name] = sorted(merged)
         
+        # Relation-backed fields should be loaded from their related databases.
+        # Force-refresh schema to catch newly-added relation fields in Notion.
         relation_fields = {
-            "contact_level": "Contact Level",
+            "players": "Players",
             "position_focus": "Position",
             "skater_level": "Skater Level",
             "type": "Type",
-            "drill_type": "Drill Type",
-            "players": "Players",
         }
         
         for field_name, notion_prop_name in relation_fields.items():
-            db_id = self._get_relation_database_id(notion_prop_name)
+            db_id = self._get_relation_database_id(notion_prop_name, force_refresh=True)
             if not db_id:
                 continue
             
@@ -1114,26 +1194,53 @@ class NotionService:
                     if has_more:
                         time.sleep(0.35)
                 
-                result[field_name] = sorted(tags)
+                merge_values(field_name, tags)
                 logger.info(f"✓ Loaded {len(tags)} tags for '{field_name}'")
             except Exception as e:
                 logger.error(f"Error loading tags for '{field_name}': {e}")
-                result[field_name] = []
+                result.setdefault(field_name, [])
         
-        # Also get select field options from the database schema
-        schema = self._get_database_schema()
-        select_fields = {"equipment": "Equipment", "game_type": "Game Type"}
+        # Also get select/multi-select options from the drill database schema (fresh lookup for new fields).
+        schema = self._get_database_schema(force_refresh=True)
+        select_fields = {
+            "contact_level": "Contact Level",
+            "drill_type": "Drill Type",
+            "equipment": "Equipment",
+            "game_type": "Game Type",
+        }
+        multi_select_fields = {
+            "position_focus": "Position",
+            "skater_level": "Skater Level",
+            "type": "Type",
+            "depends_on": "Depends on",
+        }
         for field_name, notion_prop_name in select_fields.items():
             for prop_name, prop_def in schema.items():
                 if prop_name.lower() == notion_prop_name.lower() and prop_def.get("type") == "select":
                     options = prop_def.get("select", {}).get("options", [])
-                    result[field_name] = sorted([opt["name"] for opt in options if opt.get("name")])
+                    merge_values(field_name, [opt["name"] for opt in options if opt.get("name")])
+                    break
+
+        for field_name, notion_prop_name in multi_select_fields.items():
+            for prop_name, prop_def in schema.items():
+                if prop_name.lower() == notion_prop_name.lower() and prop_def.get("type") == "multi_select":
+                    options = prop_def.get("multi_select", {}).get("options", [])
+                    merge_values(field_name, [opt["name"] for opt in options if opt.get("name")])
                     break
         
         return result
     
     def clear_cache(self):
-        """Clear the cached drills."""
+        """Clear all caches to force fresh data from Notion on next sync.
+        
+        This includes:
+        - Drill cache (will reload from Notion)
+        - Relation cache (tag page ID mappings)
+        - Schema cache (database properties including relation fields)
+        
+        Useful after manually adding/removing relation fields or tags in Notion.
+        """
+        logger.info("Clearing all Notion caches (drills, relations, schema)")
         self._cache = None
         self._relation_cache = {}
         self._db_schema = None

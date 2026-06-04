@@ -73,7 +73,7 @@ export const buildPlanText = ({
     section.drills.forEach((timelineDrill, drillIndex) => {
       const start = formatMinuteClock(timelineDrill.startTime);
       const end = formatMinuteClock(timelineDrill.startTime + timelineDrill.duration);
-      const contact = timelineDrill.drill.contact_level?.[0] || 'Unknown contact';
+      const contact = timelineDrill.drill.contact_level || 'Unknown contact';
 
       lines.push(
         `   ${drillIndex + 1}. [${start}-${end}] ${timelineDrill.drill.exercise} (${timelineDrill.duration} min)`

@@ -40,9 +40,7 @@ export default function StatisticsPage() {
     return allDrills.filter((drill: Drill) => {
       // Check each filter
       if (tagFilters.contact_level?.length) {
-        const hasMatch = tagFilters.contact_level.some(level => 
-          drill.contact_level?.includes(level)
-        );
+        const hasMatch = !!drill.contact_level && tagFilters.contact_level.includes(drill.contact_level);
         if (!hasMatch) return false;
       }
 
@@ -207,9 +205,9 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
 
     drills.forEach(drill => {
       // Contact Level
-      drill.contact_level?.forEach(level => {
-        contactLevelCounts.set(level, (contactLevelCounts.get(level) || 0) + 1);
-      });
+      if (drill.contact_level) {
+        contactLevelCounts.set(drill.contact_level, (contactLevelCounts.get(drill.contact_level) || 0) + 1);
+      }
 
       // Drill Type
       if (drill.drill_type) {
@@ -414,7 +412,7 @@ function UsageTrendsTab({ plans, drills }: { plans: any[]; drills: Drill[] }) {
     drills.forEach(drill => {
       const tags: string[] = [];
       if (drill.drill_type) tags.push(drill.drill_type);
-      drill.contact_level?.forEach(t => tags.push(t));
+      if (drill.contact_level) tags.push(drill.contact_level);
       drill.position_focus?.forEach(t => tags.push(t));
 
       // Count pairs

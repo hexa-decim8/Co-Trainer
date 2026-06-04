@@ -404,9 +404,9 @@ export default function MobileViewPage() {
                             {item.drill.drill_type}
                           </span>
                         )}
-                        {item.drill?.contact_level && item.drill.contact_level.length > 0 && (
+                        {item.drill?.contact_level && (
                           <span className="text-xs px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 badge">
-                            {Array.isArray(item.drill.contact_level) ? item.drill.contact_level[0] : item.drill.contact_level}
+                            {item.drill.contact_level}
                           </span>
                         )}
                         {item.drill?.equipment && (
@@ -522,11 +522,11 @@ export default function MobileViewPage() {
                       {plan.timeline[selectedDrill].drill.drill_type}
                     </span>
                   )}
-                  {plan.timeline[selectedDrill].drill?.contact_level?.map((level, idx) => (
-                    <span key={idx} className="text-xs px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                      {level}
+                  {plan.timeline[selectedDrill].drill?.contact_level && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                      {plan.timeline[selectedDrill].drill.contact_level}
                     </span>
-                  ))}
+                  )}
                   {plan.timeline[selectedDrill].drill?.equipment && (
                     <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                       {plan.timeline[selectedDrill].drill.equipment}
