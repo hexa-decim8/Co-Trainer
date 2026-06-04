@@ -13,5 +13,10 @@ services:
       - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
       - DATABASE_URL=sqlite:////app/data/cotrainer.db
     volumes:
-      - ./data:/app/data
+      - cotrainer_data:/app/data
+      - cotrainer_config:/app/config
     restart: unless-stopped
+
+volumes:
+  cotrainer_data:
+  cotrainer_config:

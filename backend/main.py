@@ -125,8 +125,9 @@ async def database_status(db: Session = Depends(get_db)):
         db_url = settings.database_url
         if db_url.startswith("sqlite"):
             db_type = "SQLite"
-            persistent = False
-            warning = "Data will be lost on server restart (use PostgreSQL for persistence)"
+            sqlite_path = db_url.replace("sqlite:///", "", 1)
+            persistent = sqlite_path.startswith("/app/data/") or sqlite_path == "/app/data/cotrainer.db"
+            warning = None if persistent else "SQLite is configured on a non-persistent path. Use /app/data or PostgreSQL for persistence."
         elif db_url.startswith("postgresql"):
             db_type = "PostgreSQL"
             persistent = True

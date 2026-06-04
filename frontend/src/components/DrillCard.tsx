@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Clock, Shield, Users, Target, Zap, GripVertical, ChevronDown, Award, Link2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Clock, Shield, Users, Target, Zap, GripVertical, ChevronDown, Award, Link2, ExternalLink, AlertCircle, BookOpen, Lightbulb, TrendingUp, Flame, Wind, GitBranch, Info } from 'lucide-react';
 import type { Drill, DrillFilters } from '../types';
 import {
   getContactColor,
@@ -9,6 +9,7 @@ import {
   getDrillTypeBorderColor,
   getDrillTypeGradientColor,
 } from '../utils/drillColors';
+import { parseDescription, getSectionIcon, getSectionColors } from '../utils/descriptionParser';
 
 interface DrillCardProps {
   drill: Drill;
@@ -238,16 +239,76 @@ export default function DrillCard({
         {/* Expanded Details Section */}
         {isExpanded && (
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-            {/* Full Description */}
-            {drill.description && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-                <h4 className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1.5 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  Description
-                </h4>
-                <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{drill.description}</p>
-              </div>
-            )}
+            {/* Parsed Description Sections */}
+            {drill.description && (() => {
+              const parsed = parseDescription(drill.description);
+              
+              // Helper function to get icon component
+              const getIconComponent = (iconName: string) => {
+                const iconMap: Record<string, any> = {
+                  BookOpen,
+                  Lightbulb,
+                  AlertCircle,
+                  TrendingUp,
+                  Flame,
+                  Wind,
+                  GitBranch,
+                  Shield,
+                  Info,
+                };
+                return iconMap[iconName] || Info;
+              };
+
+              if (parsed.hasStructuredSections) {
+                return (
+                  <>
+                    {/* Display unmatched content first if any */}
+                    {parsed.unmatched && (
+                      <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                          {parsed.unmatched}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Display each section with appropriate styling */}
+                    {parsed.sections.map((section, index) => {
+                      const colors = getSectionColors(section.type);
+                      const iconName = getSectionIcon(section.type);
+                      const IconComponent = getIconComponent(iconName);
+                      
+                      return (
+                        <div
+                          key={index}
+                          className={`${colors.bg} border ${colors.border} rounded-lg p-3`}
+                        >
+                          <h4 className={`text-xs font-semibold ${colors.headerText} mb-1.5 flex items-center`}>
+                            <IconComponent className="w-3 h-3 mr-1.5" />
+                            {section.title}
+                          </h4>
+                          <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                            {section.content}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              } else {
+                // Fallback to original single-box display if no structured sections found
+                return (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                    <h4 className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1.5 flex items-center">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Description
+                    </h4>
+                    <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                      {drill.description}
+                    </p>
+                  </div>
+                );
+              }
+            })()}
 
             {/* Game Type */}
             {drill.game_type && (

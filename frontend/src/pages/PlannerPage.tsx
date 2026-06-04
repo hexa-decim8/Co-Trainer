@@ -582,6 +582,7 @@ export default function PlannerPage() {
               activeFilters={activeFilters}
               onFilterChange={setActiveFilters}
               resultCount={drills.length}
+              drills={allDrills}
             />
           )}
         </div>

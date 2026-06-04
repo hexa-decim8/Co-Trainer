@@ -80,6 +80,31 @@ git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+## Data Persistence During Updates
+
+For local/single-container Docker Compose usage (`docker-compose.yml`), Co-Trainer stores state in named volumes:
+
+- `cotrainer_data` mounted at `/app/data` (SQLite database and users)
+- `cotrainer_config` mounted at `/app/config` (encrypted settings and JWT secret key)
+
+Safe update flow (preserves users and auth state):
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+or
+
+```bash
+docker compose up -d --build
+```
+
+Important reset caveat:
+
+- `docker compose down` preserves volumes
+- `docker compose down -v` removes volumes and permanently resets persisted data
+
 ## 6. Stop Deployment
 
 ```bash

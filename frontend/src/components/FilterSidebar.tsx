@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Search, ChevronDown, ChevronUp, Filter as FilterIcon } from 'lucide-react';
-import type { DrillFilters, FilterOptions } from '../types';
+import type { Drill, DrillFilters, FilterOptions } from '../types';
+
+const PREVIEW_LIMIT = 6;
 
 interface FilterSidebarProps {
   filterOptions: FilterOptions;
   activeFilters: DrillFilters;
   onFilterChange: (filters: DrillFilters) => void;
   resultCount: number;
+  drills?: Drill[];
 }
 
 export default function FilterSidebar({
@@ -14,13 +17,32 @@ export default function FilterSidebar({
   activeFilters,
   onFilterChange,
   resultCount,
+  drills = [],
 }: FilterSidebarProps) {
   const [searchText, setSearchText] = useState(activeFilters.search || '');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['type', 'contact_level', 'difficulty']));
+  const [showPreview, setShowPreview] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const previewMatches = useMemo(() => {
+    if (!searchText.trim() || drills.length === 0) return [];
+    const q = searchText.toLowerCase();
+    return drills
+      .filter(d => d.exercise.toLowerCase().includes(q))
+      .slice(0, PREVIEW_LIMIT);
+  }, [searchText, drills]);
 
   const handleSearchChange = (value: string) => {
     setSearchText(value);
+    setShowPreview(true);
     onFilterChange({ ...activeFilters, search: value || undefined });
+  };
+
+  const handlePreviewSelect = (exercise: string) => {
+    setSearchText(exercise);
+    setShowPreview(false);
+    onFilterChange({ ...activeFilters, search: exercise });
+    searchRef.current?.blur();
   };
 
   const toggleFilter = (category: keyof DrillFilters, value: string | number) => {
@@ -130,12 +152,29 @@ export default function FilterSidebar({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/70" />
           <input
+            ref={searchRef}
             type="text"
             value={searchText}
             onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => setShowPreview(true)}
+            onBlur={() => setTimeout(() => setShowPreview(false), 150)}
             placeholder="Search drills..."
             className="w-full pl-11 pr-4 py-3 bg-white/20 dark:bg-white/10 border-2 border-white/30 dark:border-white/20 rounded-lg text-white placeholder-white/70 dark:placeholder-white/60 focus:outline-none focus:bg-white/30 dark:focus:bg-white/20 focus:border-white transition-all"
           />
+          {showPreview && previewMatches.length > 0 && (
+            <ul className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+              {previewMatches.map(drill => (
+                <li key={drill.id}>
+                  <button
+                    onMouseDown={() => handlePreviewSelect(drill.exercise)}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-800 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-300 transition-colors truncate"
+                  >
+                    {drill.exercise}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Result count */}

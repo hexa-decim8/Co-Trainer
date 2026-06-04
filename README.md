@@ -11,6 +11,21 @@ chmod +x start.sh
 
 Open `http://localhost:3000` in your browser, navigate to Settings, and configure your Notion integration credentials.
 
+## Data Persistence (Docker)
+
+When running with Docker Compose, Co-Trainer persists critical runtime data in named volumes:
+
+- `cotrainer_data` -> `/app/data` (SQLite database, including user accounts)
+- `cotrainer_config` -> `/app/config` (encrypted credentials + JWT secret key)
+
+This means user accounts and login-related secrets survive container restarts and image updates.
+
+Lifecycle behavior:
+
+- `docker compose up -d` / `docker compose restart`: data persists
+- `docker compose down` then `docker compose up -d`: data persists
+- `docker compose down -v`: deletes volumes and resets all persisted app data
+
 ## Features
 
 - Web-based configuration for Notion credentials (no manual .env editing)
@@ -52,50 +67,7 @@ Your Notion database requires the following properties:
 - Node.js 18+
 - Notion account with API access
 
-### Setup
 
-**Backend:**
-
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate  # On macOS/Linux
-# OR
-.\venv\Scripts\Activate  # On Windows
-pip install -r requirements.txt
-```
-
-**Frontend:**
-
-```bash
-cd frontend
-npm install
-```
-
-### Working with Virtual Environment
-
-The virtual environment isolates project dependencies from your system Python. Here's what you need to know:
-
-**Activating the virtual environment:**
-```bash
-cd backend
-source venv/bin/activate  # macOS/Linux
-# OR
-.\venv\Scripts\Activate  # Windows
-```
-
-When activated, your prompt will show `(venv)` prefix.
-
-**Deactivating:**
-```bash
-deactivate
-```
-
-**Installing new packages:**
-```bash
-# Make sure venv is activated first
-pip install package-name
-```
 
 ### Notion Integration
 
@@ -113,28 +85,7 @@ pip install package-name
 ./start.sh
 ```
 
-### Manual Start
 
-**Backend (Terminal 1):**
-
-```bash
-cd backend
-source venv/bin/activate  # macOS/Linux - activate venv first
-python main.py
-```
-
-Runs on `http://localhost:8000`
-
-**Frontend (Terminal 2):**
-
-```bash
-cd frontend
-npm run dev
-```
-
-Runs on `http://localhost:3000`
-
-## Usage
 
 ### Mobile View
 
@@ -147,29 +98,6 @@ Access saved practices from the Plan Library. The mobile view includes:
 - Drill detail expansion with video links
 - Current drill highlighting based on elapsed time
 
-## Project Structure
-
-```
-backend/
-├── main.py              # FastAPI application entry point
-├── models.py            # Pydantic data models
-├── database.py          # SQLAlchemy ORM setup
-├── notion_service.py    # Notion API client
-├── config.py            # Configuration management
-└── requirements.txt
-
-frontend/
-├── src/
-│   ├── components/      # React components
-│   ├── pages/          # Route components
-│   ├── api.ts          # API client
-│   ├── types.ts        # TypeScript definitions
-│   ├── App.tsx
-│   └── main.tsx
-├── package.json
-├── vite.config.ts
-└── tailwind.config.js
-```
 
 ## API Endpoints
 
@@ -186,53 +114,13 @@ frontend/
 - `DELETE /api/plans/{id}` - Delete plan
 - `GET /api/templates` - List templates
 
-## Technology Stack
 
-**Backend:**
-- FastAPI (web framework)
-- SQLAlchemy (ORM)
-- Notion SDK (API client)
-- Pydantic (validation)
-- SQLite (storage)
-
-**Frontend:**
-- React 18
-- TypeScript
-- Vite (build tool)
-- TanStack Query (data fetching)
-- dnd-kit (drag and drop)
-- Tailwind CSS (styling)
-- React Router (routing)
-
-## Deployment
-
-### Render Deployment (Recommended for Free Hosting)
-
-Deploy Co-Trainer as a single monolithic service on Render with optional persistent database.
 
 #### Prerequisites
 
 - GitHub account with this repository
 - Render account (free tier available)
 - PostgreSQL database (optional, for data persistence)
-
-#### Quick Deploy to Render
-
-**1. Create a new Web Service:**
-- Go to [Render Dashboard](https://dashboard.render.com/)
-- Click **New +** → **Web Service**
-- Connect your GitHub repository
-- Configure service:
-
-```
-Name: co-trainer
-Environment: Docker
-Branch: main
-Root Directory: (leave blank)
-Dockerfile Path: ./Dockerfile
-Port: 8000
-Instance Type: Free
-```
 
 **2. Set Environment Variables:**
 
@@ -255,143 +143,7 @@ DATABASE_URL=postgresql://user:password@host:port/database
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-**3. Deploy:**
 
-Click **Create Web Service** - Render will build and deploy automatically.
-
-Your app will be available at: `https://your-service-name.onrender.com`
-
-#### Database Configuration
-
-**Default (SQLite):**
-- Uses local SQLite database
-- ⚠️ **Data is lost when instance suspends/restarts** on free tier
-- Good for testing only
-
-**Persistent Database (Recommended for Production):**
-
-Choose one of these free PostgreSQL options:
-
-**Option A: Supabase (Recommended)**
-1. Sign up at [supabase.com](https://supabase.com)
-2. Create new project
-3. Go to Settings → Database → Connection String
-4. Copy the `postgres://` URI
-5. Add to Render environment variables as `DATABASE_URL`
-- Free tier: 500MB storage, no time limit
-
-**Option B: Neon**
-1. Sign up at [neon.tech](https://neon.tech)
-2. Create database
-3. Copy connection string
-4. Add to Render as `DATABASE_URL`
-- Free tier: 0.5GB storage, serverless
-
-**Option C: PlanetScale**
-1. Sign up at [planetscale.com](https://planetscale.com)
-2. Create database (MySQL)
-3. Get connection string
-4. Add to Render as `DATABASE_URL`
-- Free tier: 5GB storage
-- Note: Requires MySQL-compatible SQLAlchemy settings
-
-**Option D: Self-hosted PostgreSQL**
-- Use Oracle Cloud Free Tier (2 VMs, 200GB forever free)
-- Run PostgreSQL in Docker
-- Connect via: `postgresql://user:pass@your-server-ip:5432/cotrainer`
-
-#### Health Checks
-
-Render will automatically ping `/api/health` to verify the service is running.
-
-#### Logs
-
-View application logs in Render dashboard under **Logs** tab.
-
-#### Updates
-
-Push to your `main` branch - Render auto-deploys on new commits.
-
-Manual deploy: Dashboard → **Manual Deploy** → **Deploy latest commit**
-
-#### Cost Summary
-
-**Free tier limits:**
-- Web Service: Free (750 hours/month, suspends after 15 min inactivity)
-- Database: Use external free PostgreSQL (Supabase recommended)
-- Total cost: **$0/month**
-
-**Paid tier ($7/month):**
-- No suspension
-- More resources
-- Still requires external database for best persistence
-
-### Production Docker (Single Image)
-
-Production now runs as a single image using the root `Dockerfile`. The container serves both API and frontend on port `8000`.
-
-TLS/HTTPS is expected to be handled externally (load balancer, reverse proxy, or hosting platform).
-
-**1. Configure your environment:**
-
-```bash
-# Copy the example environment file
-cp .env.production.example .env.production
-
-# Edit with your settings
-nano .env.production
-```
-
-Set these values in `.env.production`:
-- `DATABASE_URL` - External PostgreSQL connection string
-- `SECRET_KEY` - Generate with: `openssl rand -hex 32`
-- `NOTION_API_KEY` - Your Notion integration API key (optional)
-- `NOTION_DATABASE_ID` - Your Notion database ID (optional)
-
-**2. Start the application:**
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-**3. Verify health:**
-
-```bash
-curl http://localhost:8000/api/health
-curl -I http://localhost:8000/
-```
-
-**View logs:**
-```bash
-docker compose -f docker-compose.prod.yml logs -f app
-```
-
-**Update application:**
-```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-For complete deployment documentation, see [DEPLOYMENT.md](DEPLOYMENT.md).
-
-### Docker Hub Publishing via GitHub Actions
-
-The CI workflow at `.github/workflows/docker-build-test.yml`:
-- Builds and smoke-tests the container on pull requests and pushes
-- Publishes to Docker Hub on successful pushes to `main`
-
-Set GitHub repository secrets:
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
-
-Optional GitHub repository variable:
-- `DOCKERHUB_REPOSITORY` (example: `yourname/co-trainer`)
-
-If `DOCKERHUB_REPOSITORY` is unset, image name defaults to `${DOCKERHUB_USERNAME}/co-trainer`.
-
-Published tags:
-- `latest`
-- `sha-<short_commit>`
 
 ### Development Docker Compose
 
@@ -416,36 +168,6 @@ services:
     depends_on:
       - backend
 ```
-
-### Environment Variables
-
-Create `.env` in the backend directory:
-
-```
-NOTION_API_KEY=secret_xxxxxxxxxxxxx
-NOTION_DATABASE_ID=xxxxxxxxxxxxx
-DATABASE_URL=sqlite:///./cotrainer.db
-```
-
-## Troubleshooting
-
-**Notion API Issues:**
-- 401 Unauthorized: Verify API key
-- 404 Not Found: Confirm database access permissions
-- Empty results: Check database content and column names match schema
-
-**Performance:**
-- Backend caches Notion responses
-- Restart backend to clear cache
-- Large databases (500+ drills) may benefit from pagination
-
-## Contributing
-
-Contributions welcome. Please maintain:
-- Existing code style
-- TypeScript type definitions
-- API documentation
-- Mobile responsive design
 
 ## License
 
