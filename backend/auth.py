@@ -16,10 +16,16 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 # JWT settings
-SECRET_KEY = settings.secret_key
+# Read secret_key via property so it always reflects the current value from
+# settings, even if it was regenerated after module import (e.g. after a
+# container restart where the encrypted config had to be re-created).
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 days
+
+
+def _get_secret_key() -> str:
+    return settings.secret_key
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -40,7 +46,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _get_secret_key(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -49,7 +55,7 @@ def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _get_secret_key(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -64,7 +70,7 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, _get_secret_key(), algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -90,7 +96,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[UserDB
 def verify_refresh_token(db: Session, refresh_token: str) -> Optional[UserDB]:
     """Verify a refresh token and return the user."""
     try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(refresh_token, _get_secret_key(), algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         token_type: str = payload.get("type")
         

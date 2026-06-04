@@ -47,4 +47,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
 
 # Run the application with gunicorn + uvicorn workers
-CMD ["gunicorn", "main:app", "--workers", "2", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]
+# --preload: load app once in master before forking workers so all workers
+#            share the same JWT secret key (prevents auth failures from race conditions)
+CMD ["gunicorn", "main:app", "--workers", "2", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--preload", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]

@@ -95,7 +95,9 @@ class SyncMetadata(Base):
 
 # Create database engine
 if settings.database_url.startswith("sqlite"):
-    engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+    # timeout=30: wait up to 30s for write lock instead of default 5s,
+    # prevents "database is locked" errors with multiple gunicorn workers
+    engine = create_engine(settings.database_url, connect_args={"check_same_thread": False, "timeout": 30})
 else:
     engine = create_engine(settings.database_url, pool_pre_ping=True)
 
