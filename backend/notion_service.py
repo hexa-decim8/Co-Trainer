@@ -912,127 +912,116 @@ class NotionService:
         return relations
     
     def _build_notion_properties(self, drill_data: dict) -> Dict[str, Any]:
-        """Convert drill fields to Notion property format."""
-        properties = {}
-        
-        # Map drill fields to Notion property names and types
-        field_map = {
-            "exercise": ("Exercise", "title"),
-            "avg_time": ("Avg Time", "number"),
-            "contact_level": ("Contact Level", "select"),
-            "description": ("Description", "rich_text"),
-            "difficulty": ("Difficulty 1-5", "number"),
-            "drill_type": ("Drill Type", "select"),
-            "equipment": ("Equipment", "select"),
-            "game_type": ("Game Type", "select"),
-            "position_focus": ("Position", "multi_select"),
-            "skater_level": ("Skater Level", "multi_select"),
-            "skaters_needed": ("Skaters Needed", "number"),
-            "type": ("Type", "multi_select"),
-            "video_link": ("Video Link", "url"),
-            "depends_on": ("Depends on", "multi_select"),
-        }
-        
-        # Relation fields (need tag resolution)
-        relation_fields = {
-            "position_focus": "Position",
-            "skater_level": "Skater Level",
-            "type": "Type",
-        }
-        
-        # Single-relation fields
-        single_relation_fields = {
-            "players": "Players",
-        }
-        
-        # Verify property names against actual schema
-        schema = self._get_database_schema()
-        schema_lower = {k.lower(): k for k in schema.keys()}
-        
-        def resolve_prop_name(name: str) -> str:
-            """Find the actual property name from the schema."""
-            if name in schema:
-                return name
-            lower = name.lower()
-            if lower in schema_lower:
-                return schema_lower[lower]
-            return name
-        
-        for field, (notion_name, prop_type) in field_map.items():
-            if field not in drill_data:
-                continue
-            
-            value = drill_data[field]
-            actual_name = resolve_prop_name(notion_name)
+        """Convert drill fields to Notion property payload using the live database schema."""
+        properties: Dict[str, Any] = {}
 
-            if value is None and prop_type != "select":
+        # Candidate property names per internal field. First match in schema wins.
+        field_candidates = {
+            "exercise": ["Exercise"],
+            "avg_time": ["Avg Time", "Average Time"],
+            "contact_level": ["Contact Level", "Contact"],
+            "description": ["Description"],
+            "difficulty": ["Difficulty 1-5", "Difficulty"],
+            "drill_type": ["Drill Type", "Category"],
+            "equipment": ["Equipment"],
+            "game_type": ["Game Type"],
+            "players": ["Players"],
+            "position_focus": ["Position", "Position Focus"],
+            "skater_level": ["Skater Level", "Level"],
+            "skaters_needed": ["Skaters Needed", "Skaters"],
+            "type": ["Type"],
+            "video_link": ["Video Link", "Video"],
+            "depends_on": ["Depends on", "Depends On", "Dependencies"],
+        }
+
+        # Fields that can resolve tag names into relation page IDs when schema says relation.
+        relation_tag_fields = {"position_focus", "skater_level", "type", "players"}
+
+        schema = self._get_database_schema()
+        schema_lower = {name.lower(): name for name in schema.keys()}
+
+        def resolve_schema_property(field: str) -> Optional[tuple[str, str]]:
+            """Return (actual_property_name, property_type) or None if field does not exist."""
+            for candidate in field_candidates.get(field, []):
+                if candidate in schema:
+                    prop_def = schema[candidate]
+                    return candidate, prop_def.get("type", "")
+                lowered = candidate.lower()
+                if lowered in schema_lower:
+                    actual_name = schema_lower[lowered]
+                    prop_def = schema[actual_name]
+                    return actual_name, prop_def.get("type", "")
+            return None
+
+        for field, value in drill_data.items():
+            resolved = resolve_schema_property(field)
+            if not resolved:
+                logger.debug(f"Skipping field '{field}' because no matching Notion property exists")
                 continue
-            
+
+            prop_name, prop_type = resolved
+
             if prop_type == "title":
-                properties[actual_name] = {
+                if value in (None, ""):
+                    continue
+                properties[prop_name] = {
                     "title": [{"text": {"content": str(value)}}]
                 }
-            elif prop_type == "number":
-                properties[actual_name] = {"number": value}
             elif prop_type == "rich_text":
-                properties[actual_name] = {
-                    "rich_text": [{"text": {"content": str(value)}}]
-                }
-            elif prop_type == "select":
-                # Send null to clear select values when explicitly provided as null/empty.
                 if value in (None, ""):
-                    properties[actual_name] = {"select": None}
+                    properties[prop_name] = {"rich_text": []}
+                else:
+                    properties[prop_name] = {
+                        "rich_text": [{"text": {"content": str(value)}}]
+                    }
+            elif prop_type == "number":
+                properties[prop_name] = {"number": value if value is not None else None}
+            elif prop_type == "select":
+                if value in (None, ""):
+                    properties[prop_name] = {"select": None}
                 elif isinstance(value, list):
                     first_value = next((item for item in value if item), None)
-                    properties[actual_name] = {"select": {"name": str(first_value)}} if first_value else {"select": None}
+                    properties[prop_name] = {"select": {"name": str(first_value)}} if first_value else {"select": None}
                 else:
-                    properties[actual_name] = {"select": {"name": str(value)}}
+                    properties[prop_name] = {"select": {"name": str(value)}}
             elif prop_type == "multi_select":
-                if isinstance(value, list):
-                    properties[actual_name] = {
-                        "multi_select": [{"name": v} for v in value]
+                if value is None:
+                    properties[prop_name] = {"multi_select": []}
+                elif isinstance(value, list):
+                    properties[prop_name] = {
+                        "multi_select": [{"name": str(v)} for v in value if v]
+                    }
+                else:
+                    properties[prop_name] = {
+                        "multi_select": [{"name": str(value)}]
                     }
             elif prop_type == "url":
-                properties[actual_name] = {"url": value if value else None}
-        
-        # Handle multi-relation fields
-        for field, notion_name in relation_fields.items():
-            if field not in drill_data:
-                continue
-            value = drill_data[field]
-            actual_name = resolve_prop_name(notion_name)
-
-            # Explicit empty/null values should clear existing Notion relations.
-            if value is None or (isinstance(value, list) and len(value) == 0):
-                properties[actual_name] = {"relation": []}
-                continue
-
-            if isinstance(value, list):
-                relations = self._resolve_tags_to_relation(field, value, actual_name)
-                if relations:
-                    properties[actual_name] = {"relation": relations}
+                if isinstance(value, list):
+                    first_url = next((item for item in value if item), None)
+                    properties[prop_name] = {"url": str(first_url) if first_url else None}
                 else:
-                    # If no relations were resolved, clear stale values.
-                    properties[actual_name] = {"relation": []}
-        
-        # Handle single-relation fields
-        for field, notion_name in single_relation_fields.items():
-            if field not in drill_data:
-                continue
-            value = drill_data[field]
-            actual_name = resolve_prop_name(notion_name)
+                    properties[prop_name] = {"url": str(value) if value else None}
+            elif prop_type == "relation":
+                if value is None or value == "" or (isinstance(value, list) and len(value) == 0):
+                    properties[prop_name] = {"relation": []}
+                    continue
 
-            if value in (None, ""):
-                properties[actual_name] = {"relation": []}
-                continue
-
-            if value:
-                relations = self._resolve_tags_to_relation(field, [value], actual_name)
-                if relations:
-                    properties[actual_name] = {"relation": relations}
+                if isinstance(value, list):
+                    values = [str(v) for v in value if v]
                 else:
-                    properties[actual_name] = {"relation": []}
-        
+                    values = [str(value)]
+
+                if field in relation_tag_fields:
+                    relations = self._resolve_tags_to_relation(field, values, prop_name)
+                    properties[prop_name] = {"relation": relations if relations else []}
+                else:
+                    # Fallback for direct relation IDs if field is not tag-backed.
+                    properties[prop_name] = {"relation": [{"id": v} for v in values]}
+            else:
+                logger.debug(
+                    f"Skipping unsupported Notion property type '{prop_type}' for field '{field}' ({prop_name})"
+                )
+
         return properties
     
     async def create_drill(self, drill_data: DrillCreate, db: Session = None) -> Drill:

@@ -20,6 +20,11 @@ When running with Docker Compose, Co-Trainer persists critical runtime data in n
 
 This means user accounts and login-related secrets survive container restarts and image updates.
 
+Recommended for stable auth across host/container changes:
+
+- Set `SECRET_KEY` in your Compose environment (for example in a local `.env` file).
+- The app now prefers this value as the JWT signing key, so refresh tokens remain valid across image rebuilds even if `/app/config` is recreated.
+
 Lifecycle behavior:
 
 - `docker compose up -d` / `docker compose restart`: data persists

@@ -11,6 +11,7 @@ services:
     environment:
       - NOTION_API_KEY=${NOTION_API_KEY}
       - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
+      - SECRET_KEY=${SECRET_KEY:-}
       - DATABASE_URL=sqlite:////app/data/cotrainer.db
     volumes:
       - cotrainer_data:/app/data

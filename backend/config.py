@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# Capture secret key from environment (via pydantic settings) before secure
+# storage is loaded so we can prefer a stable externally managed key.
+env_secret_key = (settings.secret_key or "").strip()
+
 # Override database URL from environment variable if provided
 if os.getenv("DATABASE_URL"):
     database_url = os.getenv("DATABASE_URL")
@@ -36,13 +40,22 @@ if os.getenv("DATABASE_URL"):
 try:
     from secure_config import secure_config
     saved_creds = secure_config.load_credentials()
-    
-    # Load JWT secret key or generate if missing
-    if saved_creds.get("jwt_secret_key"):
-        settings.secret_key = saved_creds["jwt_secret_key"]
+
+    # Resolve JWT secret key with clear precedence:
+    # 1) SECRET_KEY from environment (stable across container rebuilds)
+    # 2) Encrypted persisted key from /app/config
+    # 3) Newly generated key (first run bootstrap)
+    saved_secret_key = (saved_creds.get("jwt_secret_key") or "").strip()
+    if env_secret_key:
+        settings.secret_key = env_secret_key
+    elif saved_secret_key:
+        settings.secret_key = saved_secret_key
     else:
-        # Generate new secret key and save it
         settings.secret_key = secrets.token_urlsafe(32)
+
+    # Keep encrypted credentials in sync with the active JWT secret so future
+    # starts continue to use the same key.
+    if settings.secret_key != saved_secret_key:
         secure_config.save_credentials(
             notion_api_key=saved_creds.get("notion_api_key") or "",
             notion_database_id=saved_creds.get("notion_database_id") or "",
@@ -55,6 +68,7 @@ try:
     if saved_creds.get("notion_database_id"):
         settings.notion_database_id = saved_creds["notion_database_id"]
 except Exception:
-    # If secure_config not available yet, generate temporary key
+    # If secure_config not available yet, prefer env key and only generate as
+    # a last resort.
     if not settings.secret_key:
         settings.secret_key = secrets.token_urlsafe(32)
