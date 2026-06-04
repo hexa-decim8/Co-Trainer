@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Plus, Clock, Shield } from 'lucide-react';
+import { Save, Plus, Clock, Shield, FileText, Copy, Download } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -10,6 +10,7 @@ import CircularProgress from '../components/CircularProgress';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
+import { buildPlanText } from '../utils/planTextExport';
 import { 
   PRACTICE_DURATION_MINUTES,
   DEFAULT_SECTION_DURATION,
@@ -85,6 +86,10 @@ export default function PlannerPage() {
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [saveError, setSaveError] = useState<SaveError | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportText, setExportText] = useState('');
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   // Stream drills from backend
   const { 
@@ -206,6 +211,8 @@ export default function PlannerPage() {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    // Don't set activeDrill for section drags — data.current is sortable metadata, not a Drill
+    if (String(event.active.id).startsWith('section-sortable-')) return;
     const drillData = event.active.data?.current;
     if (drillData) {
       setActiveDrill(drillData as Drill);
@@ -258,12 +265,23 @@ export default function PlannerPage() {
     const overId = String(over.id);
 
     // --- Section reorder ---
-    if (activeId.startsWith('section-sortable-') && overId.startsWith('section-sortable-')) {
-      const activeIndex = sections.findIndex(s => `section-sortable-${s.id}` === activeId);
-      const overIndex = sections.findIndex(s => `section-sortable-${s.id}` === overId);
+    if (activeId.startsWith('section-sortable-')) {
+      // Resolve target section from either a section-sortable-* or *-drop ID
+      let overSectionId: string | undefined;
+      if (overId.startsWith('section-sortable-')) {
+        const candidateId = overId.replace('section-sortable-', '');
+        if (sections.some(s => s.id === candidateId)) overSectionId = candidateId;
+      } else if (overId.endsWith('-drop')) {
+        const candidateId = overId.replace('-drop', '');
+        if (sections.some(s => s.id === candidateId)) overSectionId = candidateId;
+      }
 
-      if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
-        handleReorderSections(activeIndex, overIndex);
+      if (overSectionId) {
+        const activeIndex = sections.findIndex(s => `section-sortable-${s.id}` === activeId);
+        const overIndex = sections.findIndex(s => s.id === overSectionId);
+        if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+          handleReorderSections(activeIndex, overIndex);
+        }
       }
       return;
     }
@@ -290,13 +308,16 @@ export default function PlannerPage() {
       const target = resolveDropTarget(overId);
       if (!target) return;
 
+      // No-op: dropped back onto own section (e.g. cursor over own section header while dragging)
+      if (target.sectionId === sourceSection.id) return;
+
       const draggedDrill = sourceSection.drills.find(d => d.id === activeId);
       if (!draggedDrill) return;
 
       // Remove from source, insert at correct position in target
       const afterRemove = sections.map(section => {
         if (section.id === sourceSection.id) {
-          return { ...section, drills: section.drills.filter(d => d.id !== activeId) };
+          return { ...section, drills: calculateStartTimes(section.drills.filter(d => d.id !== activeId)) };
         }
         return section;
       });
@@ -565,6 +586,68 @@ export default function PlannerPage() {
     return type;
   };
 
+  const createPlanExportText = useCallback(() => {
+    return buildPlanText({
+      planName,
+      planDate,
+      practiceType,
+      sections,
+    });
+  }, [planName, planDate, practiceType, sections]);
+
+  const handleOpenExportDialog = () => {
+    const generatedText = createPlanExportText();
+    setExportText(generatedText);
+    setCopyError(null);
+    setCopySuccess(null);
+    setShowExportDialog(true);
+  };
+
+  const handleCopyExportText = async () => {
+    const textToCopy = exportText || createPlanExportText();
+    setCopyError(null);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const tempTextArea = document.createElement('textarea');
+        tempTextArea.value = textToCopy;
+        tempTextArea.style.position = 'fixed';
+        tempTextArea.style.opacity = '0';
+        document.body.appendChild(tempTextArea);
+        tempTextArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempTextArea);
+      }
+
+      setCopySuccess('Copied text to clipboard.');
+      setTimeout(() => setCopySuccess(null), 2500);
+    } catch (error) {
+      console.error('Copy failed:', error);
+      setCopyError('Could not copy automatically. Select the text and copy manually.');
+    }
+  };
+
+  const handleDownloadExportText = () => {
+    const textToDownload = exportText || createPlanExportText();
+    const safeBaseName = (planName.trim() || 'practice-plan')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const filename = `${safeBaseName || 'practice-plan'}.txt`;
+    const blob = new Blob([textToDownload], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <DndContext 
       sensors={sensors}
@@ -710,7 +793,6 @@ export default function PlannerPage() {
             <TimelinePlanner
               sections={sections}
               onRemoveDrill={handleRemoveDrill}
-              onReorder={handleReorder}
               onUpdateDuration={handleUpdateDuration}
               onDeleteSection={handleDeleteSection}
               onResizeSection={handleResizeSection}
@@ -722,14 +804,24 @@ export default function PlannerPage() {
           {/* Save buttons */}
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
             {!showSaveDialog ? (
-              <button
-                onClick={() => setShowSaveDialog(true)}
-                disabled={getAllDrills().length === 0}
-                className="w-full btn-primary flex items-center justify-center gap-2"
-              >
-                <Save className="w-5 h-5" />
-                Save Practice Plan
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowSaveDialog(true)}
+                  disabled={getAllDrills().length === 0}
+                  className="w-full btn-primary flex items-center justify-center gap-2"
+                >
+                  <Save className="w-5 h-5" />
+                  Save Practice Plan
+                </button>
+                <button
+                  onClick={handleOpenExportDialog}
+                  disabled={getAllDrills().length === 0}
+                  className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <FileText className="w-5 h-5" />
+                  Export Plan as Text
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
                 {saveError && (
@@ -797,6 +889,60 @@ export default function PlannerPage() {
           </div>
         </div>
       </div>
+
+      {showExportDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Plan Text Export</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Copy this text directly or download it as a .txt file.</p>
+              </div>
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <textarea
+              value={exportText}
+              onChange={(e) => setExportText(e.target.value)}
+              className="w-full h-80 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 font-mono"
+              spellCheck={false}
+            />
+
+            {copySuccess && (
+              <div className="mt-3 p-2 text-sm rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300">
+                {copySuccess}
+              </div>
+            )}
+            {copyError && (
+              <div className="mt-3 p-2 text-sm rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                {copyError}
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={handleCopyExportText}
+                className="w-full px-4 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Copy Text
+              </button>
+              <button
+                onClick={handleDownloadExportText}
+                className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white font-semibold hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download .txt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DragOverlay>
         {activeDrill && (

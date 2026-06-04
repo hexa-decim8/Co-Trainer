@@ -27,7 +27,6 @@ import {
 interface TimelinePlannerProps {
   sections: PracticeSection[];
   onRemoveDrill: (sectionId: string, index: number) => void;
-  onReorder: (sectionId: string, oldIndex: number, newIndex: number) => void;
   onUpdateDuration: (sectionId: string, index: number, newDuration: number) => void;
   onDeleteSection: (sectionId: string) => void;
   onResizeSection: (sectionId: string, newDuration: number) => void;
@@ -215,7 +214,6 @@ function SectionContainer({
 }: {
   section: PracticeSection;
   onRemoveDrill: (sectionId: string, index: number) => void;
-  onReorder: (sectionId: string, oldIndex: number, newIndex: number) => void;
   onUpdateDuration: (sectionId: string, index: number, newDuration: number) => void;
   onDeleteSection: (sectionId: string) => void;
   onUpdateSectionName: (sectionId: string, newName: string) => void;
@@ -448,7 +446,6 @@ function SectionContainer({
 export default function TimelinePlanner({
   sections,
   onRemoveDrill,
-  onReorder,
   onUpdateDuration,
   onDeleteSection,
   onResizeSection,
@@ -491,7 +488,6 @@ export default function TimelinePlanner({
               key={section.id}
               section={section}
               onRemoveDrill={onRemoveDrill}
-              onReorder={onReorder}
               onUpdateDuration={onUpdateDuration}
               onDeleteSection={onDeleteSection}
               onUpdateSectionName={onUpdateSectionName}
