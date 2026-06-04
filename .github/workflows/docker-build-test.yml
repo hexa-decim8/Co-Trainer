@@ -120,6 +120,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-test-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     env:
       IMAGE_NAME: ${{ vars.DOCKERHUB_REPOSITORY != '' && vars.DOCKERHUB_REPOSITORY || format('{0}/co-trainer', secrets.DOCKERHUB_USERNAME) }}
 
@@ -130,6 +132,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          token: ${{ secrets.GH_RELEASE_TOKEN != '' && secrets.GH_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.build-test-push.outputs.version }}
           name: Docker Release ${{ needs.build-test-push.outputs.version }}
           body: |
@@ -151,8 +154,6 @@ jobs:
             ```
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   cleanup-docker-images:
     runs-on: ubuntu-latest
