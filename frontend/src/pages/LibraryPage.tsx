@@ -15,7 +15,16 @@ export default function LibraryPage() {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [clonePlanId, setClonePlanId] = useState<number | null>(null);
   const [cloneName, setCloneName] = useState('');
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const pageSize = LIBRARY_PAGE_SIZE;
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Debounce search input
   useEffect(() => {
@@ -47,7 +56,7 @@ export default function LibraryPage() {
         await plansApi.delete(id);
         refetch();
       } catch (error) {
-        alert('Failed to delete plan');
+        setToast({ type: 'error', message: 'Failed to delete plan' });
       }
     }
   };
@@ -57,7 +66,7 @@ export default function LibraryPage() {
       await plansApi.setVisibility(id, !currentVisibility);
       refetch();
     } catch (error) {
-      alert('Failed to update visibility');
+      setToast({ type: 'error', message: 'Failed to update visibility' });
     }
   };
 
@@ -70,12 +79,12 @@ export default function LibraryPage() {
       setClonePlanId(null);
       setCloneName('');
       refetch();
-      alert('Plan cloned successfully!');
+      setToast({ type: 'success', message: 'Plan cloned successfully!' });
     } catch (error: any) {
       if (error.response?.status === 409) {
-        alert('You have already cloned this plan');
+        setToast({ type: 'error', message: 'You have already cloned this plan' });
       } else {
-        alert('Failed to clone plan');
+        setToast({ type: 'error', message: 'Failed to clone plan' });
       }
     }
   };
@@ -106,6 +115,16 @@ export default function LibraryPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all ${
+          toast.type === 'success' 
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/80 dark:text-green-200' 
+            : 'bg-red-100 text-red-800 dark:bg-red-900/80 dark:text-red-200'
+        }`}>
+          {toast.message}
+        </div>
+      )}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Practice Plan Library</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">View, manage, and discover practice plans</p>

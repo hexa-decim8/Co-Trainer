@@ -120,56 +120,56 @@ export default function PlannerPage() {
 
       // Contact level filter
       if (activeFilters.contact_level?.length) {
-        if (!activeFilters.contact_level.some(cl => drill.contact_level.includes(cl))) {
+        if (!activeFilters.contact_level.some(cl => drill.contact_level?.includes(cl))) {
           return false;
         }
       }
 
       // Difficulty filter
       if (activeFilters.difficulty?.length) {
-        if (!activeFilters.difficulty.includes(drill.difficulty!)) {
+        if (drill.difficulty == null || !activeFilters.difficulty.includes(drill.difficulty)) {
           return false;
         }
       }
 
       // Drill type filter
       if (activeFilters.drill_type?.length) {
-        if (!activeFilters.drill_type.includes(drill.drill_type!)) {
+        if (!drill.drill_type || !activeFilters.drill_type.includes(drill.drill_type)) {
           return false;
         }
       }
 
       // Equipment filter
       if (activeFilters.equipment?.length) {
-        if (!activeFilters.equipment.includes(drill.equipment!)) {
+        if (!drill.equipment || !activeFilters.equipment.includes(drill.equipment)) {
           return false;
         }
       }
 
       // Game type filter
       if (activeFilters.game_type?.length) {
-        if (!activeFilters.game_type.includes(drill.game_type!)) {
+        if (!drill.game_type || !activeFilters.game_type.includes(drill.game_type)) {
           return false;
         }
       }
 
       // Position focus filter
       if (activeFilters.position_focus?.length) {
-        if (!activeFilters.position_focus.some(pf => drill.position_focus.includes(pf))) {
+        if (!activeFilters.position_focus.some(pf => drill.position_focus?.includes(pf))) {
           return false;
         }
       }
 
       // Skater level filter
       if (activeFilters.skater_level?.length) {
-        if (!activeFilters.skater_level.some(sl => drill.skater_level.includes(sl))) {
+        if (!activeFilters.skater_level.some(sl => drill.skater_level?.includes(sl))) {
           return false;
         }
       }
 
       // Type filter
       if (activeFilters.type?.length) {
-        if (!activeFilters.type.some(t => drill.type.includes(t))) {
+        if (!activeFilters.type.some(t => drill.type?.includes(t))) {
           return false;
         }
       }

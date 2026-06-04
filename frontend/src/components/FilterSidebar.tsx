@@ -28,7 +28,7 @@ export default function FilterSidebar({
     if (!searchText.trim() || drills.length === 0) return [];
     const q = searchText.toLowerCase();
     return drills
-      .filter(d => d.exercise.toLowerCase().includes(q))
+      .filter(d => d.exercise?.toLowerCase().includes(q))
       .slice(0, PREVIEW_LIMIT);
   }, [searchText, drills]);
 

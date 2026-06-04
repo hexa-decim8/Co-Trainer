@@ -168,8 +168,8 @@ async def get_settings():
 
 
 @app.post("/api/settings")
-async def update_settings(config: Dict[str, str]):
-    """Update Notion API credentials."""
+async def update_settings(config: Dict[str, str], current_user: UserDB = Depends(require_admin)):
+    """Update Notion API credentials. Requires admin role."""
     from secure_config import secure_config
     
     if "notion_api_key" in config:
@@ -643,8 +643,9 @@ async def get_drills(
     # Apply filters
     filtered_drills = drills
     
-    # Text search
+    # Text search (cap length to prevent DoS)
     if search:
+        search = search[:200]
         search_lower = search.lower()
         filtered_drills = [
             d for d in filtered_drills
@@ -955,8 +956,13 @@ async def list_plans(
     # Build summaries
     summaries = []
     for plan in plans:
-        timeline_data = json.loads(plan.timeline_json)
-        total_duration = sum(item["duration_minutes"] for item in timeline_data)
+        try:
+            timeline_data = json.loads(plan.timeline_json)
+            total_duration = sum(item["duration_minutes"] for item in timeline_data)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            logger.error(f"Corrupted timeline_json for plan {plan.id}")
+            timeline_data = []
+            total_duration = 0
         
         # Get creator info if this is a public plan view
         creator_email = None
@@ -1016,7 +1022,10 @@ async def get_plan(
     if plan.user_id != current_user.id and not plan.is_public:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    timeline_data = json.loads(plan.timeline_json)
+    try:
+        timeline_data = json.loads(plan.timeline_json)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=500, detail="Plan data is corrupted")
     
     # Get drill IDs
     drill_ids = [item["drill_id"] for item in timeline_data]
@@ -1033,6 +1042,8 @@ async def get_plan(
         duration = item["duration_minutes"]
         
         drill = drills_dict.get(drill_id)
+        if drill is None:
+            logger.warning(f"Drill {drill_id} not found in Notion for plan {plan.id}")
         
         timeline_item = {
             "drill_id": drill_id,
@@ -1047,7 +1058,11 @@ async def get_plan(
     # Parse sections_v2
     sections_v2 = None
     if hasattr(plan, 'sections_v2_json') and plan.sections_v2_json:
-        sections_v2 = json.loads(plan.sections_v2_json)
+        try:
+            sections_v2 = json.loads(plan.sections_v2_json)
+        except (json.JSONDecodeError, TypeError):
+            logger.error(f"Corrupted sections_v2_json for plan {plan.id}")
+            sections_v2 = None
     
     return PracticePlanWithDrills(
         id=plan.id,
@@ -1213,6 +1228,7 @@ async def clone_plan(
         is_public=False,  # Cloned plans are private by default
         notes=source_plan.notes,
         timeline_json=source_plan.timeline_json,
+        sections_v2_json=source_plan.sections_v2_json,
         original_plan_id=plan_id,
         cloned_from_user_id=source_plan.user_id
     )

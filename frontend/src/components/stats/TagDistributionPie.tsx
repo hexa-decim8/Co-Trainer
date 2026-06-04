@@ -39,7 +39,7 @@ export default function TagDistributionPie({
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const percentage = ((payload[0].value / total) * 100).toFixed(1);
+      const percentage = total > 0 ? ((payload[0].value / total) * 100).toFixed(1) : '0.0';
       return (
         <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
           <p className="text-sm font-semibold text-gray-900 dark:text-white">

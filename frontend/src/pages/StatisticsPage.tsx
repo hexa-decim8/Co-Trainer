@@ -18,7 +18,7 @@ export default function StatisticsPage() {
   const [tagFilters, setTagFilters] = useState<DrillFilters>({});
 
   // Fetch all drills
-  const { data: allDrills = [], isLoading: drillsLoading } = useQuery({
+  const { data: allDrills = [], isLoading: drillsLoading, isError: drillsError } = useQuery({
     queryKey: ['drills'],
     queryFn: async () => {
       return await drillsApi.getAll();
@@ -26,7 +26,7 @@ export default function StatisticsPage() {
   });
 
   // Fetch all practice plans
-  const { data: plansData, isLoading: plansLoading } = useQuery({
+  const { data: plansData, isLoading: plansLoading, isError: plansError } = useQuery({
     queryKey: ['plans', 'all'],
     queryFn: async () => {
       return await plansApi.getAll(undefined, undefined, undefined, 1, 1000);
@@ -77,10 +77,10 @@ export default function StatisticsPage() {
 
     return plansData.items.filter((plan: any) => {
       // Date filtering
-      if (startDate && plan.practice_date && new Date(plan.practice_date) < new Date(startDate)) {
+      if (startDate && plan.date && new Date(plan.date) < new Date(startDate)) {
         return false;
       }
-      if (endDate && plan.practice_date && new Date(plan.practice_date) > new Date(endDate)) {
+      if (endDate && plan.date && new Date(plan.date) > new Date(endDate)) {
         return false;
       }
 
@@ -158,7 +158,14 @@ export default function StatisticsPage() {
         </div>
 
         {/* Tab Content */}
-        {drillsLoading || plansLoading ? (
+        {drillsError || plansError ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center text-red-600 dark:text-red-400">
+              <p className="text-lg font-semibold mb-2">Failed to load statistics data</p>
+              <p className="text-sm">Please try refreshing the page.</p>
+            </div>
+          </div>
+        ) : drillsLoading || plansLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>

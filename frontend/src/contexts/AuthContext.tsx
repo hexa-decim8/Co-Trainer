@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import axios from 'axios';
 import api from '../api';
 
@@ -26,8 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Handle session-expired events fired by the API interceptor
+  const handleSessionExpired = useCallback(() => {
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+  }, [handleSessionExpired]);
+
   // Check if user is logged in on mount
   useEffect(() => {
+    let cancelled = false;
+
     const checkAuth = async () => {
       const token = localStorage.getItem('auth_token');
       
@@ -35,8 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Try to verify existing token
         try {
           const response = await api.get('/auth/me');
-          setUser(response.data);
-          setLoading(false);
+          if (!cancelled) {
+            setUser(response.data);
+            setLoading(false);
+          }
           return;
         } catch (error) {
           // Token might be expired, try refresh
@@ -49,17 +63,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           withCredentials: true  // Include cookies
         });
         const { access_token, user: userData } = response.data;
-        localStorage.setItem('auth_token', access_token);
-        setUser(userData);
+        if (!cancelled) {
+          localStorage.setItem('auth_token', access_token);
+          setUser(userData);
+        }
       } catch (error) {
         // No valid session
-        localStorage.removeItem('auth_token');
+        if (!cancelled) {
+          localStorage.removeItem('auth_token');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
     
     checkAuth();
+    return () => { cancelled = true; };
   }, []);
 
   const login = async (email: string, password: string) => {

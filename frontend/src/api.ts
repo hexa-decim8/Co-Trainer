@@ -37,6 +37,8 @@ api.interceptors.request.use((config) => {
 });
 
 // Handle 401 unauthorized responses with auto-refresh
+let refreshPromise: Promise<string> | null = null;
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -49,21 +51,27 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
-        // Try to refresh the token
-        const { data } = await axios.post('/api/auth/refresh', {}, {
-          withCredentials: true
-        });
+        // Use a shared promise so concurrent 401s only trigger one refresh
+        if (!refreshPromise) {
+          refreshPromise = axios.post('/api/auth/refresh', {}, {
+            withCredentials: true
+          }).then(({ data }) => {
+            localStorage.setItem('auth_token', data.access_token);
+            return data.access_token as string;
+          }).finally(() => {
+            refreshPromise = null;
+          });
+        }
         
-        // Update stored token
-        localStorage.setItem('auth_token', data.access_token);
+        const newToken = await refreshPromise;
         
         // Retry original request with new token
-        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return axios(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, redirect to login
+        // Refresh failed — clear token and notify AuthContext (no hard redirect)
         localStorage.removeItem('auth_token');
-        window.location.href = '/login';
+        window.dispatchEvent(new Event('auth:session-expired'));
         return Promise.reject(refreshError);
       }
     }
@@ -127,7 +135,8 @@ export const drillsApi = {
     signal?: AbortSignal
   ): Promise<void> => {
     const token = localStorage.getItem('auth_token');
-    const url = `/api/drills/stream?force_sync=${forceSync}`;
+    const baseUrl = api.defaults.baseURL || '/api';
+    const url = `${baseUrl}/drills/stream?force_sync=${forceSync}`;
     
     const response = await fetch(url, {
       headers: {
@@ -150,7 +159,15 @@ export const drillsApi = {
 
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        let done: boolean;
+        let value: Uint8Array | undefined;
+        try {
+          ({ done, value } = await reader.read());
+        } catch (readError) {
+          if (signal?.aborted) return;
+          onError('Stream read failed');
+          return;
+        }
         
         if (done) break;
 

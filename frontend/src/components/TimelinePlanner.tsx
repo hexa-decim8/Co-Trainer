@@ -159,9 +159,9 @@ function TimelineDrillItem({
                 }}
               >
                 {drill.drill.contact_level && (Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level.length > 0 : true) && (
-                  <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level[0] : drill.drill.contact_level)}`}>
+                  <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md ${getContactBadgeColor(Array.isArray(drill.drill.contact_level) && drill.drill.contact_level.length > 0 ? drill.drill.contact_level[0] : (typeof drill.drill.contact_level === 'string' ? drill.drill.contact_level : 'Unknown'))}`}>
                     <Shield className="w-3 h-3 mr-1" />
-                    {Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level[0] || 'Unknown' : drill.drill.contact_level}
+                    {Array.isArray(drill.drill.contact_level) ? drill.drill.contact_level[0] || 'Unknown' : (drill.drill.contact_level || 'Unknown')}
                   </span>
                 )}
                 {drill.drill.drill_type && (

@@ -126,7 +126,7 @@ export default function DrillCard({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDrillTypeClick?.(drill.drill_type!);
+                      onDrillTypeClick?.(drill.drill_type as string);
                     }}
                     className={`inline-flex items-center text-xs font-medium rounded-md shadow-sm transition-all hover:scale-105 cursor-pointer px-2 py-0.5 ${getDrillTypeBadgeColor(drill.drill_type)} ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                   >
@@ -142,7 +142,7 @@ export default function DrillCard({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onEquipmentClick?.(drill.equipment!);
+                      onEquipmentClick?.(drill.equipment as string);
                     }}
                     className={`inline-flex items-center text-xs font-medium rounded-md shadow-sm transition-all hover:scale-105 cursor-pointer px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 ${isActive ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
                   >
