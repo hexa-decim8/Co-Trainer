@@ -279,3 +279,73 @@ class PlanRenameRequest(BaseModel):
         if len(v) > 200:
             raise ValueError('Plan name must be 200 characters or less')
         return v
+
+
+# Drill Management Models
+class DrillCreate(BaseModel):
+    """Model for creating a new drill."""
+    exercise: str
+    avg_time: Optional[int] = None
+    contact_level: List[str] = []
+    depends_on: List[str] = []
+    description: Optional[str] = None
+    difficulty: Optional[int] = None
+    drill_type: Optional[str] = None
+    equipment: Optional[str] = None
+    game_type: Optional[str] = None
+    players: Optional[str] = None
+    position_focus: List[str] = []
+    skater_level: List[str] = []
+    skaters_needed: Optional[int] = None
+    type: List[str] = []
+    video_link: Optional[str] = None
+
+    @validator('exercise')
+    def validate_exercise(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Exercise name is required')
+        return v.strip()
+
+    @validator('difficulty')
+    def validate_difficulty(cls, v):
+        if v is not None and (v < 1 or v > 5):
+            raise ValueError('Difficulty must be between 1 and 5')
+        return v
+
+    @validator('contact_level', 'depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    def ensure_list(cls, v):
+        if isinstance(v, str):
+            return [v] if v else []
+        return v if v is not None else []
+
+
+class DrillUpdate(BaseModel):
+    """Model for updating an existing drill. All fields optional."""
+    exercise: Optional[str] = None
+    avg_time: Optional[int] = None
+    contact_level: Optional[List[str]] = None
+    depends_on: Optional[List[str]] = None
+    description: Optional[str] = None
+    difficulty: Optional[int] = None
+    drill_type: Optional[str] = None
+    equipment: Optional[str] = None
+    game_type: Optional[str] = None
+    players: Optional[str] = None
+    position_focus: Optional[List[str]] = None
+    skater_level: Optional[List[str]] = None
+    skaters_needed: Optional[int] = None
+    type: Optional[List[str]] = None
+    video_link: Optional[str] = None
+
+    @validator('exercise')
+    def validate_exercise(cls, v):
+        if v is not None and (not v or not v.strip()):
+            raise ValueError('Exercise name cannot be empty')
+        return v.strip() if v else v
+
+    @validator('difficulty')
+    def validate_difficulty(cls, v):
+        if v is not None and (v < 1 or v > 5):
+            raise ValueError('Difficulty must be between 1 and 5')
+        return v
+        return v

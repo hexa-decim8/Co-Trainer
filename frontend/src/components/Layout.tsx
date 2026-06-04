@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Library, Settings, Menu, X, User, LogOut, Shield, BarChart3 } from 'lucide-react';
+import { Calendar, Library, Settings, Menu, X, User, LogOut, Shield, BarChart3, ClipboardList } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -54,6 +54,17 @@ export default function Layout() {
               >
                 <Library className="w-5 h-5" />
                 Plan Library
+              </Link>
+              <Link
+                to="/drills"
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
+                  isActive('/drills')
+                    ? 'bg-primary-600 text-white shadow-derby'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <ClipboardList className="w-5 h-5" />
+                Drill Manager
               </Link>
               <Link
                 to="/statistics"
@@ -158,6 +169,18 @@ export default function Layout() {
               >
                 <Library className="w-5 h-5" />
                 Plan Library
+              </Link>
+              <Link
+                to="/drills"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${
+                  isActive('/drills')
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <ClipboardList className="w-5 h-5" />
+                Drill Manager
               </Link>
               <Link
                 to="/statistics"

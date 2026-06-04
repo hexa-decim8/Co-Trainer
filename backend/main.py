@@ -22,7 +22,7 @@ from models import (
     UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange,
     UserRoleUpdate, AdminPasswordReset, UserListResponse,
     PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
-    PlanRenameRequest
+    PlanRenameRequest, DrillCreate, DrillUpdate
 )
 from notion_service import notion_service
 from database import PracticePlanDB, PlanClone
@@ -843,6 +843,101 @@ async def get_filter_options(
         skater_levels=sorted(skater_levels),
         types=sorted(types)
     )
+
+
+# ============================================================================
+# Drill Management Endpoints (CRUD)
+# ============================================================================
+
+@app.post("/api/drills", response_model=Drill, status_code=status.HTTP_201_CREATED)
+async def create_drill(
+    drill_data: DrillCreate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Create a new drill in Notion and local cache."""
+    logger.info(f"API: Creating drill '{drill_data.exercise}' by user {current_user.email}")
+    try:
+        drill = await notion_service.create_drill(drill_data, db=db)
+        return drill
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating drill: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create drill: {str(e)}")
+
+
+@app.get("/api/drills/{drill_id}", response_model=Drill)
+async def get_drill_by_id(
+    drill_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Get a single drill by ID."""
+    # Try cache first
+    drills = await notion_service.get_all_drills(db=db)
+    for drill in drills:
+        if drill.id == drill_id:
+            return drill
+    
+    # Fallback to direct Notion fetch
+    drill = await notion_service.get_drill_by_id(drill_id)
+    if not drill:
+        raise HTTPException(status_code=404, detail="Drill not found")
+    return drill
+
+
+@app.put("/api/drills/{drill_id}", response_model=Drill)
+async def update_drill(
+    drill_id: str,
+    drill_data: DrillUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Update an existing drill in Notion and local cache."""
+    logger.info(f"API: Updating drill {drill_id[:8]}... by user {current_user.email}")
+    try:
+        drill = await notion_service.update_drill(drill_id, drill_data, db=db)
+        return drill
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating drill: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update drill: {str(e)}")
+
+
+@app.delete("/api/drills/{drill_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_drill(
+    drill_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Archive a drill in Notion and remove from local cache."""
+    logger.info(f"API: Archiving drill {drill_id[:8]}... by user {current_user.email}")
+    try:
+        await notion_service.archive_drill(drill_id, db=db)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error archiving drill: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to archive drill: {str(e)}")
+
+
+@app.get("/api/tags")
+async def get_available_tags(
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Get all available tags for each relation field from Notion."""
+    try:
+        tags = await notion_service.get_available_tags()
+        return tags
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching tags: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch tags: {str(e)}")
 
 
 @app.post("/api/plans", response_model=PracticePlanSummary)

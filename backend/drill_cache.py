@@ -171,6 +171,50 @@ class DrillCacheManager:
             db.rollback()
             logger.error(f"Error getting last sync time: {e}")
             return None
+    
+    def save_single(self, drill: Drill, db: Session) -> None:
+        """Upsert a single drill into the cache."""
+        try:
+            existing = db.query(DrillCache).filter(DrillCache.id == drill.id).first()
+            if existing:
+                existing.data = drill.model_dump()
+                existing.last_synced = datetime.utcnow()
+            else:
+                cached_drill = DrillCache(
+                    id=drill.id,
+                    data=drill.model_dump(),
+                    last_synced=datetime.utcnow()
+                )
+                db.add(cached_drill)
+            
+            # Update drill count in metadata
+            sync_meta = db.query(SyncMetadata).first()
+            if sync_meta:
+                sync_meta.drill_count = db.query(DrillCache).count()
+            
+            db.commit()
+            logger.info(f"Saved drill {drill.id[:8]}... to cache")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error saving single drill to cache: {e}")
+            raise
+    
+    def delete_single(self, drill_id: str, db: Session) -> None:
+        """Remove a single drill from the cache."""
+        try:
+            db.query(DrillCache).filter(DrillCache.id == drill_id).delete()
+            
+            # Update drill count in metadata
+            sync_meta = db.query(SyncMetadata).first()
+            if sync_meta:
+                sync_meta.drill_count = db.query(DrillCache).count()
+            
+            db.commit()
+            logger.info(f"Deleted drill {drill_id[:8]}... from cache")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error deleting drill from cache: {e}")
+            raise
 
 
 drill_cache_manager = DrillCacheManager()

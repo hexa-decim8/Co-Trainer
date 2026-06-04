@@ -12,6 +12,7 @@ import StatisticsPage from './pages/StatisticsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminPage from './pages/AdminPage';
+import DrillManagerPage from './pages/DrillManagerPage';
 import Layout from './components/Layout';
 import { createQueryClient } from './config/queryConfig';
 
@@ -52,6 +53,11 @@ function App() {
                   <Route path="library" element={
                     <ErrorBoundary>
                       <LibraryPage />
+                    </ErrorBoundary>
+                  } />
+                  <Route path="drills" element={
+                    <ErrorBoundary>
+                      <DrillManagerPage />
                     </ErrorBoundary>
                   } />
                   <Route path="statistics" element={

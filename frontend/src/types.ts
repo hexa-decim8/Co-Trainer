@@ -133,3 +133,35 @@ export interface PracticePlanWithDrills {
   created_at: string;
   updated_at: string;
 }
+
+// Drill Management Types
+export interface DrillCreate {
+  exercise: string;
+  avg_time?: number | null;
+  contact_level?: string[];
+  depends_on?: string[];
+  description?: string | null;
+  difficulty?: number | null;
+  drill_type?: string | null;
+  equipment?: string | null;
+  game_type?: string | null;
+  players?: string | null;
+  position_focus?: string[];
+  skater_level?: string[];
+  skaters_needed?: number | null;
+  type?: string[];
+  video_link?: string | null;
+}
+
+export type DrillUpdate = Partial<DrillCreate>;
+
+export interface AvailableTags {
+  contact_level?: string[];
+  position_focus?: string[];
+  skater_level?: string[];
+  type?: string[];
+  drill_type?: string[];
+  players?: string[];
+  equipment?: string[];
+  game_type?: string[];
+}

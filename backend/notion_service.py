@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Any, AsyncGenerator
 from sqlalchemy.orm import Session
 from notion_client import Client
 from config import settings
-from models import Drill
+from models import Drill, DrillCreate, DrillUpdate
 from drill_cache import drill_cache_manager
 import logging
 import json
@@ -739,10 +739,404 @@ class NotionService:
         
         return drills_dict
     
+    # ========================================================================
+    # Notion Write Operations
+    # ========================================================================
+    
+    def _get_database_schema(self) -> Dict[str, Any]:
+        """Retrieve and cache the Notion database schema, including relation database IDs."""
+        if hasattr(self, '_db_schema') and self._db_schema:
+            return self._db_schema
+        
+        if not self.client or not self.database_id:
+            raise RuntimeError("Notion API not configured")
+        
+        try:
+            db_info = self.client.databases.retrieve(database_id=self.database_id)
+            self._db_schema = db_info.get("properties", {})
+            logger.info(f"✓ Retrieved database schema with {len(self._db_schema)} properties")
+            return self._db_schema
+        except Exception as e:
+            logger.error(f"Error retrieving database schema: {e}")
+            raise
+    
+    def _get_relation_database_id(self, property_name: str) -> Optional[str]:
+        """Get the related database ID for a relation property."""
+        schema = self._get_database_schema()
+        # Case-insensitive lookup
+        for prop_name, prop_def in schema.items():
+            if prop_name.lower() == property_name.lower():
+                if prop_def.get("type") == "relation":
+                    return prop_def.get("relation", {}).get("database_id")
+        return None
+    
+    def _resolve_tag_to_page_id(self, database_id: str, tag_name: str) -> Optional[str]:
+        """Find a tag page ID by name in a related database."""
+        # Check reverse cache first
+        for page_id, title in self._relation_cache.items():
+            if title == tag_name:
+                return page_id
+        
+        if not self.client:
+            return None
+        
+        try:
+            time.sleep(0.35)
+            # Search by title property
+            response = self.client.databases.query(
+                database_id=database_id,
+                filter={
+                    "or": [
+                        {"property": "Tag Name", "title": {"equals": tag_name}},
+                        {"property": "Name", "title": {"equals": tag_name}},
+                        {"property": "Title", "title": {"equals": tag_name}},
+                    ]
+                }
+            )
+            results = response.get("results", [])
+            if results:
+                page_id = results[0]["id"]
+                self._relation_cache[page_id] = tag_name
+                return page_id
+        except Exception as e:
+            logger.debug(f"Title filter query failed for '{tag_name}', trying scan: {e}")
+        
+        # Fallback: scan pages for matching title
+        try:
+            response = self.client.databases.query(database_id=database_id)
+            for page in response.get("results", []):
+                props = page.get("properties", {})
+                for prop_name in ["Tag Name", "Name", "Title", "Tag"]:
+                    if prop_name in props:
+                        title_data = props[prop_name].get("title", [])
+                        if title_data and title_data[0].get("plain_text") == tag_name:
+                            page_id = page["id"]
+                            self._relation_cache[page_id] = tag_name
+                            return page_id
+        except Exception as e:
+            logger.error(f"Error scanning for tag '{tag_name}': {e}")
+        
+        return None
+    
+    def _create_tag_in_database(self, database_id: str, tag_name: str) -> str:
+        """Create a new tag page in a related database and return its page ID."""
+        if not self.client:
+            raise RuntimeError("Notion API not configured")
+        
+        time.sleep(0.35)
+        
+        # Determine the title property name from the database schema
+        try:
+            db_info = self.client.databases.retrieve(database_id=database_id)
+            db_props = db_info.get("properties", {})
+            title_prop_name = "Name"  # default
+            for prop_name, prop_def in db_props.items():
+                if prop_def.get("type") == "title":
+                    title_prop_name = prop_name
+                    break
+            
+            new_page = self.client.pages.create(
+                parent={"database_id": database_id},
+                properties={
+                    title_prop_name: {
+                        "title": [{"text": {"content": tag_name}}]
+                    }
+                }
+            )
+            page_id = new_page["id"]
+            self._relation_cache[page_id] = tag_name
+            logger.info(f"✓ Created new tag '{tag_name}' in database {database_id[:8]}... -> {page_id[:8]}...")
+            return page_id
+        except Exception as e:
+            logger.error(f"Error creating tag '{tag_name}': {e}")
+            raise
+    
+    def _resolve_tags_to_relation(self, field_name: str, tag_names: List[str], notion_prop_name: str) -> List[Dict[str, str]]:
+        """Resolve tag names to Notion relation page IDs, creating new tags as needed."""
+        relation_db_id = self._get_relation_database_id(notion_prop_name)
+        if not relation_db_id:
+            logger.warning(f"No relation database found for property '{notion_prop_name}'")
+            return []
+        
+        relations = []
+        for tag_name in tag_names:
+            page_id = self._resolve_tag_to_page_id(relation_db_id, tag_name)
+            if not page_id:
+                # Create new tag
+                try:
+                    page_id = self._create_tag_in_database(relation_db_id, tag_name)
+                except Exception as e:
+                    logger.error(f"Failed to create tag '{tag_name}': {e}")
+                    continue
+            relations.append({"id": page_id})
+        return relations
+    
+    def _build_notion_properties(self, drill_data: dict) -> Dict[str, Any]:
+        """Convert drill fields to Notion property format."""
+        properties = {}
+        
+        # Map drill fields to Notion property names and types
+        field_map = {
+            "exercise": ("Exercise", "title"),
+            "avg_time": ("Avg Time", "number"),
+            "description": ("Description", "rich_text"),
+            "difficulty": ("Difficulty 1-5", "number"),
+            "equipment": ("Equipment", "select"),
+            "game_type": ("Game Type", "select"),
+            "skaters_needed": ("Skaters Needed", "number"),
+            "video_link": ("Video Link", "url"),
+            "depends_on": ("Depends on", "multi_select"),
+        }
+        
+        # Relation fields (need tag resolution)
+        relation_fields = {
+            "contact_level": "Contact Level",
+            "position_focus": "Position",
+            "skater_level": "Skater Level",
+            "type": "Type",
+        }
+        
+        # Single-relation fields
+        single_relation_fields = {
+            "drill_type": "Drill Type",
+            "players": "Players",
+        }
+        
+        # Verify property names against actual schema
+        schema = self._get_database_schema()
+        schema_lower = {k.lower(): k for k in schema.keys()}
+        
+        def resolve_prop_name(name: str) -> str:
+            """Find the actual property name from the schema."""
+            if name in schema:
+                return name
+            lower = name.lower()
+            if lower in schema_lower:
+                return schema_lower[lower]
+            return name
+        
+        for field, (notion_name, prop_type) in field_map.items():
+            if field not in drill_data or drill_data[field] is None:
+                continue
+            
+            value = drill_data[field]
+            actual_name = resolve_prop_name(notion_name)
+            
+            if prop_type == "title":
+                properties[actual_name] = {
+                    "title": [{"text": {"content": str(value)}}]
+                }
+            elif prop_type == "number":
+                properties[actual_name] = {"number": value}
+            elif prop_type == "rich_text":
+                properties[actual_name] = {
+                    "rich_text": [{"text": {"content": str(value)}}]
+                }
+            elif prop_type == "select":
+                properties[actual_name] = {"select": {"name": str(value)}}
+            elif prop_type == "multi_select":
+                if isinstance(value, list):
+                    properties[actual_name] = {
+                        "multi_select": [{"name": v} for v in value]
+                    }
+            elif prop_type == "url":
+                properties[actual_name] = {"url": value if value else None}
+        
+        # Handle multi-relation fields
+        for field, notion_name in relation_fields.items():
+            if field not in drill_data or drill_data[field] is None:
+                continue
+            value = drill_data[field]
+            if isinstance(value, list) and value:
+                actual_name = resolve_prop_name(notion_name)
+                relations = self._resolve_tags_to_relation(field, value, actual_name)
+                if relations:
+                    properties[actual_name] = {"relation": relations}
+        
+        # Handle single-relation fields
+        for field, notion_name in single_relation_fields.items():
+            if field not in drill_data or drill_data[field] is None:
+                continue
+            value = drill_data[field]
+            if value:
+                actual_name = resolve_prop_name(notion_name)
+                relations = self._resolve_tags_to_relation(field, [value], actual_name)
+                if relations:
+                    properties[actual_name] = {"relation": relations}
+        
+        return properties
+    
+    async def create_drill(self, drill_data: DrillCreate, db: Session = None) -> Drill:
+        """Create a new drill in Notion and local cache."""
+        if not self.client or not self.database_id:
+            raise RuntimeError("Notion API not configured")
+        
+        data_dict = drill_data.model_dump(exclude_none=True)
+        properties = self._build_notion_properties(data_dict)
+        
+        try:
+            new_page = self.client.pages.create(
+                parent={"database_id": self.database_id},
+                properties=properties
+            )
+            
+            # Parse the created page back into a Drill
+            drill = self._parse_drill(new_page)
+            
+            # Update local caches
+            if self._cache is not None:
+                self._cache.append(drill)
+            
+            if db:
+                drill_cache_manager.save_single(drill, db)
+            
+            logger.info(f"✓ Created drill '{drill.exercise}' with ID {drill.id[:8]}...")
+            return drill
+        except Exception as e:
+            logger.error(f"Error creating drill: {e}")
+            raise
+    
+    async def update_drill(self, drill_id: str, drill_data: DrillUpdate, db: Session = None) -> Drill:
+        """Update an existing drill in Notion and local cache."""
+        if not self.client:
+            raise RuntimeError("Notion API not configured")
+        
+        data_dict = drill_data.model_dump(exclude_none=True)
+        if not data_dict:
+            raise ValueError("No fields to update")
+        
+        properties = self._build_notion_properties(data_dict)
+        
+        try:
+            updated_page = self.client.pages.update(
+                page_id=drill_id,
+                properties=properties
+            )
+            
+            # Parse the updated page back into a Drill
+            drill = self._parse_drill(updated_page)
+            
+            # Update local caches
+            if self._cache is not None:
+                self._cache = [d if d.id != drill_id else drill for d in self._cache]
+            
+            if db:
+                drill_cache_manager.save_single(drill, db)
+            
+            logger.info(f"✓ Updated drill '{drill.exercise}' ({drill_id[:8]}...)")
+            return drill
+        except Exception as e:
+            logger.error(f"Error updating drill {drill_id}: {e}")
+            raise
+    
+    async def archive_drill(self, drill_id: str, db: Session = None) -> None:
+        """Archive a drill in Notion and remove from local cache."""
+        if not self.client:
+            raise RuntimeError("Notion API not configured")
+        
+        try:
+            self.client.pages.update(
+                page_id=drill_id,
+                archived=True
+            )
+            
+            # Remove from local caches
+            if self._cache is not None:
+                self._cache = [d for d in self._cache if d.id != drill_id]
+            
+            if db:
+                drill_cache_manager.delete_single(drill_id, db)
+            
+            logger.info(f"✓ Archived drill {drill_id[:8]}...")
+        except Exception as e:
+            logger.error(f"Error archiving drill {drill_id}: {e}")
+            raise
+    
+    async def get_available_tags(self) -> Dict[str, List[str]]:
+        """Get all available tags for each relation field."""
+        if not self.client or not self.database_id:
+            return {}
+        
+        result = {}
+        
+        relation_fields = {
+            "contact_level": "Contact Level",
+            "position_focus": "Position",
+            "skater_level": "Skater Level",
+            "type": "Type",
+            "drill_type": "Drill Type",
+            "players": "Players",
+        }
+        
+        for field_name, notion_prop_name in relation_fields.items():
+            db_id = self._get_relation_database_id(notion_prop_name)
+            if not db_id:
+                continue
+            
+            try:
+                time.sleep(0.35)
+                tags = []
+                has_more = True
+                start_cursor = None
+                
+                while has_more:
+                    response = self.client.databases.query(
+                        database_id=db_id,
+                        start_cursor=start_cursor
+                    )
+                    
+                    for page in response.get("results", []):
+                        if page.get("archived"):
+                            continue
+                        props = page.get("properties", {})
+                        for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                            if title_prop in props:
+                                title_data = props[title_prop].get("title", [])
+                                if title_data and title_data[0].get("plain_text"):
+                                    tag_name = title_data[0]["plain_text"]
+                                    tags.append(tag_name)
+                                    # Also cache for later resolution
+                                    self._relation_cache[page["id"]] = tag_name
+                                break
+                        else:
+                            # Fallback: find any title property
+                            for prop_name, prop_value in props.items():
+                                if prop_value.get("type") == "title":
+                                    title_data = prop_value.get("title", [])
+                                    if title_data and title_data[0].get("plain_text"):
+                                        tag_name = title_data[0]["plain_text"]
+                                        tags.append(tag_name)
+                                        self._relation_cache[page["id"]] = tag_name
+                                    break
+                    
+                    has_more = response.get("has_more", False)
+                    start_cursor = response.get("next_cursor")
+                    if has_more:
+                        time.sleep(0.35)
+                
+                result[field_name] = sorted(tags)
+                logger.info(f"✓ Loaded {len(tags)} tags for '{field_name}'")
+            except Exception as e:
+                logger.error(f"Error loading tags for '{field_name}': {e}")
+                result[field_name] = []
+        
+        # Also get select field options from the database schema
+        schema = self._get_database_schema()
+        select_fields = {"equipment": "Equipment", "game_type": "Game Type"}
+        for field_name, notion_prop_name in select_fields.items():
+            for prop_name, prop_def in schema.items():
+                if prop_name.lower() == notion_prop_name.lower() and prop_def.get("type") == "select":
+                    options = prop_def.get("select", {}).get("options", [])
+                    result[field_name] = sorted([opt["name"] for opt in options if opt.get("name")])
+                    break
+        
+        return result
+    
     def clear_cache(self):
         """Clear the cached drills."""
         self._cache = None
         self._relation_cache = {}
+        self._db_schema = None
 
 
 # Global instance

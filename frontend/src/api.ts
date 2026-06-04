@@ -6,7 +6,10 @@ import type {
   PracticePlan, 
   PracticePlanSummary, 
   PracticePlanWithDrills,
-  PaginatedPlansResponse
+  PaginatedPlansResponse,
+  DrillCreate,
+  DrillUpdate,
+  AvailableTags
 } from './types';
 
 export interface DrillCacheInfo {
@@ -214,6 +217,30 @@ export const drillsApi = {
 
   incrementalSync: async (): Promise<{ success: boolean; count: number; sync_type: string }> => {
     const response = await api.post('/drills/sync?full_rebuild=false');
+    return response.data;
+  },
+
+  create: async (drill: DrillCreate): Promise<Drill> => {
+    const response = await api.post<Drill>('/drills', drill);
+    return response.data;
+  },
+
+  update: async (id: string, drill: DrillUpdate): Promise<Drill> => {
+    const response = await api.put<Drill>(`/drills/${id}`, drill);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/drills/${id}`);
+  },
+
+  getById: async (id: string): Promise<Drill> => {
+    const response = await api.get<Drill>(`/drills/${id}`);
+    return response.data;
+  },
+
+  getAvailableTags: async (): Promise<AvailableTags> => {
+    const response = await api.get<AvailableTags>('/tags');
     return response.data;
   },
 };
