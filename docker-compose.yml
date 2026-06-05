@@ -11,7 +11,6 @@ services:
       - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
       - SECRET_KEY=${SECRET_KEY:-}
     volumes:
-      - cotrainer_data:/app/data
       - cotrainer_config:/app/config
       - cotrainer_pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -57,7 +56,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  cotrainer_data:
   cotrainer_config:
   cotrainer_pgdata:
   letsencrypt:

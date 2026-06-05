@@ -15,7 +15,7 @@ Open `http://localhost:3000` in your browser, navigate to Settings, and configur
 
 When running with Docker Compose, Co-Trainer persists critical runtime data in named volumes:
 
-- `cotrainer_data` -> `/app/data` (SQLite database, including user accounts)
+- `cotrainer_pgdata` -> `/var/lib/postgresql/data` (PostgreSQL database — all user accounts and practice plans)
 - `cotrainer_config` -> `/app/config` (encrypted credentials + JWT secret key)
 
 This means user accounts and login-related secrets survive container restarts and image updates.
@@ -150,29 +150,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 
 
 
-### Development Docker Compose
 
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    environment:
-      - NOTION_API_KEY=${NOTION_API_KEY}
-      - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
-    volumes:
-      - ./data:/app/data
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-```
 
 ## License
 

@@ -33,7 +33,7 @@ from notion_service import notion_service
 from drill_cache import drill_cache_manager
 from auth import (
     get_password_hash, authenticate_user, create_access_token,
-    get_current_user, verify_password, require_admin, require_coach_or_admin
+    get_current_user, verify_password, require_admin
 )
 
 # Configure logging to display in terminal

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, inspect, text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, text
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from datetime import datetime
 from config import INTERNAL_DB_URL
@@ -128,54 +128,6 @@ def init_db():
     """Initialize database tables."""
     _ensure_auth_schema()
     Base.metadata.create_all(bind=engine)
-    _ensure_user_columns()
-    _ensure_practice_plan_columns()
-
-
-def _ensure_user_columns() -> None:
-    """Add new user approval columns for existing deployments without Alembic."""
-    inspector = inspect(engine)
-    if "users" not in inspector.get_table_names(schema="auth"):
-        return
-
-    existing_columns = {col["name"] for col in inspector.get_columns("users", schema="auth")}
-    added_is_approved = False
-
-    if "is_approved" not in existing_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE auth.users ADD COLUMN is_approved BOOLEAN"))
-        added_is_approved = True
-
-    with engine.begin() as connection:
-        if added_is_approved:
-            # Rollout rule: pre-existing accounts remain active.
-            connection.execute(text("UPDATE auth.users SET is_approved = TRUE"))
-        else:
-            connection.execute(text("UPDATE auth.users SET is_approved = TRUE WHERE is_approved IS NULL"))
-
-
-def _ensure_practice_plan_columns() -> None:
-    """Add new planner sync columns for existing deployments without Alembic."""
-    inspector = inspect(engine)
-    if "practice_plans" not in inspector.get_table_names():
-        return
-
-    existing_columns = {col["name"] for col in inspector.get_columns("practice_plans")}
-    pending_columns = []
-
-    if "notion_page_id" not in existing_columns:
-        pending_columns.append(("notion_page_id", "VARCHAR"))
-    if "notion_last_edited_time" not in existing_columns:
-        pending_columns.append(("notion_last_edited_time", "TIMESTAMP"))
-
-    if not pending_columns:
-        return
-
-    with engine.begin() as connection:
-        for column_name, column_type in pending_columns:
-            connection.execute(text(f"ALTER TABLE practice_plans ADD COLUMN {column_name} {column_type}"))
-
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_practice_plans_notion_page_id ON practice_plans (notion_page_id)"))
 
 
 def get_db():

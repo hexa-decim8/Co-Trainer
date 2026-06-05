@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     curl \
     gosu \
-    postgresql \
+    postgresql-15 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python dependencies and install
