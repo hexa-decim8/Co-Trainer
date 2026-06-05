@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save, Plus, Clock, Shield, FileText, Copy, Download } from 'lucide-react';
@@ -28,6 +29,13 @@ interface SaveError {
 }
 
 export default function PlannerPage() {
+  const [searchParams] = useSearchParams();
+  const editPlanIdParam = searchParams.get('planId');
+  const editPlanId = editPlanIdParam && !Number.isNaN(Number(editPlanIdParam))
+    ? Number(editPlanIdParam)
+    : null;
+  const isEditMode = editPlanId !== null;
+
   // Configure sensors with activation constraints to prevent accidental drags
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -91,6 +99,15 @@ export default function PlannerPage() {
   const [exportText, setExportText] = useState('');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [loadedPlanId, setLoadedPlanId] = useState<number | null>(null);
+
+  const { data: editingPlan } = useQuery({
+    queryKey: ['planner-edit-plan', editPlanId],
+    queryFn: () => plansApi.getById(editPlanId as number),
+    enabled: isEditMode,
+    staleTime: QUERY_STALE_TIMES.PLANS_LIST,
+    gcTime: QUERY_GC_TIMES.PLANS_LIST,
+  });
 
   // Stream drills from backend
   const { 
@@ -546,13 +563,25 @@ export default function PlannerPage() {
         sections_v2: sectionsForSave,  // New section structure - PRESERVES DATA!
       };
 
-      await plansApi.create(planData);
+      if (isEditMode && editPlanId) {
+        await plansApi.update(editPlanId, planData);
+      } else {
+        await plansApi.create(planData);
+      }
 
-      setSaveSuccess(isTemplate ? 'Template saved!' : 'Practice plan saved!');
+      setSaveSuccess(
+        isEditMode
+          ? 'Practice plan updated!'
+          : isTemplate
+            ? 'Template saved!'
+            : 'Practice plan saved!'
+      );
       setTimeout(() => setSaveSuccess(null), 3000);
       setShowSaveDialog(false);
-      setPlanName('');
-      setPlanDate('');
+      if (!isEditMode) {
+        setPlanName('');
+        setPlanDate('');
+      }
     } catch (error: any) {
       console.error('Save plan error:', error);
       let errorMessage = 'Failed to save plan. Please try again.';
@@ -648,6 +677,72 @@ export default function PlannerPage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  useEffect(() => {
+    if (!editingPlan || !editPlanId || loadedPlanId === editPlanId) {
+      return;
+    }
+
+    const drillLookup = new Map<string, Drill>();
+    editingPlan.timeline.forEach((item) => {
+      if (item.drill) {
+        drillLookup.set(item.drill_id, item.drill);
+      }
+    });
+
+    const fallbackMainSection: PracticeSection = {
+      id: `section-${Date.now()}`,
+      name: 'Main Practice',
+      duration: editingPlan.total_duration,
+      drills: editingPlan.timeline
+        .filter((item) => item.drill)
+        .map((item, index) => ({
+          id: `drill-${Date.now()}-${index}`,
+          drill: item.drill as Drill,
+          duration: item.duration_minutes,
+          startTime: item.start_time_minutes,
+        })),
+      isMainPractice: true,
+      color: MAIN_PRACTICE_COLOR,
+    };
+
+    const sectionsFromPlan = (editingPlan.sections_v2 || []).map((section, sectionIndex) => {
+      let sectionTime = 0;
+      const sectionDrills = ((section as any).drills || []).map((drillRef: any, drillIndex: number) => {
+        const drill = drillLookup.get(drillRef.drill_id);
+        if (!drill) {
+          return null;
+        }
+
+        const duration = Number(drillRef.duration ?? drillRef.duration_minutes ?? 0) || 15;
+        const startTime = Number(drillRef.start_time ?? sectionTime) || sectionTime;
+        sectionTime = startTime + duration;
+
+        return {
+          id: String(drillRef.id || `drill-${Date.now()}-${sectionIndex}-${drillIndex}`),
+          drill,
+          duration,
+          startTime,
+        };
+      }).filter(Boolean) as TimelineDrill[];
+
+      const rawMainPractice = (section as any).isMainPractice ?? (section as any).is_main_practice;
+      return {
+        id: String((section as any).id || `section-${Date.now()}-${sectionIndex}`),
+        name: (section as any).name || `Section ${sectionIndex + 1}`,
+        duration: Number((section as any).duration ?? sectionDrills.reduce((sum, d) => sum + d.duration, 0)) || DEFAULT_SECTION_DURATION,
+        drills: sectionDrills,
+        isMainPractice: Boolean(rawMainPractice),
+        color: (section as any).color || SECTION_COLORS[sectionIndex % SECTION_COLORS.length],
+      } as PracticeSection;
+    }).filter((section) => section.drills.length > 0);
+
+    setSections(sectionsFromPlan.length > 0 ? sectionsFromPlan : [fallbackMainSection]);
+    setPlanName(editingPlan.name);
+    setPracticeType(editingPlan.practice_type);
+    setPlanDate(editingPlan.date ? editingPlan.date.split('T')[0] : '');
+    setLoadedPlanId(editPlanId);
+  }, [editingPlan, editPlanId, loadedPlanId]);
 
   return (
     <DndContext 
@@ -812,7 +907,7 @@ export default function PlannerPage() {
                   className="w-full btn-primary flex items-center justify-center gap-2"
                 >
                   <Save className="w-5 h-5" />
-                  Save Practice Plan
+                  {isEditMode ? 'Update Practice Plan' : 'Save Practice Plan'}
                 </button>
                 <button
                   onClick={handleOpenExportDialog}
@@ -864,7 +959,7 @@ export default function PlannerPage() {
                     onClick={() => handleSavePlan(false)}
                     className="btn-primary"
                   >
-                    Save Plan
+                    {isEditMode ? 'Update Plan' : 'Save Plan'}
                   </button>
                   <button
                     onClick={() => handleSavePlan(true)}

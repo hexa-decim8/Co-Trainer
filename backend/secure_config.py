@@ -76,7 +76,13 @@ class SecureConfigManager:
         key = self.key_file.read_bytes()
         return Fernet(key)
     
-    def save_credentials(self, notion_api_key: str, notion_database_id: str, jwt_secret_key: Optional[str] = None):
+    def save_credentials(
+        self,
+        notion_api_key: str,
+        notion_database_id: str,
+        jwt_secret_key: Optional[str] = None,
+        notion_practice_plan_database_id: Optional[str] = None
+    ):
         """Encrypt and save credentials."""
         # Load existing credentials to preserve jwt_secret_key if not provided
         existing = self.load_credentials()
@@ -84,7 +90,10 @@ class SecureConfigManager:
         data = {
             "notion_api_key": notion_api_key,
             "notion_database_id": notion_database_id,
-            "jwt_secret_key": jwt_secret_key or existing.get("jwt_secret_key")
+            "jwt_secret_key": jwt_secret_key or existing.get("jwt_secret_key"),
+            "notion_practice_plan_database_id": notion_practice_plan_database_id
+                if notion_practice_plan_database_id is not None
+                else existing.get("notion_practice_plan_database_id")
         }
         
         try:
@@ -106,7 +115,12 @@ class SecureConfigManager:
     def load_credentials(self) -> Dict[str, Optional[str]]:
         """Decrypt and load credentials."""
         if not self.config_file.exists():
-            return {"notion_api_key": None, "notion_database_id": None, "jwt_secret_key": None}
+            return {
+                "notion_api_key": None,
+                "notion_database_id": None,
+                "jwt_secret_key": None,
+                "notion_practice_plan_database_id": None,
+            }
         
         try:
             cipher = self._get_cipher()
@@ -114,6 +128,8 @@ class SecureConfigManager:
             decrypted_data = cipher.decrypt(encrypted_data)
             credentials = json.loads(decrypted_data.decode())
             logger.info("Credentials loaded successfully")
+            if "notion_practice_plan_database_id" not in credentials:
+                credentials["notion_practice_plan_database_id"] = None
             return credentials
         except Exception as e:
             logger.error(
@@ -123,7 +139,13 @@ class SecureConfigManager:
                 f"Error: {e}"
             )
             # If decryption fails, return empty credentials
-            return {"notion_api_key": None, "notion_database_id": None, "jwt_secret_key": None}
+            return {
+                "notion_api_key": None,
+                "notion_database_id": None,
+                "jwt_secret_key": None,
+                "notion_practice_plan_database_id": None,
+            }
+            
     
     def clear_credentials(self):
         """Delete stored credentials."""

@@ -298,6 +298,14 @@ export default function LibraryPage() {
                         <Trash2 className="w-4 h-4" />
                       </button>
                     )}
+                    {filter !== 'public' && (
+                      <Link
+                        to={`/planner?planId=${plan.id}`}
+                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/20"
+                      >
+                        Edit
+                      </Link>
+                    )}
                   </div>
                 </div>
               );

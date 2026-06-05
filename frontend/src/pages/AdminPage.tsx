@@ -22,6 +22,7 @@ export default function AdminPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [databaseId, setDatabaseId] = useState('');
+  const [plannerDatabaseId, setPlannerDatabaseId] = useState('');
   const [notionMessage, setNotionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch all users
@@ -130,7 +131,7 @@ export default function AdminPage() {
 
   // Save Notion settings mutation
   const saveNotionMutation = useMutation({
-    mutationFn: async (config: { notion_api_key: string; notion_database_id: string }) => {
+    mutationFn: async (config: { notion_api_key: string; notion_database_id: string; notion_practice_plan_database_id: string }) => {
       const response = await api.post('/settings', config);
       return response.data;
     },
@@ -140,6 +141,7 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['drills'] });
       setApiKey('');
       setDatabaseId('');
+      setPlannerDatabaseId('');
       setTimeout(() => setNotionMessage(null), 5000);
     },
     onError: (error: any) => {
@@ -201,11 +203,15 @@ export default function AdminPage() {
   };
 
   const handleNotionSave = async () => {
-    if (!apiKey || !databaseId) {
-      setNotionMessage({ type: 'error', text: 'Please fill in both fields' });
+    if (!apiKey || !databaseId || !plannerDatabaseId) {
+      setNotionMessage({ type: 'error', text: 'Please fill in all Notion fields' });
       return;
     }
-    await saveNotionMutation.mutateAsync({ notion_api_key: apiKey, notion_database_id: databaseId });
+    await saveNotionMutation.mutateAsync({
+      notion_api_key: apiKey,
+      notion_database_id: databaseId,
+      notion_practice_plan_database_id: plannerDatabaseId,
+    });
   };
 
   const handleNotionTest = () => {
@@ -371,6 +377,11 @@ export default function AdminPage() {
               Database ID: <code className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded">{settings.notion_database_id}</code>
             </p>
           )}
+          {settings?.notion_practice_plan_database_id && (
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Planner Database ID: <code className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded">{settings.notion_practice_plan_database_id}</code>
+            </p>
+          )}
         </div>
 
         {notionMessage && (
@@ -421,6 +432,22 @@ export default function AdminPage() {
             />
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Find the database ID in your Notion database URL after the workspace name
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Notion Practice Planner Database ID
+            </label>
+            <input
+              type="text"
+              value={plannerDatabaseId}
+              onChange={(e) => setPlannerDatabaseId(e.target.value)}
+              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Use a separate Notion database for practice plans with planner fields
             </p>
           </div>
 

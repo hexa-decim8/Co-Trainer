@@ -10,7 +10,6 @@ import {
   ChevronUp,
   ArrowLeft,
   Edit3,
-  Eye,
   BookOpen,
   Lightbulb,
   AlertCircle,
@@ -35,7 +34,6 @@ export default function MobileViewPage() {
   const [completedDrills, setCompletedDrills] = useState<Set<number>>(new Set());
   const [expandedDrill, setExpandedDrill] = useState<number | null>(null);
   const [selectedDrill, setSelectedDrill] = useState<number>(0);
-  const [isEditMode, setIsEditMode] = useState(false);
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['plan', id],
@@ -245,26 +243,13 @@ export default function MobileViewPage() {
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex-1">{plan.name}</h1>
             {isOwner && (
-              <button
-                onClick={() => setIsEditMode(!isEditMode)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors ${
-                  isEditMode
-                    ? 'bg-primary-600 text-white hover:bg-primary-700'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`}
+              <Link
+                to={`/planner?planId=${plan.id}`}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
               >
-                {isEditMode ? (
-                  <>
-                    <Eye className="w-4 h-4" />
-                    <span className="hidden sm:inline">View</span>
-                  </>
-                ) : (
-                  <>
-                    <Edit3 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Edit</span>
-                  </>
-                )}
-              </button>
+                <Edit3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Edit</span>
+              </Link>
             )}
           </div>
           <div className="space-y-1">

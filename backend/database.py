@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -46,6 +46,8 @@ class PracticePlanDB(Base):
     original_plan_id = Column(Integer, nullable=True, index=True)
     cloned_from_user_id = Column(Integer, nullable=True)
     clone_count = Column(Integer, default=0, nullable=False)
+    notion_page_id = Column(String, nullable=True, index=True)
+    notion_last_edited_time = Column(DateTime, nullable=True)
     
     # Relationships
     user = relationship("UserDB", back_populates="practice_plans")
@@ -124,6 +126,34 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
+    _ensure_practice_plan_columns()
+
+
+def _ensure_practice_plan_columns() -> None:
+    """Add new planner sync columns for existing deployments without Alembic."""
+    inspector = inspect(engine)
+    if "practice_plans" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("practice_plans")}
+    pending_columns = []
+
+    if "notion_page_id" not in existing_columns:
+        pending_columns.append(("notion_page_id", "VARCHAR"))
+    if "notion_last_edited_time" not in existing_columns:
+        if engine.dialect.name == "postgresql":
+            pending_columns.append(("notion_last_edited_time", "TIMESTAMP"))
+        else:
+            pending_columns.append(("notion_last_edited_time", "DATETIME"))
+
+    if not pending_columns:
+        return
+
+    with engine.begin() as connection:
+        for column_name, column_type in pending_columns:
+            connection.execute(text(f"ALTER TABLE practice_plans ADD COLUMN {column_name} {column_type}"))
+
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_practice_plans_notion_page_id ON practice_plans (notion_page_id)"))
 
 
 def get_db():

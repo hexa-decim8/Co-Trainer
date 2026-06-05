@@ -165,8 +165,10 @@ async def get_settings():
     """Get current settings (without exposing full API key)."""
     return {
         "notion_configured": bool(settings.notion_api_key and settings.notion_database_id),
+        "notion_planner_configured": bool(settings.notion_api_key and settings.notion_practice_plan_database_id),
         "notion_api_key_preview": settings.notion_api_key[:10] + "..." if settings.notion_api_key else None,
-        "notion_database_id": settings.notion_database_id
+        "notion_database_id": settings.notion_database_id,
+        "notion_practice_plan_database_id": settings.notion_practice_plan_database_id,
     }
 
 
@@ -180,13 +182,17 @@ async def update_settings(config: Dict[str, str], current_user: UserDB = Depends
     
     if "notion_database_id" in config:
         settings.notion_database_id = config["notion_database_id"]
+
+    if "notion_practice_plan_database_id" in config:
+        settings.notion_practice_plan_database_id = config["notion_practice_plan_database_id"]
     
     # Save credentials securely for persistence
     try:
         secure_config.save_credentials(
-            settings.notion_api_key or "",
-            settings.notion_database_id or "",
-            settings.secret_key  # Preserve JWT secret key
+            notion_api_key=settings.notion_api_key or "",
+            notion_database_id=settings.notion_database_id or "",
+            jwt_secret_key=settings.secret_key,  # Preserve JWT secret key
+            notion_practice_plan_database_id=settings.notion_practice_plan_database_id or "",
         )
     except Exception as e:
         logger.error(f"Failed to save credentials: {e}")
@@ -196,6 +202,7 @@ async def update_settings(config: Dict[str, str], current_user: UserDB = Depends
     if settings.notion_api_key:
         notion_service.client = Client(auth=settings.notion_api_key)
     notion_service.database_id = settings.notion_database_id
+    notion_service.practice_plan_database_id = settings.notion_practice_plan_database_id
     notion_service.clear_cache()
     
     return {"success": True, "message": "Settings updated successfully"}
@@ -213,15 +220,26 @@ async def test_notion_connection():
     try:
         # Try to fetch just one page to test connection
         test_client = Client(auth=settings.notion_api_key)
-        response = test_client.databases.query(
+        drill_response = test_client.databases.query(
             database_id=settings.notion_database_id,
             page_size=1
         )
+
+        planner_configured = bool(settings.notion_practice_plan_database_id)
+        planner_ok = False
+        if planner_configured:
+            test_client.databases.query(
+                database_id=settings.notion_practice_plan_database_id,
+                page_size=1
+            )
+            planner_ok = True
         
         return {
             "success": True,
             "message": "Successfully connected to Notion",
-            "drill_count": len(response.get("results", []))  # type: ignore
+            "drill_count": len(drill_response.get("results", [])),  # type: ignore
+            "planner_database_configured": planner_configured,
+            "planner_database_ok": planner_ok,
         }
     except Exception as e:
         logger.error(f"Notion connection test failed: {e}")
@@ -967,28 +985,42 @@ async def create_plan(
                 f"(template={plan.is_template}, public={plan.is_public}, "
                 f"drills={len(plan.timeline)}, "
                 f"sections_v2={len(plan.sections_v2) if plan.sections_v2 else 0})")
-    
+    timeline_json = json.dumps([item.dict() for item in plan.timeline])
+    sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
+
+    try:
+        notion_result = await notion_service.create_practice_plan_page(
+            {
+                "name": plan.name,
+                "date": plan.date,
+                "practice_type": plan.practice_type.value,
+                "is_template": plan.is_template,
+                "is_public": plan.is_public,
+                "notes": plan.notes,
+                "timeline_json": timeline_json,
+                "sections_v2_json": sections_v2_json,
+                "clone_count": 0,
+            },
+            user_id=current_user.id,
+            cotrainer_plan_id=None,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
     db_plan = PracticePlanDB(
         user_id=current_user.id,
         name=plan.name,
         date=plan.date,
         practice_type=plan.practice_type.value,
         is_template=plan.is_template,
+        is_public=plan.is_public,
         notes=plan.notes,
-        timeline_json=json.dumps([item.dict() for item in plan.timeline]),
-        sections_v2_json=json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
+        timeline_json=timeline_json,
+        sections_v2_json=sections_v2_json,
+        clone_count=0,
+        notion_page_id=notion_result.get("notion_page_id"),
+        notion_last_edited_time=notion_result.get("notion_last_edited_time"),
     )
-    
-    # Set new fields if they exist in the database
-    if hasattr(db_plan, 'is_public'):
-        db_plan.is_public = plan.is_public  # type: ignore
-    else:
-        logger.warning(f"Database schema missing 'is_public' column - plan will not be publicly accessible")
-    
-    if hasattr(db_plan, 'clone_count'):
-        db_plan.clone_count = 0  # type: ignore
-    else:
-        logger.warning(f"Database schema missing 'clone_count' column - clone tracking unavailable")
     
     db.add(db_plan)
     db.commit()
@@ -1206,6 +1238,29 @@ async def update_plan(
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    timeline_json = json.dumps([item.dict() for item in plan.timeline])
+    sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
+
+    try:
+        notion_result = await notion_service.update_practice_plan_page(
+            db_plan.notion_page_id,
+            {
+                "name": plan.name,
+                "date": plan.date,
+                "practice_type": plan.practice_type.value,
+                "is_template": plan.is_template,
+                "is_public": plan.is_public,
+                "notes": plan.notes,
+                "timeline_json": timeline_json,
+                "sections_v2_json": sections_v2_json,
+                "clone_count": db_plan.clone_count,
+            },
+            user_id=current_user.id,
+            cotrainer_plan_id=db_plan.id,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     
     db_plan.name = plan.name
     db_plan.date = plan.date
@@ -1213,8 +1268,10 @@ async def update_plan(
     db_plan.is_template = plan.is_template
     db_plan.is_public = plan.is_public
     db_plan.notes = plan.notes
-    db_plan.timeline_json = json.dumps([item.dict() for item in plan.timeline])
-    db_plan.sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
+    db_plan.timeline_json = timeline_json
+    db_plan.sections_v2_json = sections_v2_json
+    db_plan.notion_page_id = notion_result.get("notion_page_id")
+    db_plan.notion_last_edited_time = notion_result.get("notion_last_edited_time")
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
@@ -1253,8 +1310,18 @@ async def rename_plan(
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    try:
+        notion_result = await notion_service.update_practice_plan_page_metadata(
+            db_plan.notion_page_id,
+            {"name": data.new_name},
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     
     db_plan.name = data.new_name
+    if notion_result.get("notion_last_edited_time"):
+        db_plan.notion_last_edited_time = notion_result["notion_last_edited_time"]
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
@@ -1277,8 +1344,18 @@ async def update_plan_visibility(
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    try:
+        notion_result = await notion_service.update_practice_plan_page_metadata(
+            db_plan.notion_page_id,
+            {"is_public": visibility.is_public},
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     
     db_plan.is_public = visibility.is_public
+    if notion_result.get("notion_last_edited_time"):
+        db_plan.notion_last_edited_time = notion_result["notion_last_edited_time"]
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()
@@ -1346,6 +1423,29 @@ async def clone_plan(
     
     db.add(cloned_plan)
     db.flush()  # Get the ID before committing
+
+    try:
+        notion_result = await notion_service.create_practice_plan_page(
+            {
+                "name": cloned_plan.name,
+                "date": cloned_plan.date,
+                "practice_type": cloned_plan.practice_type,
+                "is_template": cloned_plan.is_template,
+                "is_public": cloned_plan.is_public,
+                "notes": cloned_plan.notes,
+                "timeline_json": cloned_plan.timeline_json,
+                "sections_v2_json": cloned_plan.sections_v2_json,
+                "clone_count": cloned_plan.clone_count,
+            },
+            user_id=current_user.id,
+            cotrainer_plan_id=cloned_plan.id,
+        )
+    except RuntimeError as e:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(e))
+
+    cloned_plan.notion_page_id = notion_result.get("notion_page_id")
+    cloned_plan.notion_last_edited_time = notion_result.get("notion_last_edited_time")
     
     # Increment clone count on source plan
     source_plan.clone_count += 1
@@ -1394,6 +1494,11 @@ async def delete_plan(
     
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    try:
+        await notion_service.archive_practice_plan_page(db_plan.notion_page_id)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     
     db.delete(db_plan)
     db.commit()

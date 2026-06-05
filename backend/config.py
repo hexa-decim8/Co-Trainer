@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     
     notion_api_key: Optional[str] = None
     notion_database_id: Optional[str] = None
+    notion_practice_plan_database_id: Optional[str] = None
     database_url: str = "sqlite:///./cotrainer.db"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
@@ -61,7 +62,8 @@ try:
         secure_config.save_credentials(
             notion_api_key=saved_creds.get("notion_api_key") or "",
             notion_database_id=saved_creds.get("notion_database_id") or "",
-            jwt_secret_key=settings.secret_key
+            jwt_secret_key=settings.secret_key,
+            notion_practice_plan_database_id=saved_creds.get("notion_practice_plan_database_id") or "",
         )
     
     # Load Notion credentials
@@ -69,6 +71,8 @@ try:
         settings.notion_api_key = saved_creds["notion_api_key"]
     if saved_creds.get("notion_database_id"):
         settings.notion_database_id = saved_creds["notion_database_id"]
+    if saved_creds.get("notion_practice_plan_database_id"):
+        settings.notion_practice_plan_database_id = saved_creds["notion_practice_plan_database_id"]
 except Exception:
     # If secure_config not available yet, prefer env key and only generate as
     # a last resort.

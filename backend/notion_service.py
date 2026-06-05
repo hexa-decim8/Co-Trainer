@@ -8,6 +8,7 @@ from video_link_validator import validate_video_link
 import logging
 import json
 import time
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class NotionService:
         if settings.notion_api_key:
             self.client = Client(auth=settings.notion_api_key)
         self.database_id = settings.notion_database_id
+        self.practice_plan_database_id = settings.notion_practice_plan_database_id
         self._cache: Optional[List[Drill]] = None
         self._relation_cache: Dict[str, str] = {}  # page_id -> title mapping
     
@@ -818,6 +820,195 @@ class NotionService:
                         return db_id
         logger.debug(f"Relation database not found for property '{property_name}'")
         return None
+
+    def _get_practice_plan_database_schema(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Retrieve and cache planner Notion database schema."""
+        if not force_refresh and hasattr(self, '_plan_db_schema') and self._plan_db_schema:
+            return self._plan_db_schema
+
+        if not self.client or not self.practice_plan_database_id:
+            raise RuntimeError("Practice planner Notion database is not configured")
+
+        db_info = self.client.databases.retrieve(database_id=self.practice_plan_database_id)
+        self._plan_db_schema = db_info.get("properties", {})
+        logger.info(f"✓ Retrieved planner database schema with {len(self._plan_db_schema)} properties")
+        return self._plan_db_schema
+
+    def _parse_notion_timestamp(self, timestamp: Optional[str]) -> Optional[datetime]:
+        if not timestamp:
+            return None
+        try:
+            return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Could not parse Notion timestamp '{timestamp}'")
+            return None
+
+    def _find_schema_property(self, schema: Dict[str, Any], candidates: List[str]) -> Optional[tuple[str, str]]:
+        """Resolve a schema property by candidate names using case-insensitive lookup."""
+        schema_lower = {name.lower(): name for name in schema.keys()}
+        for candidate in candidates:
+            if candidate in schema:
+                prop_def = schema[candidate]
+                return candidate, prop_def.get("type", "")
+            lowered = candidate.lower()
+            if lowered in schema_lower:
+                actual_name = schema_lower[lowered]
+                prop_def = schema[actual_name]
+                return actual_name, prop_def.get("type", "")
+        return None
+
+    def _to_notion_rich_text(self, value: Optional[str]) -> List[Dict[str, Any]]:
+        """Split text into Notion rich_text chunks to satisfy text length limits."""
+        if not value:
+            return []
+        text = str(value)
+        chunk_size = 1800
+        return [
+            {"text": {"content": text[i:i + chunk_size]}}
+            for i in range(0, len(text), chunk_size)
+        ]
+
+    def _build_practice_plan_notion_properties(self, plan_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert planner fields to Notion payload using live planner schema."""
+        schema = self._get_practice_plan_database_schema()
+        properties: Dict[str, Any] = {}
+
+        field_candidates = {
+            "name": ["Name", "Plan Name", "Title"],
+            "date": ["Date", "Practice Date"],
+            "practice_type": ["Practice Type", "Type"],
+            "is_template": ["Is Template", "Template"],
+            "is_public": ["Is Public", "Public"],
+            "notes": ["Notes", "Description"],
+            "timeline_json": ["Timeline JSON", "Timeline"],
+            "sections_v2_json": ["Sections JSON", "Sections V2", "Sections"],
+            "owner_user_id": ["Owner User ID", "User ID"],
+            "cotrainer_plan_id": ["CoTrainer Plan ID", "Plan ID"],
+            "clone_count": ["Clone Count"],
+        }
+
+        for field, value in plan_data.items():
+            resolved = self._find_schema_property(schema, field_candidates.get(field, []))
+            if not resolved:
+                logger.debug(f"Planner: skipping field '{field}' because no matching Notion property exists")
+                continue
+
+            prop_name, prop_type = resolved
+
+            if prop_type == "title":
+                if value in (None, ""):
+                    continue
+                properties[prop_name] = {"title": [{"text": {"content": str(value)}}]}
+            elif prop_type == "rich_text":
+                properties[prop_name] = {"rich_text": self._to_notion_rich_text(str(value) if value is not None else None)}
+            elif prop_type == "number":
+                properties[prop_name] = {"number": value if value is not None else None}
+            elif prop_type == "select":
+                if value in (None, ""):
+                    properties[prop_name] = {"select": None}
+                else:
+                    properties[prop_name] = {"select": {"name": str(value)}}
+            elif prop_type == "checkbox":
+                properties[prop_name] = {"checkbox": bool(value)}
+            elif prop_type == "date":
+                if value is None:
+                    properties[prop_name] = {"date": None}
+                elif isinstance(value, datetime):
+                    properties[prop_name] = {"date": {"start": value.isoformat()}}
+                else:
+                    properties[prop_name] = {"date": {"start": str(value)}}
+            elif prop_type == "url":
+                properties[prop_name] = {"url": str(value) if value else None}
+            else:
+                logger.debug(
+                    f"Planner: unsupported Notion property type '{prop_type}' for field '{field}' ({prop_name})"
+                )
+
+        return properties
+
+    async def create_practice_plan_page(
+        self,
+        plan_data: Dict[str, Any],
+        user_id: int,
+        cotrainer_plan_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Create a planner page in Notion and return page metadata."""
+        if not self.client or not self.practice_plan_database_id:
+            raise RuntimeError("Practice planner Notion API not configured")
+
+        payload = dict(plan_data)
+        payload["owner_user_id"] = user_id
+        payload["cotrainer_plan_id"] = cotrainer_plan_id
+        properties = self._build_practice_plan_notion_properties(payload)
+
+        page = self.client.pages.create(
+            parent={"database_id": self.practice_plan_database_id},
+            properties=properties,
+        )
+        return {
+            "notion_page_id": page.get("id"),
+            "notion_last_edited_time": self._parse_notion_timestamp(page.get("last_edited_time")),
+        }
+
+    async def update_practice_plan_page(
+        self,
+        notion_page_id: Optional[str],
+        plan_data: Dict[str, Any],
+        user_id: int,
+        cotrainer_plan_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Update a planner page in Notion, creating one if missing for legacy DB-only plans."""
+        if not notion_page_id:
+            return await self.create_practice_plan_page(plan_data, user_id, cotrainer_plan_id)
+
+        if not self.client:
+            raise RuntimeError("Practice planner Notion API not configured")
+
+        payload = dict(plan_data)
+        payload["owner_user_id"] = user_id
+        payload["cotrainer_plan_id"] = cotrainer_plan_id
+        properties = self._build_practice_plan_notion_properties(payload)
+
+        page = self.client.pages.update(
+            page_id=notion_page_id,
+            properties=properties,
+        )
+        return {
+            "notion_page_id": page.get("id"),
+            "notion_last_edited_time": self._parse_notion_timestamp(page.get("last_edited_time")),
+        }
+
+    async def update_practice_plan_page_metadata(
+        self,
+        notion_page_id: Optional[str],
+        metadata: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Patch planner metadata fields in Notion for lightweight plan updates."""
+        if not notion_page_id:
+            return {}
+        if not self.client:
+            raise RuntimeError("Practice planner Notion API not configured")
+
+        properties = self._build_practice_plan_notion_properties(metadata)
+        if not properties:
+            return {}
+
+        page = self.client.pages.update(
+            page_id=notion_page_id,
+            properties=properties,
+        )
+        return {
+            "notion_last_edited_time": self._parse_notion_timestamp(page.get("last_edited_time")),
+        }
+
+    async def archive_practice_plan_page(self, notion_page_id: Optional[str]) -> None:
+        """Archive planner page in Notion if linked."""
+        if not notion_page_id:
+            return
+        if not self.client:
+            raise RuntimeError("Practice planner Notion API not configured")
+
+        self.client.pages.update(page_id=notion_page_id, archived=True)
     
     def _resolve_tag_to_page_id(self, database_id: str, tag_name: str) -> Optional[str]:
         """Find a tag page ID by name in a related database."""
@@ -1243,6 +1434,7 @@ class NotionService:
         self._cache = None
         self._relation_cache = {}
         self._db_schema = None
+        self._plan_db_schema = None
 
 
 # Global instance
