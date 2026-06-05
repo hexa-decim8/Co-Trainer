@@ -16,6 +16,7 @@ class UserDB(Base):
     hashed_password = Column(String, nullable=False)
     derby_name = Column(String, nullable=True)
     role = Column(String, nullable=False, default="user", index=True)  # user, coach, admin
+    is_approved = Column(Boolean, nullable=False, default=False, index=True)
     refresh_token = Column(String, nullable=True)  # Store active refresh token
     dark_mode = Column(Boolean, nullable=False, default=False)  # Dark mode preference
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -126,7 +127,30 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
+    _ensure_user_columns()
     _ensure_practice_plan_columns()
+
+
+def _ensure_user_columns() -> None:
+    """Add new user approval columns for existing deployments without Alembic."""
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    added_is_approved = False
+
+    if "is_approved" not in existing_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE users ADD COLUMN is_approved BOOLEAN"))
+        added_is_approved = True
+
+    with engine.begin() as connection:
+        if added_is_approved:
+            # Rollout rule: pre-existing accounts remain active.
+            connection.execute(text("UPDATE users SET is_approved = TRUE"))
+        else:
+            connection.execute(text("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL"))
 
 
 def _ensure_practice_plan_columns() -> None:

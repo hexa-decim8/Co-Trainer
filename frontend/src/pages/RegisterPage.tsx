@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
 
     // Validation
     if (!email || !email.trim()) {
@@ -47,7 +49,14 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(email, password);
+      const result = await register(email, password);
+      if (result.pendingApproval) {
+        setSuccessMessage(result.message || 'Account created. Your account is pending administrator approval.');
+        setPassword('');
+        setConfirmPassword('');
+        return;
+      }
+
       navigate('/planner');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed. Please try again.');
@@ -78,6 +87,12 @@ export default function RegisterPage() {
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
               {error}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+              {successMessage}
             </div>
           )}
 

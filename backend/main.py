@@ -19,7 +19,7 @@ from database import get_db, init_db, UserDB
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
-    UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange,
+    UserCreate, UserLogin, UserResponse, Token, RegisterResponse, RegistrationPendingResponse, UserUpdate, PasswordChange,
     UserRoleUpdate, AdminPasswordReset, UserListResponse,
     PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
     PlanRenameRequest, DrillCreate, DrillUpdate,
@@ -253,7 +253,7 @@ async def test_notion_connection():
 # Authentication Endpoints
 # ============================================================================
 
-@app.post("/api/auth/register", response_model=Token)
+@app.post("/api/auth/register", response_model=RegisterResponse)
 async def register(user_data: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Register a new user."""
     # Check if user already exists
@@ -267,18 +267,26 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
     # Check if this is the first user (should be admin)
     user_count = db.query(UserDB).count()
     role = "admin" if user_count == 0 else "user"
+    is_approved = user_count == 0
     
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     db_user = UserDB(
         email=user_data.email,
         hashed_password=hashed_password,
-        role=role
+        role=role,
+        is_approved=is_approved,
     )
     
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    if not db_user.is_approved:
+        return RegistrationPendingResponse(
+            pending_approval=True,
+            message="Account created and pending administrator approval. You can sign in after approval."
+        )
     
     # Create tokens
     access_token = create_access_token(data={"sub": db_user.email})
@@ -300,13 +308,13 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
     
     return Token(
         access_token=access_token,
-        refresh_token=refresh_token,
         token_type="bearer",
         user=UserResponse(
             id=db_user.id,  # type: ignore
             email=db_user.email,  # type: ignore
             derby_name=db_user.derby_name,  # type: ignore
             role=db_user.role,  # type: ignore
+            is_approved=db_user.is_approved,  # type: ignore
             dark_mode=db_user.dark_mode,  # type: ignore
             created_at=db_user.created_at  # type: ignore
         )
@@ -322,6 +330,12 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_approved:  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending administrator approval"
         )
     
     # Create tokens
@@ -344,13 +358,13 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
     
     return Token(
         access_token=access_token,
-        refresh_token=refresh_token,
         token_type="bearer",
         user=UserResponse(
             id=user.id,  # type: ignore
             email=user.email,  # type: ignore
             derby_name=user.derby_name,  # type: ignore
             role=user.role,  # type: ignore
+            is_approved=user.is_approved,  # type: ignore
             dark_mode=user.dark_mode,  # type: ignore
             created_at=user.created_at  # type: ignore
         )
@@ -376,6 +390,12 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
         )
+
+    if not user.is_approved:  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending administrator approval"
+        )
     
     # Create new tokens
     new_access_token = create_access_token(data={"sub": user.email})
@@ -397,13 +417,13 @@ async def refresh_token(
     
     return Token(
         access_token=new_access_token,
-        refresh_token=new_refresh_token,
         token_type="bearer",
         user=UserResponse(
             id=user.id,  # type: ignore
             email=user.email,  # type: ignore
             derby_name=user.derby_name,  # type: ignore
             role=user.role,  # type: ignore
+            is_approved=user.is_approved,  # type: ignore
             dark_mode=user.dark_mode,  # type: ignore
             created_at=user.created_at  # type: ignore
         )
@@ -434,6 +454,7 @@ async def get_current_user_info(current_user: UserDB = Depends(get_current_user)
         email=current_user.email,  # type: ignore
         derby_name=current_user.derby_name,  # type: ignore
         role=current_user.role,  # type: ignore
+        is_approved=current_user.is_approved,  # type: ignore
         dark_mode=current_user.dark_mode,  # type: ignore
         created_at=current_user.created_at  # type: ignore
     )
@@ -460,6 +481,7 @@ async def update_profile(
         email=current_user.email,  # type: ignore
         derby_name=current_user.derby_name,  # type: ignore
         role=current_user.role,  # type: ignore
+        is_approved=current_user.is_approved,  # type: ignore
         dark_mode=current_user.dark_mode,  # type: ignore
         created_at=current_user.created_at  # type: ignore
     )
@@ -503,10 +525,31 @@ async def list_users(
             email=user.email,  # type: ignore
             derby_name=user.derby_name,  # type: ignore
             role=user.role,  # type: ignore
+            is_approved=user.is_approved,  # type: ignore
             created_at=user.created_at  # type: ignore
         )
         for user in users
     ]
+
+
+@app.put("/api/admin/users/{user_id}/approve")
+async def approve_user(
+    user_id: int,
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Approve a pending user account (admin only)."""
+    target_user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    target_user.is_approved = True  # type: ignore
+    db.commit()
+
+    return {"success": True, "message": "User approved successfully"}
 
 
 @app.put("/api/admin/users/{user_id}/role")

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Plus, Clock, Shield, FileText, Copy, Download } from 'lucide-react';
+import { Save, Plus, Clock, Shield, FileText, Copy, Download, ChevronLeft, ChevronRight, ListFilter } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -89,6 +89,7 @@ export default function PlannerPage() {
     handleFilterToggle('type', type), [handleFilterToggle]);
 
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
+  const [drillPanelOpen, setDrillPanelOpen] = useState(true);
   const [planName, setPlanName] = useState('');
   const [planDate, setPlanDate] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -753,106 +754,134 @@ export default function PlannerPage() {
       collisionDetection={closestCenter}
     >
       <div className="h-[calc(100vh-5rem)] flex gap-1 dark:bg-gray-900">
-        {/* Left: Filters */}
-        <div className="w-80 flex-shrink-0">
-          {filterOptions && (
-            <FilterSidebar
-              filterOptions={filterOptions}
-              activeFilters={activeFilters}
-              onFilterChange={setActiveFilters}
-              resultCount={drills.length}
-              drills={allDrills}
-            />
-          )}
-        </div>
+        {/* Left: Collapsible Drill Panel (Filters stacked above Drill Library) */}
+        <div className={`flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden ${drillPanelOpen ? 'w-80' : 'w-10'}`}>
+          {drillPanelOpen ? (
+            <>
+              {/* Filter Sidebar — capped at 40% height so the drill list always has room */}
+              <div className="flex-shrink-0 overflow-hidden" style={{ maxHeight: '40%' }}>
+                {filterOptions && (
+                  <FilterSidebar
+                    filterOptions={filterOptions}
+                    activeFilters={activeFilters}
+                    onFilterChange={setActiveFilters}
+                    resultCount={drills.length}
+                    drills={allDrills}
+                  />
+                )}
+              </div>
 
-        {/* Middle: Drill Browser */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6">
-            <h2 className="text-2xl font-display font-bold tracking-wide">DRILL LIBRARY</h2>
-            <p className="text-gray-300 text-sm mt-1">Drag drills to your timeline →</p>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-            {isLoading || isStreaming ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  {progress > 0 ? (
-                    <>
-                      <CircularProgress 
-                        progress={progress} 
-                        total={total}
-                        size={120}
-                        strokeWidth={8}
-                      />
-                      <div className="text-gray-600 dark:text-gray-400 font-semibold mt-4">
-                        {shouldSync 
-                          ? 'Syncing from Notion (this may take a minute)...'
-                          : total && total > 0
-                            ? `Loading ${total} drills${cacheAgeMinutes ? ` (synced ${Math.round(cacheAgeMinutes)} min ago)` : ''}...`
-                            : 'Loading drills...'}
+              {/* Drill Library */}
+              <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+                  <div>
+                    <h2 className="text-base font-display font-bold tracking-wide">DRILL LIBRARY</h2>
+                    <p className="text-gray-300 text-xs mt-0.5">Drag drills to your timeline</p>
+                  </div>
+                  <button
+                    onClick={() => setDrillPanelOpen(false)}
+                    className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                    title="Collapse panel"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
+                  {isLoading || isStreaming ? (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center">
+                        {progress > 0 ? (
+                          <>
+                            <CircularProgress 
+                              progress={progress} 
+                              total={total}
+                              size={120}
+                              strokeWidth={8}
+                            />
+                            <div className="text-gray-600 dark:text-gray-400 font-semibold mt-4">
+                              {shouldSync 
+                                ? 'Syncing from Notion (this may take a minute)...'
+                                : total && total > 0
+                                  ? `Loading ${total} drills${cacheAgeMinutes ? ` (synced ${Math.round(cacheAgeMinutes)} min ago)` : ''}...`
+                                  : 'Loading drills...'}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                            <div className="text-gray-600 dark:text-gray-400 font-semibold">
+                              {total && total > 0 
+                                ? `Preparing to load ${total} drills...`
+                                : 'Connecting to drill database...'}
+                            </div>
+                          </>
+                        )}
+                        {streamError && (
+                          <div className="mt-4">
+                            <p className="text-red-600 dark:text-red-400 text-sm mb-2">{streamError}</p>
+                            <button
+                              onClick={refetchDrills}
+                              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+                            >
+                              Retry Loading
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </>
+                    </div>
+                  ) : drills.length === 0 && allDrills.length === 0 ? (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center max-w-md">
+                        <div className="text-6xl mb-4">🔍</div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                        <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
+                      </div>
+                    </div>
+                  ) : drills.length === 0 ? (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center max-w-md">
+                        <div className="text-6xl mb-4">🔍</div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                        <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see more drills</p>
+                      </div>
+                    </div>
                   ) : (
-                    <>
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                      <div className="text-gray-600 dark:text-gray-400 font-semibold">
-                        {total && total > 0 
-                          ? `Preparing to load ${total} drills...`
-                          : 'Connecting to drill database...'}
-                      </div>
-                    </>
-                  )}
-                  {streamError && (
-                    <div className="mt-4">
-                      <p className="text-red-600 dark:text-red-400 text-sm mb-2">{streamError}</p>
-                      <button
-                        onClick={refetchDrills}
-                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
-                      >
-                        Retry Loading
-                      </button>
+                    <div className="grid grid-cols-1 gap-4">
+                      {drills.map((drill) => (
+                        <DrillCard
+                          key={drill.id}
+                          drill={drill}
+                          activeFilters={activeFilters}
+                          onContactLevelClick={handleContactLevelClick}
+                          onDrillTypeClick={handleDrillTypeClick}
+                          onEquipmentClick={handleEquipmentClick}
+                          onPositionFocusClick={handlePositionFocusClick}
+                          onSkaterLevelClick={handleSkaterLevelClick}
+                          onTypeClick={handleTypeClick}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
-            ) : drills.length === 0 && allDrills.length === 0 ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center max-w-md">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
-                </div>
-              </div>
-            ) : drills.length === 0 ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center max-w-md">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see more drills</p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {drills.map((drill) => (
-                  <DrillCard
-                    key={drill.id}
-                    drill={drill}
-                    activeFilters={activeFilters}
-                    onContactLevelClick={handleContactLevelClick}
-                    onDrillTypeClick={handleDrillTypeClick}
-                    onEquipmentClick={handleEquipmentClick}
-                    onPositionFocusClick={handlePositionFocusClick}
-                    onSkaterLevelClick={handleSkaterLevelClick}
-                    onTypeClick={handleTypeClick}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+            </>
+          ) : (
+            /* Icon strip shown when panel is collapsed */
+            <div className="w-10 h-full flex flex-col items-center pt-3 gap-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+              <button
+                onClick={() => setDrillPanelOpen(true)}
+                className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title="Open drill library"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+              <ListFilter className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            </div>
+          )}
         </div>
 
-        {/* Right: Timeline */}
-        <div className="w-[28rem] flex-shrink-0 flex flex-col gap-1">
+        {/* Right: Timeline — dominant, takes all remaining space */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
           {/* Practice Type Selector and Add Section Button */}
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
             <div className="flex items-center justify-between mb-3">

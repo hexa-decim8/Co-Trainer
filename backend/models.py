@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import BaseModel, HttpUrl, validator, Field
 from datetime import datetime
 from enum import Enum
@@ -210,6 +210,7 @@ class UserResponse(BaseModel):
     email: str
     derby_name: Optional[str] = None
     role: str = "user"
+    is_approved: bool = False
     dark_mode: bool = False
     created_at: datetime
 
@@ -217,9 +218,17 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     """JWT token response."""
     access_token: str
-    refresh_token: str
     token_type: str
     user: UserResponse
+
+
+class RegistrationPendingResponse(BaseModel):
+    """Response for newly created accounts awaiting admin approval."""
+    pending_approval: bool = True
+    message: str
+
+
+RegisterResponse = Union[Token, RegistrationPendingResponse]
 
 
 class UserUpdate(BaseModel):
@@ -250,6 +259,7 @@ class UserListResponse(BaseModel):
     email: str
     derby_name: Optional[str] = None
     role: str
+    is_approved: bool = False
     dark_mode: bool = False
     created_at: datetime
 

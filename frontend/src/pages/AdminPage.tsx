@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi } from 'lucide-react';
+import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi, UserCheck } from 'lucide-react';
 import api from '../api';
 
 interface User {
@@ -8,6 +8,7 @@ interface User {
   email: string;
   derby_name: string | null;
   role: string;
+  is_approved: boolean;
   created_at: string;
 }
 
@@ -102,6 +103,17 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       setShowDeleteModal(false);
       setSelectedUser(null);
+    },
+  });
+
+  // Approve user mutation
+  const approveUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await api.put(`/admin/users/${userId}/approve`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
     },
   });
 
@@ -200,6 +212,10 @@ export default function AdminPage() {
     if (selectedUser) {
       deleteUserMutation.mutate(selectedUser.id);
     }
+  };
+
+  const handleApproveUser = (userId: number) => {
+    approveUserMutation.mutate(userId);
   };
 
   const handleNotionSave = async () => {
@@ -504,6 +520,9 @@ export default function AdminPage() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Approval
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Joined
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -534,10 +553,28 @@ export default function AdminPage() {
                       {user.role}
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.is_approved
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700'
+                      : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700'
+                    }`}>
+                      {user.is_approved ? 'Approved' : 'Pending'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                     {new Date(user.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    {!user.is_approved && (
+                      <button
+                        onClick={() => handleApproveUser(user.id)}
+                        disabled={approveUserMutation.isPending}
+                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-3 disabled:opacity-50"
+                        title="Approve user"
+                      >
+                        <UserCheck className="w-4 h-4 inline" />
+                      </button>
+                    )}
                     <button
                       onClick={() => openRoleModal(user)}
                       className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"

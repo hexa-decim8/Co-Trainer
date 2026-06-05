@@ -27,7 +27,12 @@ export default function LoginPage() {
       await login(email, password);
       navigate('/planner');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+      const detail = err.response?.data?.detail;
+      if (detail === 'Account pending administrator approval') {
+        setError('Your account is waiting for administrator approval. Please try again after an admin approves your account.');
+      } else {
+        setError(detail || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }

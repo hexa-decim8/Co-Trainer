@@ -7,15 +7,21 @@ interface User {
   email: string;
   derby_name?: string;
   role: string;
+  is_approved?: boolean;
   dark_mode?: boolean;
   created_at: string;
+}
+
+interface RegisterResult {
+  pendingApproval: boolean;
+  message?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<RegisterResult>;
   logout: () => void;
   updateProfile: (data: { derby_name?: string; dark_mode?: boolean }) => Promise<void>;
 }
@@ -109,9 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       withCredentials: true  // Include cookies
     });
 
+    if (response.data.pending_approval) {
+      localStorage.removeItem('auth_token');
+      setUser(null);
+      return {
+        pendingApproval: true,
+        message: response.data.message,
+      };
+    }
+
     const { access_token, user: userData } = response.data;
     localStorage.setItem('auth_token', access_token);
     setUser(userData);
+    return {
+      pendingApproval: false,
+    };
   };
 
   const logout = async () => {
