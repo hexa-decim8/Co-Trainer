@@ -65,7 +65,7 @@ function TimelineDrillItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: drill.id });
+  } = useSortable({ id: drill.id, data: { drill: drill.drill } });
 
   // Calculate visual height based on drill duration
   const drillHeight = Math.max(drill.duration * PIXELS_PER_MINUTE_TIMELINE, MIN_DRILL_HEIGHT_PX);

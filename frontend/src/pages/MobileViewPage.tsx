@@ -368,6 +368,7 @@ export default function MobileViewPage() {
                         videoLinkFinalUrl={item.drill.video_link_final_url}
                         videoLinkResolved={item.drill.video_link_resolved}
                         videoLinkError={item.drill.video_link_error}
+                        videoLinks={item.drill.video_links}
                       />
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
@@ -461,6 +462,7 @@ export default function MobileViewPage() {
                   videoLinkFinalUrl={plan.timeline[selectedDrill].drill?.video_link_final_url}
                   videoLinkResolved={plan.timeline[selectedDrill].drill?.video_link_resolved}
                   videoLinkError={plan.timeline[selectedDrill].drill?.video_link_error}
+                  videoLinks={plan.timeline[selectedDrill].drill?.video_links}
                 />
 
                 {/* Details grid */}

@@ -35,6 +35,7 @@ export default function ProgressionDrillPanel({ onAddSkillNode }: Props) {
       difficulty: drill.difficulty,
       contact_level: drill.contact_level,
       drill_type: drill.drill_type,
+      video_links: drill.video_links ?? [],
     };
     e.dataTransfer.setData('application/progression-node', JSON.stringify(nodeData));
     e.dataTransfer.effectAllowed = 'copy';

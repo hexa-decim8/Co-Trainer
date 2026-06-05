@@ -15,12 +15,13 @@ import {
   BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Save, Plus, ChevronDown, GitMerge, Loader2 } from 'lucide-react';
+import { Save, Plus, ChevronDown, GitMerge, Loader2, X, Video } from 'lucide-react';
 import { progressionsApi } from '../api';
-import type { ProgressionChartSummary, ProgressionChartFull, ProgressionNodeData } from '../types';
+import type { ProgressionChartSummary, ProgressionChartFull, ProgressionNodeData, VideoLinkInfo } from '../types';
 import ProgressionDrillPanel from '../components/ProgressionDrillPanel';
 import DrillNode from '../components/progression/DrillNode';
 import SkillNode from '../components/progression/SkillNode';
+import DrillVideoSection from '../components/DrillVideoSection';
 
 // Register custom node types
 const nodeTypes = {
@@ -54,7 +55,7 @@ export default function ProgressionsPage() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-
+  const [selectedDrillNode, setSelectedDrillNode] = useState<ProgressionNodeData | null>(null);
   // Load chart list on mount
   useEffect(() => {
     progressionsApi.list().then((list) => {
@@ -95,6 +96,14 @@ export default function ProgressionsPage() {
     setEdges((eds) => addEdge({ ...params, ...defaultEdgeOptions }, eds));
     setIsDirty(true);
   }, [setEdges]);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    if (node.type === 'drillNode') {
+      setSelectedDrillNode(node.data as ProgressionNodeData);
+    } else {
+      setSelectedDrillNode(null);
+    }
+  }, []);
 
   const handleDeleteNode = useCallback((id: string) => {
     setNodes((nds) => nds.filter((n) => n.id !== id));
@@ -348,6 +357,8 @@ export default function ProgressionsPage() {
               onNodesChange={handleNodesChange}
               onEdgesChange={handleEdgesChange}
               onConnect={handleConnect}
+              onNodeClick={handleNodeClick}
+              onPaneClick={() => setSelectedDrillNode(null)}
               onInit={setRfInstance}
               defaultEdgeOptions={defaultEdgeOptions}
               fitView
@@ -364,6 +375,60 @@ export default function ProgressionsPage() {
           )}
         </div>
       </div>
+
+      {/* Drill detail side panel — opens when a drill node is selected */}
+      {selectedDrillNode && (
+        <aside className="w-80 shrink-0 flex flex-col bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 overflow-y-auto">
+          {/* Header */}
+          <div className="flex items-start justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <div className="min-w-0 flex-1 pr-2">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Drill</p>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                {selectedDrillNode.label}
+              </h3>
+            </div>
+            <button
+              onClick={() => setSelectedDrillNode(null)}
+              className="shrink-0 p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Meta badges */}
+          <div className="px-4 py-3 flex flex-wrap gap-1.5 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            {selectedDrillNode.drill_type && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                {selectedDrillNode.drill_type as string}
+              </span>
+            )}
+            {selectedDrillNode.contact_level && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                {selectedDrillNode.contact_level as string}
+              </span>
+            )}
+            {selectedDrillNode.difficulty != null && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                Difficulty {selectedDrillNode.difficulty as number}
+              </span>
+            )}
+          </div>
+
+          {/* Video */}
+          <div className="flex-1 px-4 py-4">
+            {(selectedDrillNode.video_links as VideoLinkInfo[] | undefined)?.length ? (
+              <DrillVideoSection
+                videoLinks={selectedDrillNode.video_links as VideoLinkInfo[]}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-24 gap-2 text-gray-400">
+                <Video className="w-6 h-6 opacity-40" />
+                <p className="text-xs">No video for this drill</p>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
 
       {/* Click-away for dropdowns */}
       {showChartDropdown && (

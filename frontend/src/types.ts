@@ -1,5 +1,13 @@
 export type PracticeType = 'fundamentals' | 'skills_and_drills' | 'scrimmage';
 
+export interface VideoLinkInfo {
+  url: string;
+  final_url?: string | null;
+  resolved?: boolean | null;
+  error?: string | null;
+  checked_at?: string | null;
+}
+
 export interface Drill {
   id: string;
   exercise: string;
@@ -22,6 +30,7 @@ export interface Drill {
   video_link_resolved?: boolean | null;
   video_link_error?: string | null;
   video_link_checked_at?: string | null;
+  video_links?: VideoLinkInfo[];
 }
 
 export interface DrillFilters {
@@ -161,6 +170,7 @@ export interface ProgressionNodeData extends Record<string, unknown> {
   difficulty?: number | null;
   contact_level?: string | null;
   drill_type?: string | null;
+  video_links?: VideoLinkInfo[];
   // skill node fields
   level?: SkillLevel;
 }

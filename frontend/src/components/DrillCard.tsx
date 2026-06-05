@@ -356,6 +356,7 @@ export default function DrillCard({
               videoLinkFinalUrl={drill.video_link_final_url}
               videoLinkResolved={drill.video_link_resolved}
               videoLinkError={drill.video_link_error}
+              videoLinks={drill.video_links}
               stopPropagation
               compact
             />

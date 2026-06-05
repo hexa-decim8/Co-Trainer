@@ -12,6 +12,15 @@ class PracticeType(str, Enum):
     SCRIMMAGE = "scrimmage"
 
 
+class VideoLinkInfo(BaseModel):
+    """Validation result for a single resolved video URL."""
+    url: str
+    final_url: Optional[str] = None
+    resolved: Optional[bool] = None
+    error: Optional[str] = None
+    checked_at: Optional[datetime] = None
+
+
 class Drill(BaseModel):
     """Model representing a drill from Notion database."""
     id: str
@@ -35,6 +44,7 @@ class Drill(BaseModel):
     video_link_resolved: Optional[bool] = None
     video_link_error: Optional[str] = None
     video_link_checked_at: Optional[datetime] = None
+    video_links: List[VideoLinkInfo] = []
     
     @validator('contact_level', pre=True)
     def normalize_contact_level(cls, v):

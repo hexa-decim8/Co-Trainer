@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, pointerWithin, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { Save, Plus, Clock, Shield, FileText, Copy, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
@@ -31,6 +31,14 @@ interface SaveError {
   field?: string;
 }
 
+// Prefer pointer-within (cursor physically inside a droppable) over closest-center so that
+// dropping near a section boundary lands in the section the cursor is over, not the nearest
+// center. Fall back to closestCenter for cases where no droppable contains the pointer.
+const customCollisionDetection: typeof closestCenter = (args) => {
+  const pointerHits = pointerWithin(args);
+  return pointerHits.length > 0 ? pointerHits : closestCenter(args);
+};
+
 export default function PlannerPage() {
   const [searchParams] = useSearchParams();
   const editPlanIdParam = searchParams.get('planId');
@@ -38,12 +46,20 @@ export default function PlannerPage() {
     ? Number(editPlanIdParam)
     : null;
   const isEditMode = editPlanId !== null;
+  const queryClient = useQueryClient();
 
   // Configure sensors with activation constraints to prevent accidental drags
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: DRAG_ACTIVATION_DISTANCE_PX,
+      },
+    }),
+    // TouchSensor uses a delay so that a brief touch scroll doesn't accidentally start a drag
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
       },
     })
   );
@@ -161,9 +177,11 @@ export default function PlannerPage() {
   const handleDragStart = (event: DragStartEvent) => {
     // Don't set activeDrill for section drags — data.current is sortable metadata, not a Drill
     if (String(event.active.id).startsWith('section-sortable-')) return;
-    const drillData = event.active.data?.current;
-    if (drillData) {
-      setActiveDrill(drillData as Drill);
+    const data = event.active.data?.current;
+    // Library cards pass the full Drill as data; timeline items pass { drill: Drill, sortable: ... }
+    const drill = (data?.drill ?? data) as Drill | null;
+    if (drill?.exercise) {
+      setActiveDrill(drill);
     }
   };
 
@@ -222,6 +240,9 @@ export default function PlannerPage() {
       } else if (overId.endsWith('-drop')) {
         const candidateId = overId.replace('-drop', '');
         if (sections.some(s => s.id === candidateId)) overSectionId = candidateId;
+      } else {
+        // Cursor is over a drill inside a section; find that section
+        overSectionId = findSectionByDrillId(overId)?.id;
       }
 
       if (overSectionId) {
@@ -256,8 +277,10 @@ export default function PlannerPage() {
       const target = resolveDropTarget(overId);
       if (!target) return;
 
-      // No-op: dropped back onto own section (e.g. cursor over own section header while dragging)
-      if (target.sectionId === sourceSection.id) return;
+      // No-op: dropped back onto another drill within the same section (same-section reorder
+      // is already handled above). But allow a drop onto the own section's empty drop zone so
+      // the drill is moved to the end.
+      if (target.sectionId === sourceSection.id && overId !== `${sourceSection.id}-drop`) return;
 
       const draggedDrill = sourceSection.drills.find(d => d.id === activeId);
       if (!draggedDrill) return;
@@ -495,6 +518,7 @@ export default function PlannerPage() {
 
       if (isEditMode && editPlanId) {
         await plansApi.update(editPlanId, planData);
+        queryClient.invalidateQueries({ queryKey: ['planner-edit-plan', editPlanId] });
       } else {
         await plansApi.create(planData);
       }
@@ -651,7 +675,7 @@ export default function PlannerPage() {
         isMainPractice: Boolean(rawMainPractice),
         color: (section as any).color || SECTION_COLORS[sectionIndex % SECTION_COLORS.length],
       } as PracticeSection;
-    }).filter((section) => section.drills.length > 0);
+    });
 
     setSections(sectionsFromPlan.length > 0 ? sectionsFromPlan : [fallbackMainSection]);
     setPlanName(editingPlan.name);
@@ -688,7 +712,7 @@ export default function PlannerPage() {
       onDragEnd={handleDragEnd} 
       onDragStart={handleDragStart} 
       onDragCancel={handleDragCancel} 
-      collisionDetection={closestCenter}
+      collisionDetection={customCollisionDetection}
     >
       <div className="h-[calc(100vh-5rem)] flex gap-1 dark:bg-gray-900">
         {/* Left: Collapsible Drill Panel (Filters stacked above Drill Library) */}

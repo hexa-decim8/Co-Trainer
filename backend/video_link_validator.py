@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Dict, Optional, TypedDict
+from typing import Dict, List, Optional, TypedDict
 from urllib import error, parse, request
 
 from config import settings
@@ -155,3 +155,15 @@ def validate_video_link(video_link: Optional[str]) -> VideoLinkValidationResult:
         result = _make_error_result(f"Video link could not be reached: {exception}")
         _cache_set(normalized, result)
         return result
+
+
+def extract_urls(raw: Optional[str]) -> List[str]:
+    """Split a raw video-link string into individual URLs.
+
+    Handles comma-separated and newline-separated entries so that a Notion URL
+    field containing multiple links is parsed into discrete items.
+    """
+    if not raw:
+        return []
+    parts = [part.strip() for part in raw.replace('\n', ',').split(',')]
+    return [p for p in parts if p]

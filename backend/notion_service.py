@@ -2,9 +2,9 @@ from typing import List, Dict, Optional, Any, AsyncGenerator
 from sqlalchemy.orm import Session
 from notion_client import Client
 from config import settings
-from models import Drill, DrillCreate, DrillUpdate
+from models import Drill, DrillCreate, DrillUpdate, VideoLinkInfo
 from drill_cache import drill_cache_manager
-from video_link_validator import validate_video_link
+from video_link_validator import validate_video_link, extract_urls
 import logging
 import json
 import time
@@ -284,8 +284,22 @@ class NotionService:
             if field != "exercise" and not self._find_property_by_name(props, prop_names):
                 logger.debug(f"Expected property '{prop_names[0]}' not found in drill {page['id'][:8]}...")
         
-        video_link = get_prop_value(property_map["video_link"], "url")
-        video_validation = validate_video_link(video_link)
+        video_link_raw = get_prop_value(property_map["video_link"], "url")
+        raw_urls = extract_urls(video_link_raw)
+        video_links_info: list[VideoLinkInfo] = []
+        for url in raw_urls:
+            validation = validate_video_link(url)
+            video_links_info.append(VideoLinkInfo(
+                url=url,
+                final_url=validation["final_url"],
+                resolved=validation["resolved"],
+                error=validation["error"],
+                checked_at=validation["checked_at"],
+            ))
+
+        # Backward compat: populate singular fields from the first URL
+        first = video_links_info[0] if video_links_info else None
+        video_link = first.url if first else None
 
         return Drill(
             id=page["id"],
@@ -305,10 +319,11 @@ class NotionService:
             teamwork=get_prop_value(property_map["teamwork"], "select"),
             type=type_values,
             video_link=video_link,
-            video_link_final_url=video_validation["final_url"],
-            video_link_resolved=video_validation["resolved"],
-            video_link_error=video_validation["error"],
-            video_link_checked_at=video_validation["checked_at"],
+            video_link_final_url=first.final_url if first else None,
+            video_link_resolved=first.resolved if first else None,
+            video_link_error=first.error if first else None,
+            video_link_checked_at=first.checked_at if first else None,
+            video_links=video_links_info,
         )
     
     async def get_all_drills(self, db=None, force_sync: bool = False) -> List[Drill]:

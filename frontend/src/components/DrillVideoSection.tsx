@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState, type MouseEventHandler } from 'react';
 import { AlertCircle, ExternalLink, Video } from 'lucide-react';
+import type { VideoLinkInfo } from '../types';
 
 interface DrillVideoSectionProps {
-  videoLink: string | null | undefined;
+  videoLink?: string | null | undefined;
   videoLinkFinalUrl?: string | null;
   videoLinkResolved?: boolean | null;
   videoLinkError?: string | null;
+  /** Preferred: pass the full validated list from drill.video_links */
+  videoLinks?: VideoLinkInfo[];
   stopPropagation?: boolean;
   compact?: boolean;
 }
@@ -74,38 +77,47 @@ function toEmbedUrl(videoLink: string): string | null {
   }
 }
 
-export default function DrillVideoSection({
+interface SingleVideoEntryProps {
+  videoLink: string;
+  videoLinkFinalUrl?: string | null;
+  videoLinkResolved?: boolean | null;
+  videoLinkError?: string | null;
+  stopPropagation?: boolean;
+  compact?: boolean;
+  label?: string;
+}
+
+function SingleVideoEntry({
   videoLink,
   videoLinkFinalUrl,
   videoLinkResolved,
   videoLinkError,
   stopPropagation = false,
   compact = false,
-}: DrillVideoSectionProps) {
+  label,
+}: SingleVideoEntryProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const resolvedVideoLink = videoLinkFinalUrl || videoLink;
 
-  const embedUrl = useMemo(() => {
-    if (!resolvedVideoLink) {
-      return null;
-    }
-    return toEmbedUrl(resolvedVideoLink);
-  }, [resolvedVideoLink]);
+  const embedUrl = useMemo(() => toEmbedUrl(resolvedVideoLink), [resolvedVideoLink]);
 
   useEffect(() => {
     setLoadFailed(false);
     setIsLoaded(false);
   }, [embedUrl]);
 
-  if (!resolvedVideoLink) {
-    return null;
-  }
-
+  const title = label ?? 'Video';
   const backendUnresolvedWithoutEmbed = videoLinkResolved === false && !embedUrl;
   const sectionTitleSize = compact ? 'text-xs' : 'text-sm';
 
   const handleClick: MouseEventHandler<HTMLElement> = (event) => {
+    if (stopPropagation) {
+      event.stopPropagation();
+    }
+  };
+
+  const handleLinkClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
     if (stopPropagation) {
       event.stopPropagation();
     }
@@ -119,7 +131,7 @@ export default function DrillVideoSection({
       >
         <h4 className={`${sectionTitleSize} font-semibold text-red-900 dark:text-red-300 flex items-center`}>
           <AlertCircle className="w-4 h-4 mr-2" />
-          Video
+          {title}
         </h4>
         <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
           {videoLinkError || 'Video failed to resolve for this drill.'}
@@ -129,11 +141,7 @@ export default function DrillVideoSection({
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center text-xs font-medium text-red-700 dark:text-red-300 hover:underline"
-          onClick={(event) => {
-            if (stopPropagation) {
-              event.stopPropagation();
-            }
-          }}
+          onClick={handleLinkClick}
         >
           <ExternalLink className="w-3.5 h-3.5 mr-1" />
           Open video link
@@ -150,7 +158,7 @@ export default function DrillVideoSection({
       >
         <h4 className={`${sectionTitleSize} font-semibold text-blue-900 dark:text-blue-300 flex items-center`}>
           <Video className="w-4 h-4 mr-2" />
-          Video
+          {title}
         </h4>
         <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
           This provider does not support inline embed here. Use the external link.
@@ -160,11 +168,7 @@ export default function DrillVideoSection({
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center text-xs font-medium text-blue-700 dark:text-blue-300 hover:underline"
-          onClick={(event) => {
-            if (stopPropagation) {
-              event.stopPropagation();
-            }
-          }}
+          onClick={handleLinkClick}
         >
           <ExternalLink className="w-3.5 h-3.5 mr-1" />
           Open video link
@@ -180,7 +184,7 @@ export default function DrillVideoSection({
     >
       <h4 className={`${sectionTitleSize} font-semibold text-gray-900 dark:text-gray-200 flex items-center`}>
         <Video className="w-4 h-4 mr-2" />
-        Video
+        {title}
       </h4>
       <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ paddingTop: '56.25%' }}>
         {!isLoaded && (
@@ -191,7 +195,7 @@ export default function DrillVideoSection({
         <iframe
           src={embedUrl}
           className="absolute inset-0 h-full w-full"
-          title="Drill video"
+          title={title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
           onLoad={() => setIsLoaded(true)}
@@ -203,15 +207,57 @@ export default function DrillVideoSection({
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
-        onClick={(event) => {
-          if (stopPropagation) {
-            event.stopPropagation();
-          }
-        }}
+        onClick={handleLinkClick}
       >
         <ExternalLink className="w-3.5 h-3.5 mr-1" />
         Open in new tab
       </a>
     </div>
+  );
+}
+
+export default function DrillVideoSection({
+  videoLink,
+  videoLinkFinalUrl,
+  videoLinkResolved,
+  videoLinkError,
+  videoLinks,
+  stopPropagation = false,
+  compact = false,
+}: DrillVideoSectionProps) {
+  // Prefer the validated list when available and non-empty
+  if (videoLinks && videoLinks.length > 0) {
+    const showLabels = videoLinks.length > 1;
+    return (
+      <div className="space-y-3">
+        {videoLinks.map((link, idx) => (
+          <SingleVideoEntry
+            key={link.url}
+            videoLink={link.url}
+            videoLinkFinalUrl={link.final_url}
+            videoLinkResolved={link.resolved}
+            videoLinkError={link.error}
+            stopPropagation={stopPropagation}
+            compact={compact}
+            label={showLabels ? `Video ${idx + 1}` : undefined}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Fall back to legacy single-link props
+  const resolvedSingle = videoLinkFinalUrl || videoLink;
+  if (!resolvedSingle) return null;
+
+  return (
+    <SingleVideoEntry
+      videoLink={resolvedSingle}
+      videoLinkFinalUrl={videoLinkFinalUrl}
+      videoLinkResolved={videoLinkResolved}
+      videoLinkError={videoLinkError}
+      stopPropagation={stopPropagation}
+      compact={compact}
+    />
   );
 }
