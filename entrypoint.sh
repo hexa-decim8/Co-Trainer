@@ -160,6 +160,9 @@ PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
             SELECT 1 FROM information_schema.table_constraints
             WHERE constraint_name = 'practice_plans_user_id_fkey'
               AND table_schema = 'public'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'practice_plans'
         ) THEN
             ALTER TABLE public.practice_plans
                 ADD CONSTRAINT practice_plans_user_id_fkey
@@ -171,6 +174,9 @@ PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
             SELECT 1 FROM information_schema.table_constraints
             WHERE constraint_name = 'plan_clones_user_id_fkey'
               AND table_schema = 'public'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'plan_clones'
         ) THEN
             ALTER TABLE public.plan_clones
                 ADD CONSTRAINT plan_clones_user_id_fkey
@@ -182,6 +188,9 @@ PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
             SELECT 1 FROM information_schema.table_constraints
             WHERE constraint_name = 'plan_clones_original_plan_id_fkey'
               AND table_schema = 'public'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'plan_clones'
         ) THEN
             ALTER TABLE public.plan_clones
                 ADD CONSTRAINT plan_clones_original_plan_id_fkey
@@ -193,6 +202,9 @@ PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
             SELECT 1 FROM information_schema.table_constraints
             WHERE constraint_name = 'plan_clones_cloned_plan_id_fkey'
               AND table_schema = 'public'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'plan_clones'
         ) THEN
             ALTER TABLE public.plan_clones
                 ADD CONSTRAINT plan_clones_cloned_plan_id_fkey
@@ -204,6 +216,9 @@ PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
             SELECT 1 FROM information_schema.table_constraints
             WHERE constraint_name = 'progression_charts_user_id_fkey'
               AND table_schema = 'public'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'progression_charts'
         ) THEN
             ALTER TABLE public.progression_charts
                 ADD CONSTRAINT progression_charts_user_id_fkey
