@@ -1,15 +1,42 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, TrendingUp, LibraryBig } from 'lucide-react';
-import { drillsApi, plansApi } from '../api';
-import { useFilteredDrills } from '../hooks/useFilteredDrills';
+import { statsApi } from '../api';
 import StatisticsFilters from '../components/stats/StatisticsFilters';
 import TagDistributionPie from '../components/stats/TagDistributionPie';
 import CategoryComparisonBar from '../components/stats/CategoryComparisonBar';
 import TrendLineChart from '../components/stats/TrendLineChart';
-import type { PracticeType, DrillFilters, Drill } from '../types';
+import type {
+  PracticeType,
+  DrillFilters,
+  StatisticsOverviewResponse,
+  DrillLibraryStatistics,
+  PracticePlanStatistics,
+  UsageTrendsStatistics,
+} from '../types';
 
 type TabType = 'library' | 'plans' | 'trends';
+
+const EMPTY_STATS: StatisticsOverviewResponse = {
+  library: {
+    total_drills: 0,
+    avg_duration: 0,
+    contact_level: [],
+    drill_type: [],
+    position_focus: [],
+    skater_level: [],
+    type: [],
+  },
+  plans: {
+    total_plans: 0,
+    avg_duration: 0,
+    plans_by_type: [],
+    plans_by_month: [],
+  },
+  trends: {
+    top_pairs: [],
+  },
+};
 
 export default function StatisticsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('library');
@@ -18,46 +45,28 @@ export default function StatisticsPage() {
   const [practiceType, setPracticeType] = useState<PracticeType | 'all'>('all');
   const [tagFilters, setTagFilters] = useState<DrillFilters>({});
 
-  // Fetch all drills
-  const { data: allDrills = [], isLoading: drillsLoading, isError: drillsError } = useQuery({
-    queryKey: ['drills'],
+  const {
+    data: statsData = EMPTY_STATS,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: [
+      'statistics',
+      'overview',
+      startDate,
+      endDate,
+      practiceType,
+      JSON.stringify(tagFilters),
+    ],
     queryFn: async () => {
-      return await drillsApi.getAll();
-    }
+      return await statsApi.getOverview({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        practiceType: practiceType === 'all' ? undefined : practiceType,
+        tagFilters,
+      });
+    },
   });
-
-  // Fetch all practice plans
-  const { data: plansData, isLoading: plansLoading, isError: plansError } = useQuery({
-    queryKey: ['plans', 'all'],
-    queryFn: async () => {
-      return await plansApi.getAll(undefined, undefined, undefined, 1, 1000);
-    }
-  });
-
-  // Filter drills using shared hook
-  const filteredDrills = useFilteredDrills(allDrills, tagFilters);
-
-  // Filter plans based on date and practice type
-  const filteredPlans = useMemo(() => {
-    if (!plansData?.items) return [];
-
-    return plansData.items.filter((plan: any) => {
-      // Date filtering
-      if (startDate && plan.date && new Date(plan.date) < new Date(startDate)) {
-        return false;
-      }
-      if (endDate && plan.date && new Date(plan.date) > new Date(endDate)) {
-        return false;
-      }
-
-      // Practice type filtering
-      if (practiceType !== 'all' && plan.practice_type !== practiceType) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [plansData?.items, startDate, endDate, practiceType]);
 
   const handleResetFilters = () => {
     setStartDate('');
@@ -75,7 +84,6 @@ export default function StatisticsPage() {
   return (
     <div className="min-h-[calc(100vh-5rem)] bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-2">
             Statistics & Analytics
@@ -85,7 +93,6 @@ export default function StatisticsPage() {
           </p>
         </div>
 
-        {/* Filters */}
         <StatisticsFilters
           startDate={startDate}
           endDate={endDate}
@@ -98,7 +105,6 @@ export default function StatisticsPage() {
           onResetFilters={handleResetFilters}
         />
 
-        {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200 dark:border-gray-700">
             <nav className="flex -mb-px space-x-8">
@@ -123,15 +129,14 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        {/* Tab Content */}
-        {drillsError || plansError ? (
+        {isError ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center text-red-600 dark:text-red-400">
               <p className="text-lg font-semibold mb-2">Failed to load statistics data</p>
               <p className="text-sm">Please try refreshing the page.</p>
             </div>
           </div>
-        ) : drillsLoading || plansLoading ? (
+        ) : isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
@@ -142,15 +147,9 @@ export default function StatisticsPage() {
           </div>
         ) : (
           <>
-            {activeTab === 'library' && (
-              <DrillLibraryTab drills={filteredDrills} />
-            )}
-            {activeTab === 'plans' && (
-              <PracticePlanTab plans={filteredPlans} allDrills={allDrills} />
-            )}
-            {activeTab === 'trends' && (
-              <UsageTrendsTab plans={filteredPlans} drills={filteredDrills} />
-            )}
+            {activeTab === 'library' && <DrillLibraryTab stats={statsData.library} />}
+            {activeTab === 'plans' && <PracticePlanTab stats={statsData.plans} />}
+            {activeTab === 'trends' && <UsageTrendsTab stats={statsData.trends} />}
           </>
         )}
       </div>
@@ -158,100 +157,46 @@ export default function StatisticsPage() {
   );
 }
 
-// Drill Library Analytics Tab
-function DrillLibraryTab({ drills }: { drills: Drill[] }) {
-  const stats = useMemo(() => {
-    const totalDrills = drills.length;
-    const avgDuration = drills.reduce((sum, d) => sum + (d.avg_time || 0), 0) / totalDrills || 0;
-
-    // Count by tag categories
-    const contactLevelCounts = new Map<string, number>();
-    const drillTypeCounts = new Map<string, number>();
-    const positionFocusCounts = new Map<string, number>();
-    const skaterLevelCounts = new Map<string, number>();
-    const typeCounts = new Map<string, number>();
-
-    drills.forEach(drill => {
-      // Contact Level
-      if (drill.contact_level) {
-        contactLevelCounts.set(drill.contact_level, (contactLevelCounts.get(drill.contact_level) || 0) + 1);
-      }
-
-      // Drill Type
-      if (drill.drill_type) {
-        drillTypeCounts.set(drill.drill_type, (drillTypeCounts.get(drill.drill_type) || 0) + 1);
-      }
-
-      // Position Focus
-      drill.position_focus?.forEach(pos => {
-        positionFocusCounts.set(pos, (positionFocusCounts.get(pos) || 0) + 1);
-      });
-
-      // Skater Level
-      drill.skater_level?.forEach(level => {
-        skaterLevelCounts.set(level, (skaterLevelCounts.get(level) || 0) + 1);
-      });
-
-      // Type
-      drill.type?.forEach(type => {
-        typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
-      });
-    });
-
-    return {
-      totalDrills,
-      avgDuration: avgDuration.toFixed(1),
-      contactLevel: Array.from(contactLevelCounts.entries()).map(([name, value]) => ({ name, value })),
-      drillType: Array.from(drillTypeCounts.entries()).map(([name, value]) => ({ name, value })),
-      positionFocus: Array.from(positionFocusCounts.entries()).map(([name, value]) => ({ name, value })),
-      skaterLevel: Array.from(skaterLevelCounts.entries()).map(([name, value]) => ({ name, value })),
-      type: Array.from(typeCounts.entries()).map(([name, value]) => ({ name, value })),
-    };
-  }, [drills]);
-
+function DrillLibraryTab({ stats }: { stats: DrillLibraryStatistics }) {
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Drills</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalDrills}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total_drills}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Avg Duration</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.avgDuration} min</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.avg_duration.toFixed(1)} min</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Most Common Type</h3>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">
-            {stats.drillType[0]?.name || 'N/A'}
+            {stats.drill_type[0]?.name || 'N/A'}
           </p>
         </div>
       </div>
 
-      {/* Pie Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <TagDistributionPie data={stats.contactLevel} title="Contact Level Distribution" />
-        <TagDistributionPie data={stats.drillType} title="Drill Type Distribution" />
-        <TagDistributionPie data={stats.positionFocus} title="Position Focus Distribution" />
-        <TagDistributionPie data={stats.skaterLevel} title="Skater Level Distribution" />
+        <TagDistributionPie data={stats.contact_level} title="Contact Level Distribution" />
+        <TagDistributionPie data={stats.drill_type} title="Drill Type Distribution" />
+        <TagDistributionPie data={stats.position_focus} title="Position Focus Distribution" />
+        <TagDistributionPie data={stats.skater_level} title="Skater Level Distribution" />
       </div>
 
-      {/* Bar Chart for Categories (better for many items) */}
       <div className="grid grid-cols-1 gap-6">
-        <CategoryComparisonBar 
-          data={stats.type.sort((a, b) => b.value - a.value).slice(0, 15)} 
-          title="Top 15 Categories Distribution" 
+        <CategoryComparisonBar
+          data={[...stats.type].sort((a, b) => b.value - a.value).slice(0, 15)}
+          title="Top 15 Categories Distribution"
           color="#f59e0b"
           yAxisLabel="Number of Drills"
         />
       </div>
 
-      {/* Bar Chart Comparison */}
       <div className="grid grid-cols-1 gap-6">
-        <CategoryComparisonBar 
-          data={stats.drillType} 
-          title="Drill Types Comparison" 
+        <CategoryComparisonBar
+          data={stats.drill_type}
+          title="Drill Types Comparison"
           color="#3b82f6"
         />
       </div>
@@ -259,87 +204,25 @@ function DrillLibraryTab({ drills }: { drills: Drill[] }) {
   );
 }
 
-// Practice Plan Insights Tab
-function PracticePlanTab({ plans, allDrills }: { plans: any[]; allDrills: Drill[] }) {
-  const stats = useMemo(() => {
-    const totalPlans = plans.length;
-    
-    // Calculate average practice duration
-    const avgDuration = plans.reduce((sum, plan) => {
-      const planDuration = plan.drills?.reduce((d: number, drill: any) => d + drill.duration_minutes, 0) || 0;
-      return sum + planDuration;
-    }, 0) / totalPlans || 0;
-
-    // Count drills usage
-    const drillUsage = new Map<string, number>();
-    plans.forEach(plan => {
-      plan.drills?.forEach((drill: any) => {
-        drillUsage.set(drill.drill_id, (drillUsage.get(drill.drill_id) || 0) + 1);
-      });
-    });
-
-    // Get top 10 most used drills
-    const topDrills = Array.from(drillUsage.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([id, count]) => {
-        const drill = allDrills.find(d => d.id === id);
-        return { name: drill?.exercise || id.substring(0, 20), value: count };
-      });
-
-    // Plans by practice type
-    const plansByType = new Map<string, number>();
-    plans.forEach(plan => {
-      const type = plan.practice_type || 'unknown';
-      plansByType.set(type, (plansByType.get(type) || 0) + 1);
-    });
-
-    // Plans over time (by month)
-    const plansByMonth = new Map<string, number>();
-    plans.forEach(plan => {
-      if (plan.practice_date) {
-        const date = new Date(plan.practice_date);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        plansByMonth.set(monthKey, (plansByMonth.get(monthKey) || 0) + 1);
-      }
-    });
-
-    return {
-      totalPlans,
-      avgDuration: avgDuration.toFixed(1),
-      topDrills,
-      plansByType: Array.from(plansByType.entries()).map(([name, value]) => ({ name, value })),
-      plansByMonth: Array.from(plansByMonth.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([name, value]) => ({ name, value })),
-    };
-  }, [plans, allDrills]);
-
+function PracticePlanTab({ stats }: { stats: PracticePlanStatistics }) {
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Plans</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalPlans}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total_plans}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Avg Plan Duration</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.avgDuration} min</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.avg_duration.toFixed(1)} min</p>
         </div>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 gap-6">
-        <CategoryComparisonBar 
-          data={stats.topDrills} 
-          title="Top 10 Most Used Drills" 
-          color="#8b5cf6"
-        />
-        <TagDistributionPie data={stats.plansByType} title="Plans by Practice Type" />
-        <TrendLineChart 
-          data={stats.plansByMonth} 
-          title="Plans Created Over Time" 
+        <TagDistributionPie data={stats.plans_by_type} title="Plans by Practice Type" />
+        <TrendLineChart
+          data={stats.plans_by_month}
+          title="Plans Created Over Time"
           color="#10b981"
           xAxisLabel="Month"
           yAxisLabel="Plans Created"
@@ -349,60 +232,7 @@ function PracticePlanTab({ plans, allDrills }: { plans: any[]; allDrills: Drill[
   );
 }
 
-// Usage Trends Tab
-function UsageTrendsTab({ plans, drills }: { plans: any[]; drills: Drill[] }) {
-  const stats = useMemo(() => {
-    // Tag usage trends over time
-    const tagUsageByMonth = new Map<string, Map<string, number>>();
-    
-    plans.forEach(plan => {
-      if (plan.practice_date && plan.drills) {
-        const date = new Date(plan.practice_date);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        
-        if (!tagUsageByMonth.has(monthKey)) {
-          tagUsageByMonth.set(monthKey, new Map());
-        }
-        
-        const monthTags = tagUsageByMonth.get(monthKey)!;
-        
-        plan.drills.forEach((planDrill: any) => {
-          const drill = drills.find(d => d.id === planDrill.drill_id);
-          if (drill?.drill_type) {
-            monthTags.set(drill.drill_type, (monthTags.get(drill.drill_type) || 0) + 1);
-          }
-        });
-      }
-    });
-
-    // Tag correlations (which tags appear together)
-    const tagPairs = new Map<string, number>();
-    drills.forEach(drill => {
-      const tags: string[] = [];
-      if (drill.drill_type) tags.push(drill.drill_type);
-      if (drill.contact_level) tags.push(drill.contact_level);
-      drill.position_focus?.forEach(t => tags.push(t));
-
-      // Count pairs
-      for (let i = 0; i < tags.length; i++) {
-        for (let j = i + 1; j < tags.length; j++) {
-          const pair = [tags[i], tags[j]].sort().join(' + ');
-          tagPairs.set(pair, (tagPairs.get(pair) || 0) + 1);
-        }
-      }
-    });
-
-    const topPairs = Array.from(tagPairs.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, value]) => ({ name, value }));
-
-    return {
-      tagUsageByMonth,
-      topPairs,
-    };
-  }, [plans, drills]);
-
+function UsageTrendsTab({ stats }: { stats: UsageTrendsStatistics }) {
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
@@ -412,9 +242,9 @@ function UsageTrendsTab({ plans, drills }: { plans: any[]; drills: Drill[] }) {
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Most common tag combinations appearing together in drills
         </p>
-        <CategoryComparisonBar 
-          data={stats.topPairs} 
-          title="Top Tag Combinations" 
+        <CategoryComparisonBar
+          data={stats.top_pairs}
+          title="Top Tag Combinations"
           color="#ec4899"
         />
       </div>

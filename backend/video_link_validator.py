@@ -11,6 +11,7 @@ class VideoLinkValidationResult(TypedDict):
     resolved: Optional[bool]
     error: Optional[str]
     checked_at: Optional[datetime]
+    final_url: Optional[str]
 
 
 _validation_cache: Dict[str, tuple[datetime, VideoLinkValidationResult]] = {}
@@ -44,19 +45,21 @@ def _cache_set(url: str, result: VideoLinkValidationResult) -> None:
     _validation_cache[url] = (expires_at, result)
 
 
-def _make_success_result() -> VideoLinkValidationResult:
+def _make_success_result(final_url: str) -> VideoLinkValidationResult:
     return {
         "resolved": True,
         "error": None,
         "checked_at": datetime.utcnow(),
+        "final_url": final_url,
     }
 
 
-def _make_error_result(message: str) -> VideoLinkValidationResult:
+def _make_error_result(message: str, final_url: Optional[str] = None) -> VideoLinkValidationResult:
     return {
         "resolved": False,
         "error": message,
         "checked_at": datetime.utcnow(),
+        "final_url": final_url,
     }
 
 
@@ -70,6 +73,7 @@ def validate_video_link(video_link: Optional[str]) -> VideoLinkValidationResult:
             "resolved": None,
             "error": None,
             "checked_at": None,
+            "final_url": None,
         }
 
     normalized = video_link.strip()
@@ -78,6 +82,7 @@ def validate_video_link(video_link: Optional[str]) -> VideoLinkValidationResult:
             "resolved": None,
             "error": None,
             "checked_at": None,
+            "final_url": None,
         }
 
     cached = _cache_get(normalized)
@@ -98,12 +103,13 @@ def validate_video_link(video_link: Optional[str]) -> VideoLinkValidationResult:
         head_request = request.Request(normalized, method="HEAD", headers=headers)
         with request.urlopen(head_request, timeout=timeout) as response:
             status = getattr(response, "status", 200)
+            final_url = response.geturl() or normalized
             if 200 <= status < 400:
-                result = _make_success_result()
+                result = _make_success_result(final_url)
                 _cache_set(normalized, result)
                 return result
 
-            result = _make_error_result(f"Video link returned HTTP {status}")
+            result = _make_error_result(f"Video link returned HTTP {status}", final_url)
             _cache_set(normalized, result)
             return result
     except error.HTTPError as http_error:
@@ -114,16 +120,18 @@ def validate_video_link(video_link: Optional[str]) -> VideoLinkValidationResult:
                 get_request = request.Request(normalized, method="GET", headers=get_headers)
                 with request.urlopen(get_request, timeout=timeout) as response:
                     status = getattr(response, "status", 200)
+                    final_url = response.geturl() or normalized
                     if 200 <= status < 400:
-                        result = _make_success_result()
+                        result = _make_success_result(final_url)
                         _cache_set(normalized, result)
                         return result
 
-                    result = _make_error_result(f"Video link returned HTTP {status}")
+                    result = _make_error_result(f"Video link returned HTTP {status}", final_url)
                     _cache_set(normalized, result)
                     return result
             except error.HTTPError as get_error:
-                result = _make_error_result(f"Video link returned HTTP {get_error.code}")
+                final_url = get_error.geturl() or normalized
+                result = _make_error_result(f"Video link returned HTTP {get_error.code}", final_url)
                 _cache_set(normalized, result)
                 return result
             except Exception as get_exception:  # pragma: no cover
@@ -131,7 +139,8 @@ def validate_video_link(video_link: Optional[str]) -> VideoLinkValidationResult:
                 _cache_set(normalized, result)
                 return result
 
-        result = _make_error_result(f"Video link returned HTTP {http_error.code}")
+        final_url = http_error.geturl() or normalized
+        result = _make_error_result(f"Video link returned HTTP {http_error.code}", final_url)
         _cache_set(normalized, result)
         return result
     except error.URLError as url_error:

@@ -18,6 +18,7 @@ export interface Drill {
   teamwork: string | null;
   type: string[];
   video_link: string | null;
+  video_link_final_url?: string | null;
   video_link_resolved?: boolean | null;
   video_link_error?: string | null;
   video_link_checked_at?: string | null;
@@ -108,6 +109,38 @@ export interface PaginatedPlansResponse {
   page: number;
   page_size: number;
   total_pages: number;
+}
+
+export interface StatisticsDatum {
+  name: string;
+  value: number;
+}
+
+export interface DrillLibraryStatistics {
+  total_drills: number;
+  avg_duration: number;
+  contact_level: StatisticsDatum[];
+  drill_type: StatisticsDatum[];
+  position_focus: StatisticsDatum[];
+  skater_level: StatisticsDatum[];
+  type: StatisticsDatum[];
+}
+
+export interface PracticePlanStatistics {
+  total_plans: number;
+  avg_duration: number;
+  plans_by_type: StatisticsDatum[];
+  plans_by_month: StatisticsDatum[];
+}
+
+export interface UsageTrendsStatistics {
+  top_pairs: StatisticsDatum[];
+}
+
+export interface StatisticsOverviewResponse {
+  library: DrillLibraryStatistics;
+  plans: PracticePlanStatistics;
+  trends: UsageTrendsStatistics;
 }
 
 export interface PlanCloneRequest {

@@ -3,10 +3,12 @@ import type {
   Drill, 
   DrillFilters, 
   FilterOptions, 
+  PracticeType,
   PracticePlan, 
   PracticePlanSummary, 
   PracticePlanWithDrills,
   PaginatedPlansResponse,
+  StatisticsOverviewResponse,
   DrillCreate,
   DrillUpdate,
   AvailableTags,
@@ -278,6 +280,51 @@ export const plansApi = {
     if (page) params.page = page;
     if (pageSize) params.page_size = pageSize;
     const response = await api.get<PaginatedPlansResponse>('/templates', { params });
+    return response.data;
+  },
+};
+
+export const statsApi = {
+  getOverview: async (params: {
+    startDate?: string;
+    endDate?: string;
+    practiceType?: PracticeType;
+    tagFilters?: DrillFilters;
+  }): Promise<StatisticsOverviewResponse> => {
+    const queryParams = new URLSearchParams();
+
+    if (params.startDate) queryParams.append('start_date', params.startDate);
+    if (params.endDate) queryParams.append('end_date', params.endDate);
+    if (params.practiceType) queryParams.append('practice_type', params.practiceType);
+
+    const filters = params.tagFilters;
+    if (filters?.search) queryParams.append('search', filters.search);
+    if (filters?.contact_level?.length) {
+      filters.contact_level.forEach(v => queryParams.append('contact_level', v));
+    }
+    if (filters?.difficulty?.length) {
+      filters.difficulty.forEach(v => queryParams.append('difficulty', v.toString()));
+    }
+    if (filters?.drill_type?.length) {
+      filters.drill_type.forEach(v => queryParams.append('drill_type', v));
+    }
+    if (filters?.equipment?.length) {
+      filters.equipment.forEach(v => queryParams.append('equipment', v));
+    }
+    if (filters?.game_type?.length) {
+      filters.game_type.forEach(v => queryParams.append('game_type', v));
+    }
+    if (filters?.position_focus?.length) {
+      filters.position_focus.forEach(v => queryParams.append('position_focus', v));
+    }
+    if (filters?.skater_level?.length) {
+      filters.skater_level.forEach(v => queryParams.append('skater_level', v));
+    }
+    if (filters?.type?.length) {
+      filters.type.forEach(v => queryParams.append('type', v));
+    }
+
+    const response = await api.get<StatisticsOverviewResponse>(`/stats/overview?${queryParams.toString()}`);
     return response.data;
   },
 };

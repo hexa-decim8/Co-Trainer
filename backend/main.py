@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from typing import List, Optional, Dict
+from collections import Counter
 import json
 import os
 import logging
@@ -24,7 +25,9 @@ from models import (
     PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
     PlanRenameRequest, DrillCreate, DrillUpdate,
     ProgressionChartCreate, ProgressionChartUpdate,
-    ProgressionChartSummary, ProgressionChartFull
+    ProgressionChartSummary, ProgressionChartFull,
+    StatisticsDatum, DrillLibraryStatistics, PracticePlanStatistics,
+    UsageTrendsStatistics, StatisticsOverviewResponse
 )
 from notion_service import notion_service
 from drill_cache import drill_cache_manager
@@ -764,6 +767,211 @@ async def get_filter_options(
         skater_levels=sorted(skater_levels),
         teamworks=sorted(teamwork_list),
         types=sorted(types)
+    )
+
+
+def _counter_to_stats(counter: Counter) -> List[StatisticsDatum]:
+    """Convert counter values to deterministic chart data."""
+    return [
+        StatisticsDatum(name=name, value=value)
+        for name, value in sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
+@app.get("/api/stats/overview", response_model=StatisticsOverviewResponse)
+async def get_statistics_overview(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    practice_type: Optional[PracticeType] = Query(None),
+    search: Optional[str] = Query(None),
+    contact_level: Optional[List[str]] = Query(None),
+    difficulty: Optional[List[int]] = Query(None),
+    drill_type: Optional[List[str]] = Query(None),
+    equipment: Optional[List[str]] = Query(None),
+    game_type: Optional[List[str]] = Query(None),
+    position_focus: Optional[List[str]] = Query(None),
+    skater_level: Optional[List[str]] = Query(None),
+    type_filter: Optional[List[str]] = Query(None, alias="type"),
+    force_sync: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Return a contract-stable statistics payload for the statistics page."""
+    parsed_start_date = None
+    parsed_end_date = None
+
+    if start_date:
+        try:
+            parsed_start_date = datetime.fromisoformat(start_date).date()
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid start_date format. Use YYYY-MM-DD")
+
+    if end_date:
+        try:
+            parsed_end_date = datetime.fromisoformat(end_date).date()
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid end_date format. Use YYYY-MM-DD")
+
+    drills = await notion_service.get_all_drills(db=db, force_sync=force_sync)
+    filtered_drills = drills
+
+    if search:
+        search = search[:200]
+        search_lower = search.lower()
+        filtered_drills = [
+            d for d in filtered_drills
+            if search_lower in d.exercise.lower() or
+            (d.description and search_lower in d.description.lower())
+        ]
+
+    if contact_level:
+        filtered_drills = [
+            d for d in filtered_drills
+            if (
+                isinstance(d.contact_level, str) and d.contact_level in contact_level
+            ) or (
+                isinstance(d.contact_level, list) and any(cl in d.contact_level for cl in contact_level)
+            )
+        ]
+
+    if difficulty:
+        filtered_drills = [d for d in filtered_drills if d.difficulty in difficulty]
+
+    if drill_type:
+        filtered_drills = [d for d in filtered_drills if d.drill_type in drill_type]
+
+    if equipment:
+        filtered_drills = [d for d in filtered_drills if d.equipment in equipment]
+
+    if game_type:
+        filtered_drills = [d for d in filtered_drills if d.game_type in game_type]
+
+    if position_focus:
+        filtered_drills = [
+            d for d in filtered_drills
+            if any(pf in d.position_focus for pf in position_focus)
+        ]
+
+    if skater_level:
+        filtered_drills = [
+            d for d in filtered_drills
+            if any(sl in d.skater_level for sl in skater_level)
+        ]
+
+    if type_filter:
+        filtered_drills = [
+            d for d in filtered_drills
+            if any(t in d.type for t in type_filter)
+        ]
+
+    total_drills = len(filtered_drills)
+    avg_drill_duration = round(
+        sum((drill.avg_time or 0) for drill in filtered_drills) / total_drills,
+        1,
+    ) if total_drills else 0.0
+
+    contact_level_counts: Counter = Counter()
+    drill_type_counts: Counter = Counter()
+    position_focus_counts: Counter = Counter()
+    skater_level_counts: Counter = Counter()
+    type_counts: Counter = Counter()
+
+    for drill in filtered_drills:
+        if isinstance(drill.contact_level, str) and drill.contact_level:
+            contact_level_counts[drill.contact_level] += 1
+        elif isinstance(drill.contact_level, list):
+            for value in drill.contact_level:
+                if value:
+                    contact_level_counts[value] += 1
+
+        if drill.drill_type:
+            drill_type_counts[drill.drill_type] += 1
+
+        for value in drill.position_focus:
+            position_focus_counts[value] += 1
+
+        for value in drill.skater_level:
+            skater_level_counts[value] += 1
+
+        for value in drill.type:
+            type_counts[value] += 1
+
+    plans_query = db.query(PracticePlanDB).filter(PracticePlanDB.user_id == current_user.id)
+    if practice_type:
+        plans_query = plans_query.filter(PracticePlanDB.practice_type == practice_type.value)
+
+    plan_rows = plans_query.all()
+    plan_summaries: List[PracticePlanSummary] = []
+    for row in plan_rows:
+        summary = PracticePlanSummary.from_db(row)
+        if parsed_start_date and summary.date and summary.date.date() < parsed_start_date:
+            continue
+        if parsed_end_date and summary.date and summary.date.date() > parsed_end_date:
+            continue
+        plan_summaries.append(summary)
+
+    total_plans = len(plan_summaries)
+    avg_plan_duration = round(
+        sum(plan.total_duration for plan in plan_summaries) / total_plans,
+        1,
+    ) if total_plans else 0.0
+
+    plans_by_type_counts: Counter = Counter()
+    plans_by_month_counts: Counter = Counter()
+
+    for plan in plan_summaries:
+        plans_by_type_counts[plan.practice_type.value] += 1
+        if plan.date:
+            month_key = f"{plan.date.year}-{str(plan.date.month).zfill(2)}"
+            plans_by_month_counts[month_key] += 1
+
+    tag_pair_counts: Counter = Counter()
+    for drill in filtered_drills:
+        tags: List[str] = []
+
+        if drill.drill_type:
+            tags.append(drill.drill_type)
+
+        if isinstance(drill.contact_level, str) and drill.contact_level:
+            tags.append(drill.contact_level)
+        elif isinstance(drill.contact_level, list):
+            tags.extend([value for value in drill.contact_level if value])
+
+        tags.extend(drill.position_focus)
+        deduped_tags = sorted(set(tags))
+
+        for i in range(len(deduped_tags)):
+            for j in range(i + 1, len(deduped_tags)):
+                pair_key = f"{deduped_tags[i]} + {deduped_tags[j]}"
+                tag_pair_counts[pair_key] += 1
+
+    top_pairs = [
+        StatisticsDatum(name=name, value=value)
+        for name, value in sorted(tag_pair_counts.items(), key=lambda item: (-item[1], item[0]))[:10]
+    ]
+
+    return StatisticsOverviewResponse(
+        library=DrillLibraryStatistics(
+            total_drills=total_drills,
+            avg_duration=avg_drill_duration,
+            contact_level=_counter_to_stats(contact_level_counts),
+            drill_type=_counter_to_stats(drill_type_counts),
+            position_focus=_counter_to_stats(position_focus_counts),
+            skater_level=_counter_to_stats(skater_level_counts),
+            type=_counter_to_stats(type_counts),
+        ),
+        plans=PracticePlanStatistics(
+            total_plans=total_plans,
+            avg_duration=avg_plan_duration,
+            plans_by_type=_counter_to_stats(plans_by_type_counts),
+            plans_by_month=[
+                StatisticsDatum(name=name, value=value)
+                for name, value in sorted(plans_by_month_counts.items(), key=lambda item: item[0])
+            ],
+        ),
+        trends=UsageTrendsStatistics(
+            top_pairs=top_pairs,
+        ),
     )
 
 

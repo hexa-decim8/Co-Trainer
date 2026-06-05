@@ -3,19 +3,34 @@ import { AlertCircle, ExternalLink, Video } from 'lucide-react';
 
 interface DrillVideoSectionProps {
   videoLink: string | null | undefined;
+  videoLinkFinalUrl?: string | null;
   videoLinkResolved?: boolean | null;
   videoLinkError?: string | null;
   stopPropagation?: boolean;
   compact?: boolean;
 }
 
+function extractInstagramCode(pathname: string): string | null {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const [contentType, contentCode] = parts;
+  if (!["p", "reel", "reels", "tv"].includes(contentType)) {
+    return null;
+  }
+
+  return contentCode || null;
+}
+
 function toEmbedUrl(videoLink: string): string | null {
   try {
     const url = new URL(videoLink);
-    const host = url.hostname.toLowerCase();
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
 
-    if (host.includes('youtube.com') || host.includes('youtu.be')) {
-      if (host.includes('youtu.be')) {
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') {
+      if (host === 'youtu.be') {
         const id = url.pathname.replace('/', '').trim();
         return id ? `https://www.youtube.com/embed/${id}` : null;
       }
@@ -33,10 +48,24 @@ function toEmbedUrl(videoLink: string): string | null {
       return id ? `https://www.youtube.com/embed/${id}` : null;
     }
 
-    if (host.includes('vimeo.com')) {
+    if (host === 'vimeo.com' || host === 'player.vimeo.com') {
       const parts = url.pathname.split('/').filter(Boolean);
       const id = parts.length ? parts[parts.length - 1] : '';
       return id ? `https://player.vimeo.com/video/${id}` : null;
+    }
+
+    if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) {
+      const match = url.pathname.match(/\/(?:@[^/]+\/video|v)\/(\d+)/i);
+      if (!match?.[1]) {
+        return null;
+      }
+
+      return `https://www.tiktok.com/embed/v2/${match[1]}`;
+    }
+
+    if (host === 'instagram.com' || host === 'instagr.am') {
+      const contentCode = extractInstagramCode(url.pathname);
+      return contentCode ? `https://www.instagram.com${url.pathname.replace(/\/$/, '')}/embed/captioned/` : null;
     }
 
     return null;
@@ -47,6 +76,7 @@ function toEmbedUrl(videoLink: string): string | null {
 
 export default function DrillVideoSection({
   videoLink,
+  videoLinkFinalUrl,
   videoLinkResolved,
   videoLinkError,
   stopPropagation = false,
@@ -54,24 +84,25 @@ export default function DrillVideoSection({
 }: DrillVideoSectionProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const resolvedVideoLink = videoLinkFinalUrl || videoLink;
 
   const embedUrl = useMemo(() => {
-    if (!videoLink) {
+    if (!resolvedVideoLink) {
       return null;
     }
-    return toEmbedUrl(videoLink);
-  }, [videoLink]);
+    return toEmbedUrl(resolvedVideoLink);
+  }, [resolvedVideoLink]);
 
   useEffect(() => {
     setLoadFailed(false);
     setIsLoaded(false);
   }, [embedUrl]);
 
-  if (!videoLink) {
+  if (!resolvedVideoLink) {
     return null;
   }
 
-  const backendUnresolved = videoLinkResolved === false;
+  const backendUnresolvedWithoutEmbed = videoLinkResolved === false && !embedUrl;
   const sectionTitleSize = compact ? 'text-xs' : 'text-sm';
 
   const handleClick: MouseEventHandler<HTMLElement> = (event) => {
@@ -80,7 +111,7 @@ export default function DrillVideoSection({
     }
   };
 
-  if (backendUnresolved || loadFailed) {
+  if (backendUnresolvedWithoutEmbed || loadFailed) {
     return (
       <div
         className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3 space-y-2"
@@ -94,7 +125,7 @@ export default function DrillVideoSection({
           {videoLinkError || 'Video failed to resolve for this drill.'}
         </p>
         <a
-          href={videoLink}
+          href={resolvedVideoLink}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center text-xs font-medium text-red-700 dark:text-red-300 hover:underline"
@@ -125,7 +156,7 @@ export default function DrillVideoSection({
           This provider does not support inline embed here. Use the external link.
         </p>
         <a
-          href={videoLink}
+          href={resolvedVideoLink}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center text-xs font-medium text-blue-700 dark:text-blue-300 hover:underline"
@@ -168,7 +199,7 @@ export default function DrillVideoSection({
         />
       </div>
       <a
-        href={videoLink}
+        href={resolvedVideoLink}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"

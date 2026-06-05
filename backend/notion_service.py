@@ -305,6 +305,7 @@ class NotionService:
             teamwork=get_prop_value(property_map["teamwork"], "select"),
             type=type_values,
             video_link=video_link,
+            video_link_final_url=video_validation["final_url"],
             video_link_resolved=video_validation["resolved"],
             video_link_error=video_validation["error"],
             video_link_checked_at=video_validation["checked_at"],

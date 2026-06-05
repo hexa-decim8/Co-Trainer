@@ -365,6 +365,7 @@ export default function MobileViewPage() {
 
                       <DrillVideoSection
                         videoLink={item.drill.video_link}
+                        videoLinkFinalUrl={item.drill.video_link_final_url}
                         videoLinkResolved={item.drill.video_link_resolved}
                         videoLinkError={item.drill.video_link_error}
                       />
@@ -457,6 +458,7 @@ export default function MobileViewPage() {
                 {/* Video */}
                 <DrillVideoSection
                   videoLink={plan.timeline[selectedDrill].drill?.video_link}
+                  videoLinkFinalUrl={plan.timeline[selectedDrill].drill?.video_link_final_url}
                   videoLinkResolved={plan.timeline[selectedDrill].drill?.video_link_resolved}
                   videoLinkError={plan.timeline[selectedDrill].drill?.video_link_error}
                 />

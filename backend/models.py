@@ -31,6 +31,7 @@ class Drill(BaseModel):
     teamwork: Optional[str] = None  # single select
     type: List[str] = []  # multi-select
     video_link: Optional[str] = None
+    video_link_final_url: Optional[str] = None
     video_link_resolved: Optional[bool] = None
     video_link_error: Optional[str] = None
     video_link_checked_at: Optional[datetime] = None
@@ -304,6 +305,43 @@ class PaginatedPlansResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class StatisticsDatum(BaseModel):
+    """Generic chart datum for statistics visualizations."""
+    name: str
+    value: int
+
+
+class DrillLibraryStatistics(BaseModel):
+    """Statistics for the drill library analytics tab."""
+    total_drills: int
+    avg_duration: float
+    contact_level: List[StatisticsDatum]
+    drill_type: List[StatisticsDatum]
+    position_focus: List[StatisticsDatum]
+    skater_level: List[StatisticsDatum]
+    type: List[StatisticsDatum]
+
+
+class PracticePlanStatistics(BaseModel):
+    """Statistics for practice plan insights tab."""
+    total_plans: int
+    avg_duration: float
+    plans_by_type: List[StatisticsDatum]
+    plans_by_month: List[StatisticsDatum]
+
+
+class UsageTrendsStatistics(BaseModel):
+    """Statistics for usage trends tab."""
+    top_pairs: List[StatisticsDatum]
+
+
+class StatisticsOverviewResponse(BaseModel):
+    """Complete statistics payload for the statistics page."""
+    library: DrillLibraryStatistics
+    plans: PracticePlanStatistics
+    trends: UsageTrendsStatistics
 
 
 def _validate_plan_name(v: str) -> str:
