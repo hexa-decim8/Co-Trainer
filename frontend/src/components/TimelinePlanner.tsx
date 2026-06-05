@@ -32,17 +32,23 @@ interface TimelinePlannerProps {
   onDeleteSection: (sectionId: string) => void;
   onResizeSection: (sectionId: string, newDuration: number) => void;
   onUpdateSectionName: (sectionId: string, newName: string) => void;
+  onSelectTimelineDrill?: (section: PracticeSection, drill: TimelineDrill) => void;
+  selectedTimelineDrillId?: string | null;
   practiceType: string;
 }
 
 function TimelineDrillItem({ 
   drill, 
   onRemove, 
-  onUpdateDuration 
+  onUpdateDuration,
+  isSelected = false,
+  onSelect,
 }: { 
   drill: TimelineDrill;
   onRemove: () => void;
   onUpdateDuration: (duration: number) => void;
+  isSelected?: boolean;
+  onSelect?: () => void;
 }) {
   if (!drill?.drill) {
     return null;
@@ -109,7 +115,10 @@ function TimelineDrillItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white dark:bg-gray-800 border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type ?? undefined)} rounded-lg overflow-hidden relative group`}
+      className={`bg-white dark:bg-gray-800 border-2 ${getContactColor(drill.drill.contact_level)} ${getDrillTypeBorderColor(drill.drill.drill_type ?? undefined)} rounded-lg overflow-hidden relative group cursor-pointer ${
+        isSelected ? 'ring-2 ring-primary-500 ring-offset-1 dark:ring-offset-gray-900' : ''
+      }`}
+      onClick={onSelect}
     >
       {/* Gradient Overlay */}
       <div 
@@ -168,7 +177,10 @@ function TimelineDrillItem({
             </div>
 
             <button
-              onClick={onRemove}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemove();
+              }}
               className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0 ml-2"
             >
               <Trash2 className={`transition-all duration-200 ${drillHeight < 60 ? 'w-3 h-3' : 'w-4 h-4'}`} />
@@ -184,7 +196,10 @@ function TimelineDrillItem({
 
       {/* Resize handle at bottom */}
       <div
-        onMouseDown={handleResizeStart}
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          handleResizeStart(event);
+        }}
         className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-30 ${
           isResizing 
             ? 'bg-primary-500' 
@@ -206,6 +221,8 @@ function SectionContainer({
   onDeleteSection,
   onUpdateSectionName,
   onResizeSection,
+  onSelectTimelineDrill,
+  selectedTimelineDrillId,
 }: {
   section: PracticeSection;
   onRemoveDrill: (sectionId: string, index: number) => void;
@@ -213,6 +230,8 @@ function SectionContainer({
   onDeleteSection: (sectionId: string) => void;
   onUpdateSectionName: (sectionId: string, newName: string) => void;
   onResizeSection: (sectionId: string, newDuration: number) => void;
+  onSelectTimelineDrill?: (section: PracticeSection, drill: TimelineDrill) => void;
+  selectedTimelineDrillId?: string | null;
 }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(section.name);
@@ -412,6 +431,8 @@ function SectionContainer({
                   drill={drill}
                   onRemove={() => onRemoveDrill(section.id, index)}
                   onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
+                  isSelected={selectedTimelineDrillId === drill.id}
+                  onSelect={() => onSelectTimelineDrill?.(section, drill)}
                 />
               ))}
             </SortableContext>
@@ -445,6 +466,8 @@ export default function TimelinePlanner({
   onDeleteSection,
   onResizeSection,
   onUpdateSectionName,
+  onSelectTimelineDrill,
+  selectedTimelineDrillId,
   practiceType,
 }: TimelinePlannerProps) {
   const totalDuration = sections.reduce((sum, s) => sum + s.duration, 0);
@@ -487,6 +510,8 @@ export default function TimelinePlanner({
               onDeleteSection={onDeleteSection}
               onUpdateSectionName={onUpdateSectionName}
               onResizeSection={onResizeSection}
+              onSelectTimelineDrill={onSelectTimelineDrill}
+              selectedTimelineDrillId={selectedTimelineDrillId}
             />
           ))}
         </SortableContext>

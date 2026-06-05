@@ -9,7 +9,7 @@ import FilterSidebar from '../components/FilterSidebar';
 import DrillFormModal from '../components/DrillFormModal';
 import CircularProgress from '../components/CircularProgress';
 import DrillVideoSection from '../components/DrillVideoSection';
-import type { Drill, DrillCreate, DrillUpdate, AvailableTags } from '../types';
+import type { Drill, DrillCreate, DrillUpdate, AvailableTags, DrillFilters } from '../types';
 import { QUERY_STALE_TIMES, QUERY_GC_TIMES } from '../config/queryConfig';
 import {
   getContactBadgeColor,
@@ -57,6 +57,37 @@ export default function DrillManagerPage() {
 
   // Client-side filtering using shared hook
   const drills = useFilteredDrills(allDrills, activeFilters);
+
+  // Mirror planner badge-click filtering behavior.
+  const handleFilterToggle = useCallback(<K extends keyof typeof activeFilters>(
+    filterKey: K,
+    value: string
+  ) => {
+    setActiveFilters((prev) => {
+      const current = (prev[filterKey] as string[] | undefined) || [];
+      const newValues = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+
+      return {
+        ...prev,
+        [filterKey]: newValues.length > 0 ? newValues : undefined,
+      };
+    });
+  }, [setActiveFilters]);
+
+  const handleContactLevelClick = useCallback((level: string) =>
+    handleFilterToggle('contact_level', level), [handleFilterToggle]);
+  const handleDrillTypeClick = useCallback((type: string) =>
+    handleFilterToggle('drill_type', type), [handleFilterToggle]);
+  const handleEquipmentClick = useCallback((equipment: string) =>
+    handleFilterToggle('equipment', equipment), [handleFilterToggle]);
+  const handlePositionFocusClick = useCallback((position: string) =>
+    handleFilterToggle('position_focus', position), [handleFilterToggle]);
+  const handleSkaterLevelClick = useCallback((level: string) =>
+    handleFilterToggle('skater_level', level), [handleFilterToggle]);
+  const handleTypeClick = useCallback((type: string) =>
+    handleFilterToggle('type', type), [handleFilterToggle]);
 
   const handleSave = useCallback(
     async (data: DrillCreate | DrillUpdate, drillId?: string) => {
@@ -202,8 +233,15 @@ export default function DrillManagerPage() {
                 <DrillManagerCard
                   key={drill.id}
                   drill={drill}
+                  activeFilters={activeFilters}
                   isExpanded={expandedCards.has(drill.id)}
                   onToggleExpand={() => toggleExpand(drill.id)}
+                  onContactLevelClick={handleContactLevelClick}
+                  onDrillTypeClick={handleDrillTypeClick}
+                  onEquipmentClick={handleEquipmentClick}
+                  onPositionFocusClick={handlePositionFocusClick}
+                  onSkaterLevelClick={handleSkaterLevelClick}
+                  onTypeClick={handleTypeClick}
                   onEdit={() => {
                     setEditingDrill(drill);
                     setModalOpen(true);
@@ -268,14 +306,28 @@ export default function DrillManagerPage() {
 
 function DrillManagerCard({
   drill,
+  activeFilters,
   isExpanded,
   onToggleExpand,
+  onContactLevelClick,
+  onDrillTypeClick,
+  onEquipmentClick,
+  onPositionFocusClick,
+  onSkaterLevelClick,
+  onTypeClick,
   onEdit,
   onArchive,
 }: {
   drill: Drill;
+  activeFilters: DrillFilters;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  onContactLevelClick: (level: string) => void;
+  onDrillTypeClick: (type: string) => void;
+  onEquipmentClick: (equipment: string) => void;
+  onPositionFocusClick: (position: string) => void;
+  onSkaterLevelClick: (level: string) => void;
+  onTypeClick: (type: string) => void;
   onEdit: () => void;
   onArchive: () => void;
 }) {
@@ -323,19 +375,40 @@ function DrillManagerCard({
             </span>
           )}
           {drill.drill_type && (
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getDrillTypeBadgeColor(drill.drill_type)}`}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDrillTypeClick(drill.drill_type as string);
+              }}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getDrillTypeBadgeColor(drill.drill_type)} ${(activeFilters.drill_type as string[] | undefined)?.includes(drill.drill_type) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+            >
               {drill.drill_type}
-            </span>
+            </button>
           )}
           {drill.contact_level && (
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getContactBadgeColor(drill.contact_level)}`}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onContactLevelClick(drill.contact_level as string);
+              }}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getContactBadgeColor(drill.contact_level)} ${(activeFilters.contact_level as string[] | undefined)?.includes(drill.contact_level) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+            >
               {drill.contact_level}
-            </span>
+            </button>
           )}
           {drill.equipment && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEquipmentClick(drill.equipment as string);
+              }}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 ${(activeFilters.equipment as string[] | undefined)?.includes(drill.equipment) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+            >
               {drill.equipment}
-            </span>
+            </button>
           )}
           {drill.difficulty != null && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
@@ -353,9 +426,17 @@ function DrillManagerCard({
             </span>
           )}
           {drill.type.slice(0, 2).map((t) => (
-            <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+            <button
+              key={t}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTypeClick(t);
+              }}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 ${(activeFilters.type as string[] | undefined)?.includes(t) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+            >
               {t}
-            </span>
+            </button>
           ))}
           {drill.type.length > 2 && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
@@ -390,11 +471,45 @@ function DrillManagerCard({
             {drill.depends_on.length > 0 && (
               <p><span className="font-medium">Depends On:</span> {drill.depends_on.join(', ')}</p>
             )}
-            {drill.position_focus.length > 1 && (
-              <p><span className="font-medium">Positions:</span> {drill.position_focus.join(', ')}</p>
+            {drill.position_focus.length > 0 && (
+              <div>
+                <p><span className="font-medium">Positions:</span></p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {drill.position_focus.map((position) => (
+                    <button
+                      key={position}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPositionFocusClick(position);
+                      }}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300 ${(activeFilters.position_focus as string[] | undefined)?.includes(position) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+                    >
+                      {position}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-            {drill.skater_level.length > 1 && (
-              <p><span className="font-medium">Levels:</span> {drill.skater_level.join(', ')}</p>
+            {drill.skater_level.length > 0 && (
+              <div>
+                <p><span className="font-medium">Levels:</span></p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {drill.skater_level.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSkaterLevelClick(level);
+                      }}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300 ${(activeFilters.skater_level as string[] | undefined)?.includes(level) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from collections import Counter
 import json
 import os
@@ -1084,6 +1084,7 @@ async def create_plan(
     timeline_json = json.dumps([item.model_dump() for item in plan.timeline])
     sections_v2_json = json.dumps([section.model_dump() for section in plan.sections_v2]) if plan.sections_v2 else None
 
+    notion_result: Dict[str, Any] = {}
     try:
         notion_result = await notion_service.create_practice_plan_page(
             {
@@ -1100,8 +1101,12 @@ async def create_plan(
             user_id=current_user.id,
             cotrainer_plan_id=None,
         )
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.warning(
+            "Planner Notion sync failed during create for user %s; saving locally only. Error: %s",
+            current_user.email,
+            e,
+        )
 
     db_plan = PracticePlanDB(
         user_id=current_user.id,
@@ -1302,6 +1307,7 @@ async def update_plan(
     timeline_json = json.dumps([item.model_dump() for item in plan.timeline])
     sections_v2_json = json.dumps([section.model_dump() for section in plan.sections_v2]) if plan.sections_v2 else None
 
+    notion_result: Dict[str, Any] = {}
     try:
         notion_result = await notion_service.update_practice_plan_page(
             db_plan.notion_page_id,
@@ -1319,8 +1325,13 @@ async def update_plan(
             user_id=current_user.id,
             cotrainer_plan_id=db_plan.id,
         )
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.warning(
+            "Planner Notion sync failed during update for plan %s (user %s); saving locally only. Error: %s",
+            db_plan.id,
+            current_user.email,
+            e,
+        )
     
     db_plan.name = plan.name
     db_plan.date = plan.date
@@ -1330,8 +1341,10 @@ async def update_plan(
     db_plan.notes = plan.notes
     db_plan.timeline_json = timeline_json
     db_plan.sections_v2_json = sections_v2_json
-    db_plan.notion_page_id = notion_result.get("notion_page_id")
-    db_plan.notion_last_edited_time = notion_result.get("notion_last_edited_time")
+    if notion_result.get("notion_page_id"):
+        db_plan.notion_page_id = notion_result.get("notion_page_id")
+    if notion_result.get("notion_last_edited_time"):
+        db_plan.notion_last_edited_time = notion_result.get("notion_last_edited_time")
     db_plan.updated_at = datetime.utcnow()
     
     db.commit()

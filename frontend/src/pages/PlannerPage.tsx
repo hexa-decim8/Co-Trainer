@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Plus, Clock, Shield, FileText, Copy, Download, ChevronLeft, ChevronRight, ListFilter } from 'lucide-react';
+import { Save, Plus, Clock, Shield, FileText, Copy, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
+import PlannerDrillDetailsPanel from '../components/PlannerDrillDetailsPanel';
 import CircularProgress from '../components/CircularProgress';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
@@ -14,7 +15,7 @@ import { useFilteredDrills } from '../hooks/useFilteredDrills';
 import { useSearchContext } from '../contexts/SearchContext';
 import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
 import { buildPlanText } from '../utils/planTextExport';
-import { getPracticeTypeLabel, getPracticeTypeBgColor } from '../utils/practiceTypes';
+
 import { 
   PRACTICE_DURATION_MINUTES,
   DEFAULT_SECTION_DURATION,
@@ -92,6 +93,7 @@ export default function PlannerPage() {
 
   const [practiceType, setPracticeType] = useState<PracticeType>('fundamentals');
   const [drillPanelOpen, setDrillPanelOpen] = useState(true);
+  const [drillLibraryOpen, setDrillLibraryOpen] = useState(true);
   const [planName, setPlanName] = useState('');
   const [planDate, setPlanDate] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -103,6 +105,7 @@ export default function PlannerPage() {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [loadedPlanId, setLoadedPlanId] = useState<number | null>(null);
+  const [selectedPlannerDrill, setSelectedPlannerDrill] = useState<{ sectionId: string; drillId: string } | null>(null);
 
   const { data: editingPlan } = useQuery({
     queryKey: ['planner-edit-plan', editPlanId],
@@ -657,6 +660,28 @@ export default function PlannerPage() {
     setLoadedPlanId(editPlanId);
   }, [editingPlan, editPlanId, loadedPlanId]);
 
+  // Keep selection synced as drills move, reorder, or are removed.
+  useEffect(() => {
+    if (!selectedPlannerDrill) {
+      return;
+    }
+
+    const selectedSection = sections.find((section) => section.id === selectedPlannerDrill.sectionId);
+    const selectedDrillExists = selectedSection?.drills.some((drill) => drill.id === selectedPlannerDrill.drillId);
+
+    if (!selectedDrillExists) {
+      setSelectedPlannerDrill(null);
+    }
+  }, [sections, selectedPlannerDrill]);
+
+  const selectedSection = selectedPlannerDrill
+    ? sections.find((section) => section.id === selectedPlannerDrill.sectionId)
+    : undefined;
+
+  const selectedTimelineDrill = selectedPlannerDrill && selectedSection
+    ? selectedSection.drills.find((drill) => drill.id === selectedPlannerDrill.drillId)
+    : undefined;
+
   return (
     <DndContext 
       sensors={sensors}
@@ -671,7 +696,7 @@ export default function PlannerPage() {
           {drillPanelOpen ? (
             <>
               {/* Filter Sidebar — capped at 40% height so the drill list always has room */}
-              <div className="flex-shrink-0 overflow-hidden" style={{ maxHeight: '40%' }}>
+              <div className="flex-shrink-0 overflow-hidden" style={{ maxHeight: drillLibraryOpen ? '40%' : '100%' }}>
                 {filterOptions && (
                   <FilterSidebar
                     filterOptions={filterOptions}
@@ -684,97 +709,112 @@ export default function PlannerPage() {
               </div>
 
               {/* Drill Library */}
-              <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+              <div className={`flex flex-col bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden ${drillLibraryOpen ? 'flex-1 min-h-0' : 'flex-shrink-0'}`}>
                 <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
                   <div>
                     <h2 className="text-base font-display font-bold tracking-wide">DRILL LIBRARY</h2>
-                    <p className="text-gray-300 text-xs mt-0.5">Drag drills to your timeline</p>
+                    {drillLibraryOpen && (
+                      <p className="text-gray-300 text-xs mt-0.5">Drag drills to your timeline</p>
+                    )}
                   </div>
-                  <button
-                    onClick={() => setDrillPanelOpen(false)}
-                    className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-                    title="Collapse panel"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setDrillLibraryOpen(prev => !prev)}
+                      className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                      title={drillLibraryOpen ? 'Collapse drill library' : 'Expand drill library'}
+                      aria-label={drillLibraryOpen ? 'Collapse drill library' : 'Expand drill library'}
+                    >
+                      {drillLibraryOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                    </button>
+                    <button
+                      onClick={() => setDrillPanelOpen(false)}
+                      className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                      title="Collapse sidebar"
+                      aria-label="Collapse sidebar"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-                  {isLoading || isStreaming ? (
-                    <div className="flex items-center justify-center h-64">
-                      <div className="text-center">
-                        {progress > 0 ? (
-                          <>
-                            <CircularProgress 
-                              progress={progress} 
-                              total={total}
-                              size={120}
-                              strokeWidth={8}
-                            />
-                            <div className="text-gray-600 dark:text-gray-400 font-semibold mt-4">
-                              {shouldSync 
-                                ? 'Syncing from Notion (this may take a minute)...'
-                                : total && total > 0
-                                  ? `Loading ${total} drills${cacheAgeMinutes ? ` (synced ${Math.round(cacheAgeMinutes)} min ago)` : ''}...`
-                                  : 'Loading drills...'}
+                {drillLibraryOpen && (
+                  <div className="flex-1 overflow-y-auto p-3 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
+                    {isLoading || isStreaming ? (
+                      <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                          {progress > 0 ? (
+                            <>
+                              <CircularProgress 
+                                progress={progress} 
+                                total={total}
+                                size={120}
+                                strokeWidth={8}
+                              />
+                              <div className="text-gray-600 dark:text-gray-400 font-semibold mt-4">
+                                {shouldSync 
+                                  ? 'Syncing from Notion (this may take a minute)...'
+                                  : total && total > 0
+                                    ? `Loading ${total} drills${cacheAgeMinutes ? ` (synced ${Math.round(cacheAgeMinutes)} min ago)` : ''}...`
+                                    : 'Loading drills...'}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                              <div className="text-gray-600 dark:text-gray-400 font-semibold">
+                                {total && total > 0 
+                                  ? `Preparing to load ${total} drills...`
+                                  : 'Connecting to drill database...'}
+                              </div>
+                            </>
+                          )}
+                          {streamError && (
+                            <div className="mt-4">
+                              <p className="text-red-600 dark:text-red-400 text-sm mb-2">{streamError}</p>
+                              <button
+                                onClick={refetchDrills}
+                                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+                              >
+                                Retry Loading
+                              </button>
                             </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                            <div className="text-gray-600 dark:text-gray-400 font-semibold">
-                              {total && total > 0 
-                                ? `Preparing to load ${total} drills...`
-                                : 'Connecting to drill database...'}
-                            </div>
-                          </>
-                        )}
-                        {streamError && (
-                          <div className="mt-4">
-                            <p className="text-red-600 dark:text-red-400 text-sm mb-2">{streamError}</p>
-                            <button
-                              onClick={refetchDrills}
-                              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
-                            >
-                              Retry Loading
-                            </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : drills.length === 0 && allDrills.length === 0 ? (
-                    <div className="flex items-center justify-center h-64">
-                      <div className="text-center max-w-md">
-                        <div className="text-6xl mb-4">🔍</div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
-                        <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
+                    ) : drills.length === 0 && allDrills.length === 0 ? (
+                      <div className="flex items-center justify-center h-64">
+                        <div className="text-center max-w-md">
+                          <div className="text-6xl mb-4">🔍</div>
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                          <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : drills.length === 0 ? (
-                    <div className="flex items-center justify-center h-64">
-                      <div className="text-center max-w-md">
-                        <div className="text-6xl mb-4">🔍</div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
-                        <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see more drills</p>
+                    ) : drills.length === 0 ? (
+                      <div className="flex items-center justify-center h-64">
+                        <div className="text-center max-w-md">
+                          <div className="text-6xl mb-4">🔍</div>
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                          <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see more drills</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {drills.map((drill) => (
-                        <DrillCard
-                          key={drill.id}
-                          drill={drill}
-                          activeFilters={activeFilters}
-                          onContactLevelClick={handleContactLevelClick}
-                          onDrillTypeClick={handleDrillTypeClick}
-                          onEquipmentClick={handleEquipmentClick}
-                          onPositionFocusClick={handlePositionFocusClick}
-                          onSkaterLevelClick={handleSkaterLevelClick}
-                          onTypeClick={handleTypeClick}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4">
+                        {drills.map((drill) => (
+                          <DrillCard
+                            key={drill.id}
+                            drill={drill}
+                            activeFilters={activeFilters}
+                            onContactLevelClick={handleContactLevelClick}
+                            onDrillTypeClick={handleDrillTypeClick}
+                            onEquipmentClick={handleEquipmentClick}
+                            onPositionFocusClick={handlePositionFocusClick}
+                            onSkaterLevelClick={handleSkaterLevelClick}
+                            onTypeClick={handleTypeClick}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -784,22 +824,28 @@ export default function PlannerPage() {
                 onClick={() => setDrillPanelOpen(true)}
                 className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                 title="Open drill library"
+                aria-label="Open sidebar"
               >
                 <ChevronRight className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setDrillLibraryOpen(prev => !prev)}
+                className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title={drillLibraryOpen ? 'Collapse drill library content' : 'Expand drill library content'}
+                aria-label={drillLibraryOpen ? 'Collapse drill library content' : 'Expand drill library content'}
+              >
+                {drillLibraryOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
               <ListFilter className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </div>
           )}
         </div>
 
-        {/* Right: Timeline — dominant, takes all remaining space */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          {/* Practice Type Selector and Add Section Button */}
-          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">
-                Practice Type
-              </label>
+        {/* Right: Timeline and details panel */}
+        <div className="flex-1 min-w-0 flex gap-1 overflow-hidden">
+          <div className="flex-1 min-w-0 flex flex-col gap-1">
+            {/* Timeline Header with Add Section Button */}
+            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 flex justify-end">
               <button
                 onClick={handleAddSection}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
@@ -809,119 +855,122 @@ export default function PlannerPage() {
                 Add Section
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {(['fundamentals', 'skills_and_drills', 'scrimmage'] as PracticeType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setPracticeType(type)}
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    practiceType === type
-                      ? `${getPracticeTypeBgColor(type)} text-white shadow-lg scale-105`
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {getPracticeTypeLabel(type)}
-                </button>
-              ))}
+
+            <div className="flex-1 overflow-hidden">
+              <TimelinePlanner
+                sections={sections}
+                onRemoveDrill={handleRemoveDrill}
+                onUpdateDuration={handleUpdateDuration}
+                onDeleteSection={handleDeleteSection}
+                onResizeSection={handleResizeSection}
+                onUpdateSectionName={handleUpdateSectionName}
+                onSelectTimelineDrill={(section, drill) => {
+                  setSelectedPlannerDrill({ sectionId: section.id, drillId: drill.id });
+                }}
+                selectedTimelineDrillId={selectedPlannerDrill?.drillId ?? null}
+                practiceType={practiceType}
+              />
+            </div>
+
+            {/* Save buttons */}
+            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+              {!showSaveDialog ? (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setShowSaveDialog(true)}
+                    disabled={getAllDrills().length === 0}
+                    className="w-full btn-primary flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-5 h-5" />
+                    {isEditMode ? 'Update Practice Plan' : 'Save Practice Plan'}
+                  </button>
+                  <button
+                    onClick={handleOpenExportDialog}
+                    disabled={getAllDrills().length === 0}
+                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <FileText className="w-5 h-5" />
+                    Export Plan as Text
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {saveError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <p className="text-sm text-red-600 dark:text-red-400">{saveError.message}</p>
+                    </div>
+                  )}
+                  {saveSuccess && (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-600 dark:text-green-400">{saveSuccess}</p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Plan Name
+                    </label>
+                    <input
+                      type="text"
+                      value={planName}
+                      onChange={(e) => setPlanName(e.target.value)}
+                      placeholder="Enter plan name..."
+                      className="input-derby"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Practice Date (optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={planDate}
+                      onChange={(e) => setPlanDate(e.target.value)}
+                      className="input-derby"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleSavePlan(false)}
+                      className="btn-primary"
+                    >
+                      {isEditMode ? 'Update Plan' : 'Save Plan'}
+                    </button>
+                    <button
+                      onClick={() => handleSavePlan(true)}
+                      className="px-4 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 hover:shadow-lg transition-all duration-200 active:scale-95"
+                    >
+                      Save Template
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowSaveDialog(false);
+                      setPlanName('');
+                      setPlanDate('');
+                      setSaveError(null);
+                      setSaveSuccess(null);
+                    }}
+                    className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden">
-            <TimelinePlanner
-              sections={sections}
-              onRemoveDrill={handleRemoveDrill}
-              onUpdateDuration={handleUpdateDuration}
-              onDeleteSection={handleDeleteSection}
-              onResizeSection={handleResizeSection}
-              onUpdateSectionName={handleUpdateSectionName}
-              practiceType={practiceType}
-            />
-          </div>
-
-          {/* Save buttons */}
-          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-            {!showSaveDialog ? (
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowSaveDialog(true)}
-                  disabled={getAllDrills().length === 0}
-                  className="w-full btn-primary flex items-center justify-center gap-2"
-                >
-                  <Save className="w-5 h-5" />
-                  {isEditMode ? 'Update Practice Plan' : 'Save Practice Plan'}
-                </button>
-                <button
-                  onClick={handleOpenExportDialog}
-                  disabled={getAllDrills().length === 0}
-                  className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <FileText className="w-5 h-5" />
-                  Export Plan as Text
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {saveError && (
-                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-600 dark:text-red-400">{saveError.message}</p>
-                  </div>
-                )}
-                {saveSuccess && (
-                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-sm text-green-600 dark:text-green-400">{saveSuccess}</p>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Plan Name
-                  </label>
-                  <input
-                    type="text"
-                    value={planName}
-                    onChange={(e) => setPlanName(e.target.value)}
-                    placeholder="Enter plan name..."
-                    className="input-derby"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Practice Date (optional)
-                  </label>
-                  <input
-                    type="date"
-                    value={planDate}
-                    onChange={(e) => setPlanDate(e.target.value)}
-                    className="input-derby"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleSavePlan(false)}
-                    className="btn-primary"
-                  >
-                    {isEditMode ? 'Update Plan' : 'Save Plan'}
-                  </button>
-                  <button
-                    onClick={() => handleSavePlan(true)}
-                    className="px-4 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 hover:shadow-lg transition-all duration-200 active:scale-95"
-                  >
-                    Save Template
-                  </button>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowSaveDialog(false);
-                    setPlanName('');
-                    setPlanDate('');
-                    setSaveError(null);
-                    setSaveSuccess(null);
-                  }}
-                  className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-medium transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
+          <div
+            className={`flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${
+              selectedTimelineDrill && selectedSection ? 'w-[24rem] opacity-100' : 'w-0 opacity-0 pointer-events-none'
+            }`}
+          >
+            {selectedTimelineDrill && selectedSection && (
+              <PlannerDrillDetailsPanel
+                section={selectedSection}
+                timelineDrill={selectedTimelineDrill}
+                onClose={() => setSelectedPlannerDrill(null)}
+              />
             )}
           </div>
         </div>
