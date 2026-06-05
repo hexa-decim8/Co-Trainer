@@ -1,5 +1,5 @@
 # Build frontend
-FROM node:20-alpine as frontend-builder
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     curl \
     gosu \
-    postgresql-15 \
+    postgresql \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python dependencies and install
