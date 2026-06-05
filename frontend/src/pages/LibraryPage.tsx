@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Calendar, Clock, Trash2, Copy, Search, User, Globe, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { plansApi } from '../api';
+import { getPracticeTypeLabel, getPracticeTypeColor } from '../utils/practiceTypes';
 import type { PracticePlanSummary } from '../types';
 import { LIBRARY_PAGE_SIZE, DEBOUNCE_SEARCH_MS } from '../config/constants';
 import { QUERY_STALE_TIMES, QUERY_GC_TIMES } from '../config/queryConfig';
@@ -93,24 +94,6 @@ export default function LibraryPage() {
     setClonePlanId(plan.id);
     setCloneName(`${plan.name} (Copy)`);
     setShowCloneModal(true);
-  };
-
-  const getPracticeTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      fundamentals: 'Fundamentals',
-      skills_and_drills: 'Skills & Drills',
-      scrimmage: 'Scrimmage',
-    };
-    return labels[type] || type;
-  };
-
-  const getPracticeTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      fundamentals: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-      skills_and_drills: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-      scrimmage: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-    };
-    return colors[type] || 'bg-gray-100 text-gray-700';
   };
 
   return (

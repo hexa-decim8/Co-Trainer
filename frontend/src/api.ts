@@ -11,18 +11,9 @@ import type {
   DrillUpdate,
   AvailableTags,
   ProgressionChartSummary,
-  ProgressionChartFull
+  ProgressionChartFull,
+  DrillCacheInfo,
 } from './types';
-
-export interface DrillCacheInfo {
-  cached_drill_count: number;
-  should_sync: boolean;
-  has_sync_metadata: boolean;
-  last_full_sync?: string;
-  cache_age_hours?: number;
-  cache_age_minutes?: number;
-  drill_count_in_metadata?: number;
-}
 
 const api = axios.create({
   baseURL: '/api',
@@ -58,6 +49,14 @@ api.interceptors.response.use(
 
 export default api;
 
+/** Extract error detail from an Axios error response, with a fallback message. */
+export function getApiErrorDetail(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    return err.response?.data?.detail || fallback;
+  }
+  return fallback;
+}
+
 export const drillsApi = {
   getAll: async (filters?: DrillFilters): Promise<Drill[]> => {
     const params = new URLSearchParams();
@@ -83,6 +82,9 @@ export const drillsApi = {
     }
     if (filters?.skater_level?.length) {
       filters.skater_level.forEach(v => params.append('skater_level', v));
+    }
+    if (filters?.teamwork?.length) {
+      filters.teamwork.forEach(v => params.append('teamwork', v));
     }
     if (filters?.type?.length) {
       filters.type.forEach(v => params.append('type', v));
@@ -231,7 +233,7 @@ export const plansApi = {
     page?: number,
     pageSize?: number
   ): Promise<PaginatedPlansResponse> => {
-    const params: Record<string, any> = {};
+    const params: Record<string, string | number | boolean> = {};
     if (isTemplate !== undefined) params.is_template = isTemplate;
     if (isPublic !== undefined) params.is_public = isPublic;
     if (search) params.search = search;
@@ -272,7 +274,7 @@ export const plansApi = {
   },
 
   getTemplates: async (page?: number, pageSize?: number): Promise<PaginatedPlansResponse> => {
-    const params: Record<string, any> = {};
+    const params: Record<string, number> = {};
     if (page) params.page = page;
     if (pageSize) params.page_size = pageSize;
     const response = await api.get<PaginatedPlansResponse>('/templates', { params });
@@ -298,7 +300,7 @@ export const progressionsApi = {
 
   update: async (
     id: number,
-    data: { name?: string; nodes?: object[]; edges?: object[] }
+    data: { name?: string; nodes?: Record<string, unknown>[]; edges?: Record<string, unknown>[] }
   ): Promise<ProgressionChartFull> => {
     const response = await api.put<ProgressionChartFull>(`/progressions/${id}`, data);
     return response.data;

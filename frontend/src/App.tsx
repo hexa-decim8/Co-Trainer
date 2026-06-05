@@ -41,53 +41,24 @@ function App() {
                   </ErrorBoundary>
                 } />
                 
-                {/* Protected routes */}
+                {/* Protected routes - ErrorBoundary wraps Layout for all child routes */}
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Layout />
+                    <ErrorBoundary>
+                      <Layout />
+                    </ErrorBoundary>
                   </ProtectedRoute>
                 }>
                   <Route index element={<Navigate to="/planner" replace />} />
-                  <Route path="planner" element={
-                    <ErrorBoundary>
-                      <PlannerPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="library" element={
-                    <ErrorBoundary>
-                      <LibraryPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="drills" element={
-                    <ErrorBoundary>
-                      <DrillManagerPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="statistics" element={
-                    <ErrorBoundary>
-                      <StatisticsPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="settings" element={
-                    <ErrorBoundary>
-                      <SettingsPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="admin" element={
-                    <ErrorBoundary>
-                      <AdminPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="experimental/*" element={
-                    <ErrorBoundary>
-                      <ExperimentalPage />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="practice/:id" element={
-                    <ErrorBoundary>
-                      <MobileViewPage />
-                    </ErrorBoundary>
-                  } />
+                  <Route path="planner" element={<PlannerPage />} />
+                  <Route path="library" element={<LibraryPage />} />
+                  <Route path="drills" element={<DrillManagerPage />} />
+                  <Route path="statistics" element={<StatisticsPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="admin" element={<AdminPage />} />
+                  <Route path="experimental/*" element={<ExperimentalPage />} />
+                  <Route path="practice/:id" element={<MobileViewPage />} />
+                  <Route path="*" element={<Navigate to="/planner" replace />} />
                 </Route>
               </Routes>
             </BrowserRouter>

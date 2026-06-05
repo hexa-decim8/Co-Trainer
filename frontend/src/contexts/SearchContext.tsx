@@ -1,23 +1,15 @@
-import { createContext, useState, useCallback, ReactNode, useContext } from 'react';
+import { createContext, useState, ReactNode, useContext } from 'react';
 import type { DrillFilters } from '../types';
 
 interface SearchContextType {
   activeFilters: DrillFilters;
-  setActiveFilters: (filters: DrillFilters | ((prev: DrillFilters) => DrillFilters)) => void;
+  setActiveFilters: React.Dispatch<React.SetStateAction<DrillFilters>>;
 }
 
 export const SearchContext = createContext<SearchContextType | undefined>(undefined);
 
 export function SearchProvider({ children }: { children: ReactNode }) {
-  const [activeFilters, setActiveFiltersState] = useState<DrillFilters>({});
-
-  const setActiveFilters = useCallback((filters: DrillFilters | ((prev: DrillFilters) => DrillFilters)) => {
-    if (typeof filters === 'function') {
-      setActiveFiltersState(filters);
-    } else {
-      setActiveFiltersState(filters);
-    }
-  }, []);
+  const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
 
   return (
     <SearchContext.Provider value={{ activeFilters, setActiveFilters }}>

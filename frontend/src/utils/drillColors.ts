@@ -22,146 +22,108 @@ export const getContactBadgeColor = (level: string | undefined): string => {
   return 'bg-gray-100 text-gray-700';
 };
 
+// ─── Drill type color config map ──────────────────────────────────────────────
+// Each entry: [keywords, badgeColor, borderColor, gradientColor]
+interface DrillTypeColors {
+  badge: string;
+  border: string;
+  gradient: string;
+}
+
+const DRILL_TYPE_COLOR_MAP: Array<{ keywords: string[]; colors: DrillTypeColors }> = [
+  {
+    keywords: ['warm', 'stretch', 'conditioning'],
+    colors: {
+      badge: 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-500/20',
+      border: 'border-l-4 border-l-yellow-400',
+      gradient: 'rgba(250, 204, 21, 0.15)',
+    },
+  },
+  {
+    keywords: ['skill', 'technique', 'drill', 'practice'],
+    colors: {
+      badge: 'bg-blue-100 text-blue-800 ring-2 ring-blue-500/20',
+      border: 'border-l-4 border-l-blue-400',
+      gradient: 'rgba(96, 165, 250, 0.15)',
+    },
+  },
+  {
+    keywords: ['strategy', 'tactic', 'game play', 'gameplay'],
+    colors: {
+      badge: 'bg-purple-100 text-purple-800 ring-2 ring-purple-500/20',
+      border: 'border-l-4 border-l-purple-400',
+      gradient: 'rgba(192, 132, 252, 0.15)',
+    },
+  },
+  {
+    keywords: ['block'],
+    colors: {
+      badge: 'bg-orange-100 text-orange-800 ring-2 ring-orange-500/20',
+      border: 'border-l-4 border-l-orange-400',
+      gradient: 'rgba(251, 146, 60, 0.15)',
+    },
+  },
+  {
+    keywords: ['jam', 'offense', 'offence'],
+    colors: {
+      badge: 'bg-pink-100 text-pink-800 ring-2 ring-pink-500/20',
+      border: 'border-l-4 border-l-pink-400',
+      gradient: 'rgba(244, 114, 182, 0.15)',
+    },
+  },
+  {
+    keywords: ['defense', 'defence'],
+    colors: {
+      badge: 'bg-slate-100 text-slate-800 ring-2 ring-slate-500/20',
+      border: 'border-l-4 border-l-slate-400',
+      gradient: 'rgba(148, 163, 184, 0.15)',
+    },
+  },
+  {
+    keywords: ['scrimmage', 'game'],
+    colors: {
+      badge: 'bg-red-100 text-red-800 ring-2 ring-red-500/20',
+      border: 'border-l-4 border-l-red-400',
+      gradient: 'rgba(248, 113, 113, 0.15)',
+    },
+  },
+  {
+    keywords: ['cool', 'recovery'],
+    colors: {
+      badge: 'bg-teal-100 text-teal-800 ring-2 ring-teal-500/20',
+      border: 'border-l-4 border-l-teal-400',
+      gradient: 'rgba(45, 212, 191, 0.15)',
+    },
+  },
+];
+
+const DEFAULT_COLORS: DrillTypeColors = {
+  badge: 'bg-gray-100 text-gray-700',
+  border: 'border-l-4 border-l-gray-400',
+  gradient: 'rgba(156, 163, 175, 0.15)',
+};
+
+function matchDrillType(type: string | undefined): DrillTypeColors {
+  if (!type) return DEFAULT_COLORS;
+  const lower = type.toLowerCase();
+  for (const entry of DRILL_TYPE_COLOR_MAP) {
+    if (entry.keywords.some(kw => lower.includes(kw))) {
+      return entry.colors;
+    }
+  }
+  return DEFAULT_COLORS;
+}
+
 export const getDrillTypeBadgeColor = (type: string | undefined): string => {
   if (!type) return 'bg-indigo-100 text-indigo-800';
-  const lower = type.toLowerCase();
-  
-  // Warm-up / Conditioning
-  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
-    return 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-500/20';
-  }
-  
-  // Skills / Technique / Drills
-  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
-    return 'bg-blue-100 text-blue-800 ring-2 ring-blue-500/20';
-  }
-  
-  // Strategy / Tactics / Game Play
-  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
-    return 'bg-purple-100 text-purple-800 ring-2 ring-purple-500/20';
-  }
-  
-  // Blocking
-  if (lower.includes('block')) {
-    return 'bg-orange-100 text-orange-800 ring-2 ring-orange-500/20';
-  }
-  
-  // Jamming / Offense
-  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
-    return 'bg-pink-100 text-pink-800 ring-2 ring-pink-500/20';
-  }
-  
-  // Defense
-  if (lower.includes('defense') || lower.includes('defence')) {
-    return 'bg-slate-100 text-slate-800 ring-2 ring-slate-500/20';
-  }
-  
-  // Scrimmage / Game
-  if (lower.includes('scrimmage') || lower.includes('game')) {
-    return 'bg-red-100 text-red-800 ring-2 ring-red-500/20';
-  }
-  
-  // Cool Down
-  if (lower.includes('cool') || lower.includes('recovery')) {
-    return 'bg-teal-100 text-teal-800 ring-2 ring-teal-500/20';
-  }
-  
-  // Default fallback - gray for unknown types
-  return 'bg-gray-100 text-gray-700';
+  return matchDrillType(type).badge;
 };
 
 export const getDrillTypeBorderColor = (type: string | undefined): string => {
   if (!type) return '';
-  const lower = type.toLowerCase();
-  
-  // Warm-up / Conditioning
-  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
-    return 'border-l-4 border-l-yellow-400';
-  }
-  
-  // Skills / Technique / Drills
-  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
-    return 'border-l-4 border-l-blue-400';
-  }
-  
-  // Strategy / Tactics / Game Play
-  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
-    return 'border-l-4 border-l-purple-400';
-  }
-  
-  // Blocking
-  if (lower.includes('block')) {
-    return 'border-l-4 border-l-orange-400';
-  }
-  
-  // Jamming / Offense
-  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
-    return 'border-l-4 border-l-pink-400';
-  }
-  
-  // Defense
-  if (lower.includes('defense') || lower.includes('defence')) {
-    return 'border-l-4 border-l-slate-400';
-  }
-  
-  // Scrimmage / Game
-  if (lower.includes('scrimmage') || lower.includes('game')) {
-    return 'border-l-4 border-l-red-400';
-  }
-  
-  // Cool Down
-  if (lower.includes('cool') || lower.includes('recovery')) {
-    return 'border-l-4 border-l-teal-400';
-  }
-  
-  // Default fallback - gray for unknown types
-  return 'border-l-4 border-l-gray-400';
+  return matchDrillType(type).border;
 };
 
 export const getDrillTypeGradientColor = (type: string | undefined): string => {
-  if (!type) return 'rgba(156, 163, 175, 0.15)'; // gray-400
-  const lower = type.toLowerCase();
-  
-  // Warm-up / Conditioning
-  if (lower.includes('warm') || lower.includes('stretch') || lower.includes('conditioning')) {
-    return 'rgba(250, 204, 21, 0.15)'; // yellow-400
-  }
-  
-  // Skills / Technique / Drills
-  if (lower.includes('skill') || lower.includes('technique') || lower.includes('drill') || lower.includes('practice')) {
-    return 'rgba(96, 165, 250, 0.15)'; // blue-400
-  }
-  
-  // Strategy / Tactics / Game Play
-  if (lower.includes('strategy') || lower.includes('tactic') || lower.includes('game play') || lower.includes('gameplay')) {
-    return 'rgba(192, 132, 252, 0.15)'; // purple-400
-  }
-  
-  // Blocking
-  if (lower.includes('block')) {
-    return 'rgba(251, 146, 60, 0.15)'; // orange-400
-  }
-  
-  // Jamming / Offense
-  if (lower.includes('jam') || lower.includes('offense') || lower.includes('offence')) {
-    return 'rgba(244, 114, 182, 0.15)'; // pink-400
-  }
-  
-  // Defense
-  if (lower.includes('defense') || lower.includes('defence')) {
-    return 'rgba(148, 163, 184, 0.15)'; // slate-400
-  }
-  
-  // Scrimmage / Game
-  if (lower.includes('scrimmage') || lower.includes('game')) {
-    return 'rgba(248, 113, 113, 0.15)'; // red-400
-  }
-  
-  // Cool Down
-  if (lower.includes('cool') || lower.includes('recovery')) {
-    return 'rgba(45, 212, 191, 0.15)'; // teal-400
-  }
-  
-  // Default fallback - gray for unknown types
-  return 'rgba(156, 163, 175, 0.15)'; // gray-400
+  return matchDrillType(type).gradient;
 };

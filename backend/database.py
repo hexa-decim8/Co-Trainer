@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, inspect, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from datetime import datetime
 from config import INTERNAL_DB_URL
 
@@ -8,9 +7,10 @@ Base = declarative_base()
 
 
 class UserDB(Base):
-    """SQLAlchemy model for users."""
+    """SQLAlchemy model for users. Lives in the 'auth' schema for logical isolation."""
     __tablename__ = "users"
-    
+    __table_args__ = {'schema': 'auth'}
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
@@ -30,7 +30,7 @@ class PracticePlanDB(Base):
     __tablename__ = "practice_plans"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String, nullable=False)
     date = Column(DateTime, nullable=True)
     practice_type = Column(String, nullable=False)
@@ -76,9 +76,9 @@ class PlanClone(Base):
     __tablename__ = "plan_clones"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    original_plan_id = Column(Integer, ForeignKey("practice_plans.id"), nullable=False, index=True)
-    cloned_plan_id = Column(Integer, ForeignKey("practice_plans.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
+    original_plan_id = Column(Integer, ForeignKey("practice_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    cloned_plan_id = Column(Integer, ForeignKey("practice_plans.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     __table_args__ = (
@@ -101,7 +101,7 @@ class ProgressionChartDB(Base):
     __tablename__ = "progression_charts"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String, nullable=False)
     nodes_json = Column(Text, nullable=False, default="[]")
     edges_json = Column(Text, nullable=False, default="[]")
@@ -118,8 +118,15 @@ engine = create_engine(INTERNAL_DB_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def _ensure_auth_schema() -> None:
+    """Create the auth schema if it doesn't exist (safety net for dev/non-Docker runs)."""
+    with engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
+
+
 def init_db():
     """Initialize database tables."""
+    _ensure_auth_schema()
     Base.metadata.create_all(bind=engine)
     _ensure_user_columns()
     _ensure_practice_plan_columns()
@@ -128,23 +135,23 @@ def init_db():
 def _ensure_user_columns() -> None:
     """Add new user approval columns for existing deployments without Alembic."""
     inspector = inspect(engine)
-    if "users" not in inspector.get_table_names():
+    if "users" not in inspector.get_table_names(schema="auth"):
         return
 
-    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    existing_columns = {col["name"] for col in inspector.get_columns("users", schema="auth")}
     added_is_approved = False
 
     if "is_approved" not in existing_columns:
         with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE users ADD COLUMN is_approved BOOLEAN"))
+            connection.execute(text("ALTER TABLE auth.users ADD COLUMN is_approved BOOLEAN"))
         added_is_approved = True
 
     with engine.begin() as connection:
         if added_is_approved:
             # Rollout rule: pre-existing accounts remain active.
-            connection.execute(text("UPDATE users SET is_approved = TRUE"))
+            connection.execute(text("UPDATE auth.users SET is_approved = TRUE"))
         else:
-            connection.execute(text("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL"))
+            connection.execute(text("UPDATE auth.users SET is_approved = TRUE WHERE is_approved IS NULL"))
 
 
 def _ensure_practice_plan_columns() -> None:

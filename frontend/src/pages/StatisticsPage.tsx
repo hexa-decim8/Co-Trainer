@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, TrendingUp, LibraryBig } from 'lucide-react';
 import { drillsApi, plansApi } from '../api';
+import { useFilteredDrills } from '../hooks/useFilteredDrills';
 import StatisticsFilters from '../components/stats/StatisticsFilters';
 import TagDistributionPie from '../components/stats/TagDistributionPie';
 import CategoryComparisonBar from '../components/stats/CategoryComparisonBar';
@@ -33,41 +34,8 @@ export default function StatisticsPage() {
     }
   });
 
-  // Filter drills based on tag filters
-  const filteredDrills = useMemo(() => {
-    if (Object.keys(tagFilters).length === 0) return allDrills;
-
-    return allDrills.filter((drill: Drill) => {
-      // Check each filter
-      if (tagFilters.contact_level?.length) {
-        const hasMatch = !!drill.contact_level && tagFilters.contact_level.includes(drill.contact_level);
-        if (!hasMatch) return false;
-      }
-
-      if (tagFilters.drill_type?.length) {
-        const hasMatch = tagFilters.drill_type.some(type => 
-          drill.drill_type === type
-        );
-        if (!hasMatch) return false;
-      }
-
-      if (tagFilters.position_focus?.length) {
-        const hasMatch = tagFilters.position_focus.some(pos => 
-          drill.position_focus?.includes(pos)
-        );
-        if (!hasMatch) return false;
-      }
-
-      if (tagFilters.skater_level?.length) {
-        const hasMatch = tagFilters.skater_level.some(level => 
-          drill.skater_level?.includes(level)
-        );
-        if (!hasMatch) return false;
-      }
-
-      return true;
-    });
-  }, [allDrills, tagFilters]);
+  // Filter drills using shared hook
+  const filteredDrills = useFilteredDrills(allDrills, tagFilters);
 
   // Filter plans based on date and practice type
   const filteredPlans = useMemo(() => {

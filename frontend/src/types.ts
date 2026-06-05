@@ -114,10 +114,6 @@ export interface PlanCloneRequest {
   newName: string;
 }
 
-export interface PlanVisibilityUpdate {
-  isPublic: boolean;
-}
-
 // ─── Progressions ────────────────────────────────────────────────────────────
 
 export type ProgressionNodeType = 'drill' | 'skill';
@@ -152,8 +148,8 @@ export interface ProgressionChartSummary {
 export interface ProgressionChartFull {
   id: number;
   name: string;
-  nodes: object[];
-  edges: ProgressionEdgeData[];
+  nodes: Record<string, unknown>[];
+  edges: Record<string, unknown>[];
   created_at: string;
   updated_at: string;
 }
@@ -195,6 +191,7 @@ export interface DrillCreate {
   position_focus?: string[];
   skater_level?: string[];
   skaters_needed?: number | null;
+  teamwork?: string | null;
   type?: string[];
   video_link?: string | null;
 }
@@ -211,4 +208,14 @@ export interface AvailableTags {
   players?: string[];
   equipment?: string[];
   game_type?: string[];
+}
+
+export interface DrillCacheInfo {
+  cached_drill_count: number;
+  should_sync: boolean;
+  has_sync_metadata: boolean;
+  last_full_sync?: string;
+  cache_age_hours?: number;
+  cache_age_minutes?: number;
+  drill_count_in_metadata?: number;
 }

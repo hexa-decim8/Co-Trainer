@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiErrorDetail } from '../api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -26,12 +27,12 @@ export default function LoginPage() {
     try {
       await login(email, password);
       navigate('/planner');
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
+    } catch (err: unknown) {
+      const detail = getApiErrorDetail(err, 'Login failed. Please check your credentials.');
       if (detail === 'Account pending administrator approval') {
         setError('Your account is waiting for administrator approval. Please try again after an admin approves your account.');
       } else {
-        setError(detail || 'Login failed. Please check your credentials.');
+        setError(detail);
       }
     } finally {
       setLoading(false);

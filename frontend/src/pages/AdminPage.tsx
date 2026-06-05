@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi, UserCheck } from 'lucide-react';
-import api from '../api';
+import api, { getApiErrorDetail } from '../api';
 
 interface User {
   id: number;
@@ -156,9 +156,8 @@ export default function AdminPage() {
       setPlannerDatabaseId('');
       setTimeout(() => setNotionMessage(null), 5000);
     },
-    onError: (error: any) => {
-      const errorMsg = error.response?.data?.detail || 'Failed to save settings. Please check your credentials.';
-      setNotionMessage({ type: 'error', text: errorMsg });
+    onError: (error: unknown) => {
+      setNotionMessage({ type: 'error', text: getApiErrorDetail(error, 'Failed to save settings. Please check your credentials.') });
       setTimeout(() => setNotionMessage(null), 5000);
     },
   });
@@ -173,9 +172,8 @@ export default function AdminPage() {
       setNotionMessage({ type: 'success', text: `Connection successful! ${data.message}` });
       setTimeout(() => setNotionMessage(null), 5000);
     },
-    onError: (error: any) => {
-      const errorMsg = error.response?.data?.detail || 'Connection failed. Please check your credentials.';
-      setNotionMessage({ type: 'error', text: errorMsg });
+    onError: (error: unknown) => {
+      setNotionMessage({ type: 'error', text: getApiErrorDetail(error, 'Connection failed. Please check your credentials.') });
       setTimeout(() => setNotionMessage(null), 5000);
     },
   });
@@ -661,7 +659,7 @@ export default function AdminPage() {
             )}
             {updateRoleMutation.isError && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                {(updateRoleMutation.error as any)?.response?.data?.detail || 'Failed to update role'}
+                {getApiErrorDetail(updateRoleMutation.error, 'Failed to update role')}
               </div>
             )}
             <div className="flex gap-3 justify-end">
@@ -723,7 +721,7 @@ export default function AdminPage() {
             </div>
             {resetPasswordMutation.isError && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                {(resetPasswordMutation.error as any)?.response?.data?.detail || 'Failed to reset password'}
+                {getApiErrorDetail(resetPasswordMutation.error, 'Failed to reset password')}
               </div>
             )}
             {resetPasswordMutation.isSuccess && (
@@ -766,7 +764,7 @@ export default function AdminPage() {
             </p>
             {deleteUserMutation.isError && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                {(deleteUserMutation.error as any)?.response?.data?.detail || 'Failed to delete user'}
+                {getApiErrorDetail(deleteUserMutation.error, 'Failed to delete user')}
               </div>
             )}
             <div className="flex gap-3 justify-end">

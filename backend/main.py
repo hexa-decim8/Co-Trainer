@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, status, Response
+from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, text
+from sqlalchemy import text
 from typing import List, Optional, Dict
 import json
 import os
@@ -15,11 +15,11 @@ from pathlib import Path
 from notion_client import Client
 
 from config import settings
-from database import get_db, init_db, UserDB
+from database import get_db, init_db, UserDB, PracticePlanDB, PlanClone, ProgressionChartDB, SyncMetadata, DrillCache
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
-    UserCreate, UserLogin, UserResponse, Token, RegisterResponse, RegistrationPendingResponse, UserUpdate, PasswordChange,
+    UserCreate, UserResponse, Token, RegisterResponse, RegistrationPendingResponse, UserUpdate, PasswordChange,
     UserRoleUpdate, AdminPasswordReset, UserListResponse,
     PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
     PlanRenameRequest, DrillCreate, DrillUpdate,
@@ -27,8 +27,7 @@ from models import (
     ProgressionChartSummary, ProgressionChartFull
 )
 from notion_service import notion_service
-from database import PracticePlanDB, PlanClone
-from database import ProgressionChartDB
+from drill_cache import drill_cache_manager
 from auth import (
     get_password_hash, authenticate_user, create_access_token,
     get_current_user, verify_password, require_admin, require_coach_or_admin
@@ -125,7 +124,6 @@ async def database_status(db: Session = Depends(get_db)):
         db.execute(text("SELECT 1"))
         
         # Get user count
-        from database import UserDB
         user_count = db.query(UserDB).count()
         
         return {
@@ -135,17 +133,16 @@ async def database_status(db: Session = Depends(get_db)):
             "user_count": user_count
         }
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "database_type": "Unknown",
-            "persistent": False
-        }
+        logger.error(f"Database connection check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection error"
+        )
 
 
 @app.get("/api/settings")
-async def get_settings():
-    """Get current settings (without exposing full API key)."""
+async def get_settings(current_user: UserDB = Depends(get_current_user)):
+    """Get current settings (without exposing full API key). Requires authentication."""
     return {
         "notion_configured": bool(settings.notion_api_key and settings.notion_database_id),
         "notion_planner_configured": bool(settings.notion_api_key and settings.notion_practice_plan_database_id),
@@ -228,7 +225,7 @@ async def test_notion_connection():
         logger.error(f"Notion connection test failed: {e}")
         raise HTTPException(
             status_code=400,
-            detail=f"Failed to connect to Notion: {str(e)}"
+            detail="Failed to connect to Notion. Check your credentials."
         )
 
 
@@ -237,7 +234,7 @@ async def test_notion_connection():
 # ============================================================================
 
 @app.post("/api/auth/register", response_model=RegisterResponse)
-async def register(user_data: UserCreate, response: Response, db: Session = Depends(get_db)):
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
     # Check if user already exists
     existing_user = db.query(UserDB).filter(UserDB.email == user_data.email).first()
@@ -277,15 +274,7 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
     return Token(
         access_token=access_token,
         token_type="bearer",
-        user=UserResponse(
-            id=db_user.id,  # type: ignore
-            email=db_user.email,  # type: ignore
-            derby_name=db_user.derby_name,  # type: ignore
-            role=db_user.role,  # type: ignore
-            is_approved=db_user.is_approved,  # type: ignore
-            dark_mode=db_user.dark_mode,  # type: ignore
-            created_at=db_user.created_at  # type: ignore
-        )
+        user=UserResponse.from_db(db_user)
     )
 
 
@@ -312,36 +301,20 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     return Token(
         access_token=access_token,
         token_type="bearer",
-        user=UserResponse(
-            id=user.id,  # type: ignore
-            email=user.email,  # type: ignore
-            derby_name=user.derby_name,  # type: ignore
-            role=user.role,  # type: ignore
-            is_approved=user.is_approved,  # type: ignore
-            dark_mode=user.dark_mode,  # type: ignore
-            created_at=user.created_at  # type: ignore
-        )
+        user=UserResponse.from_db(user)
     )
 
 
 @app.post("/api/auth/logout")
 async def logout(current_user: UserDB = Depends(get_current_user)):
     """Logout user."""
-    return {"message": "Successfully logged out"}
+    return {"success": True, "message": "Successfully logged out"}
 
 
 @app.get("/api/auth/me", response_model=UserResponse)
 async def get_current_user_info(current_user: UserDB = Depends(get_current_user)):
     """Get current authenticated user information."""
-    return UserResponse(
-        id=current_user.id,  # type: ignore
-        email=current_user.email,  # type: ignore
-        derby_name=current_user.derby_name,  # type: ignore
-        role=current_user.role,  # type: ignore
-        is_approved=current_user.is_approved,  # type: ignore
-        dark_mode=current_user.dark_mode,  # type: ignore
-        created_at=current_user.created_at  # type: ignore
-    )
+    return UserResponse.from_db(current_user)
 
 
 @app.put("/api/auth/profile", response_model=UserResponse)
@@ -360,15 +333,7 @@ async def update_profile(
     db.commit()
     db.refresh(current_user)
     
-    return UserResponse(
-        id=current_user.id,  # type: ignore
-        email=current_user.email,  # type: ignore
-        derby_name=current_user.derby_name,  # type: ignore
-        role=current_user.role,  # type: ignore
-        is_approved=current_user.is_approved,  # type: ignore
-        dark_mode=current_user.dark_mode,  # type: ignore
-        created_at=current_user.created_at  # type: ignore
-    )
+    return UserResponse.from_db(current_user)
 
 
 @app.post("/api/auth/change-password")
@@ -405,12 +370,12 @@ async def list_users(
     users = db.query(UserDB).all()
     return [
         UserListResponse(
-            id=user.id,  # type: ignore
-            email=user.email,  # type: ignore
-            derby_name=user.derby_name,  # type: ignore
-            role=user.role,  # type: ignore
-            is_approved=user.is_approved,  # type: ignore
-            created_at=user.created_at  # type: ignore
+            id=user.id,
+            email=user.email,
+            derby_name=user.derby_name,
+            role=user.role,
+            is_approved=user.is_approved,
+            created_at=user.created_at
         )
         for user in users
     ]
@@ -693,7 +658,7 @@ async def sync_drills(
             }
     except Exception as e:
         logger.error(f"Drill sync failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Drill sync failed")
 
 
 @app.get("/api/drills/count")
@@ -702,7 +667,6 @@ async def get_drill_count(
     current_user: UserDB = Depends(get_current_user)
 ):
     """Get expected drill count from cache metadata."""
-    from database import SyncMetadata, DrillCache
     
     sync_meta = db.query(SyncMetadata).first()
     if sync_meta and sync_meta.drill_count:  # type: ignore
@@ -725,9 +689,6 @@ async def get_cache_info(
     current_user: UserDB = Depends(get_current_user)
 ):
     """Get information about the drill cache."""
-    from drill_cache import drill_cache_manager
-    from database import SyncMetadata, DrillCache
-    from datetime import datetime, timedelta
     
     # Get sync metadata
     sync_meta = db.query(SyncMetadata).first()
@@ -825,7 +786,7 @@ async def create_drill(
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating drill: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create drill: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create drill")
 
 
 @app.get("/api/drills/{drill_id}", response_model=Drill)
@@ -866,7 +827,7 @@ async def update_drill(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating drill: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update drill: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update drill")
 
 
 @app.delete("/api/drills/{drill_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -883,7 +844,7 @@ async def delete_drill(
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Error archiving drill: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to archive drill: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to archive drill")
 
 
 @app.get("/api/tags")
@@ -898,7 +859,7 @@ async def get_available_tags(
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Error fetching tags: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch tags: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch tags")
 
 
 @app.post("/api/plans", response_model=PracticePlanSummary)
@@ -912,8 +873,8 @@ async def create_plan(
                 f"(template={plan.is_template}, public={plan.is_public}, "
                 f"drills={len(plan.timeline)}, "
                 f"sections_v2={len(plan.sections_v2) if plan.sections_v2 else 0})")
-    timeline_json = json.dumps([item.dict() for item in plan.timeline])
-    sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
+    timeline_json = json.dumps([item.model_dump() for item in plan.timeline])
+    sections_v2_json = json.dumps([section.model_dump() for section in plan.sections_v2]) if plan.sections_v2 else None
 
     try:
         notion_result = await notion_service.create_practice_plan_page(
@@ -953,26 +914,9 @@ async def create_plan(
     db.commit()
     db.refresh(db_plan)
     
-    # Calculate total duration
-    timeline_data = json.loads(db_plan.timeline_json)  # type: ignore
-    total_duration = sum(item["duration_minutes"] for item in timeline_data)
+    logger.info(f"API: Successfully created plan ID {db_plan.id} - '{db_plan.name}'")
     
-    logger.info(f"API: Successfully created plan ID {db_plan.id} - '{db_plan.name}' "
-                f"({total_duration} min, {len(timeline_data)} drills)")
-    
-    return PracticePlanSummary(
-        id=db_plan.id,  # type: ignore
-        name=db_plan.name,  # type: ignore
-        date=db_plan.date,  # type: ignore
-        practice_type=PracticeType(db_plan.practice_type),  # type: ignore
-        is_template=db_plan.is_template,  # type: ignore
-        is_public=getattr(db_plan, 'is_public', False),
-        total_duration=total_duration,
-        drill_count=len(timeline_data),
-        clone_count=getattr(db_plan, 'clone_count', 0),
-        created_at=db_plan.created_at,  # type: ignore
-        updated_at=db_plan.updated_at  # type: ignore
-    )
+    return PracticePlanSummary.from_db(db_plan)
 
 
 @app.get("/api/plans", response_model=PaginatedPlansResponse)
@@ -1026,19 +970,10 @@ async def list_plans(
     # Build summaries
     summaries = []
     for plan in plans:
-        try:
-            timeline_data = json.loads(plan.timeline_json)
-            total_duration = sum(item["duration_minutes"] for item in timeline_data)
-        except (json.JSONDecodeError, KeyError, TypeError):
-            logger.error(f"Corrupted timeline_json for plan {plan.id}")
-            timeline_data = []
-            total_duration = 0
-        
         # Get creator info if this is a public plan view
         creator_email = None
         creator_derby_name = None
         if is_public:
-            # Use eager-loaded user relationship
             creator = plan.user
             if creator:
                 creator_email = creator.email
@@ -1047,21 +982,11 @@ async def list_plans(
         # Check if current user has cloned this plan (using batch-fetched data)
         is_cloned_by_user = plan.id in cloned_plan_ids if is_public else False
         
-        summaries.append(PracticePlanSummary(
-            id=plan.id,
-            name=plan.name,
-            date=plan.date,
-            practice_type=PracticeType(plan.practice_type),
-            is_template=plan.is_template,
-            is_public=plan.is_public,
-            total_duration=total_duration,
-            drill_count=len(timeline_data),
+        summaries.append(PracticePlanSummary.from_db(
+            plan,
             creator_email=creator_email,
             creator_derby_name=creator_derby_name,
-            clone_count=plan.clone_count,
             is_cloned_by_user=is_cloned_by_user,
-            created_at=plan.created_at,
-            updated_at=plan.updated_at
         ))
     
     # Calculate total pages
@@ -1117,7 +1042,7 @@ async def get_plan(
         
         timeline_item = {
             "drill_id": drill_id,
-            "drill": drill.dict() if drill else None,
+            "drill": drill.model_dump() if drill else None,
             "duration_minutes": duration,
             "start_time_minutes": current_time
         }
@@ -1166,8 +1091,8 @@ async def update_plan(
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    timeline_json = json.dumps([item.dict() for item in plan.timeline])
-    sections_v2_json = json.dumps([section.dict() for section in plan.sections_v2]) if plan.sections_v2 else None
+    timeline_json = json.dumps([item.model_dump() for item in plan.timeline])
+    sections_v2_json = json.dumps([section.model_dump() for section in plan.sections_v2]) if plan.sections_v2 else None
 
     try:
         notion_result = await notion_service.update_practice_plan_page(
@@ -1204,22 +1129,7 @@ async def update_plan(
     db.commit()
     db.refresh(db_plan)
     
-    timeline_data = json.loads(db_plan.timeline_json)
-    total_duration = sum(item["duration_minutes"] for item in timeline_data)
-    
-    return PracticePlanSummary(
-        id=db_plan.id,
-        name=db_plan.name,
-        date=db_plan.date,
-        practice_type=PracticeType(db_plan.practice_type),
-        is_template=db_plan.is_template,
-        is_public=db_plan.is_public,
-        total_duration=total_duration,
-        drill_count=len(timeline_data),
-        clone_count=db_plan.clone_count,
-        created_at=db_plan.created_at,
-        updated_at=db_plan.updated_at
-    )
+    return PracticePlanSummary.from_db(db_plan)
 
 
 @app.patch("/api/plans/{plan_id}/rename")
@@ -1288,22 +1198,7 @@ async def update_plan_visibility(
     db.commit()
     db.refresh(db_plan)
     
-    timeline_data = json.loads(db_plan.timeline_json)
-    total_duration = sum(item["duration_minutes"] for item in timeline_data)
-    
-    return PracticePlanSummary(
-        id=db_plan.id,
-        name=db_plan.name,
-        date=db_plan.date,
-        practice_type=PracticeType(db_plan.practice_type),
-        is_template=db_plan.is_template,
-        is_public=db_plan.is_public,
-        total_duration=total_duration,
-        drill_count=len(timeline_data),
-        clone_count=db_plan.clone_count,
-        created_at=db_plan.created_at,
-        updated_at=db_plan.updated_at
-    )
+    return PracticePlanSummary.from_db(db_plan)
 
 
 @app.post("/api/plans/{plan_id}/clone", response_model=PracticePlanSummary)
@@ -1388,23 +1283,7 @@ async def clone_plan(
     db.commit()
     db.refresh(cloned_plan)
     
-    # Build response
-    timeline_data = json.loads(cloned_plan.timeline_json)
-    total_duration = sum(item["duration_minutes"] for item in timeline_data)
-    
-    return PracticePlanSummary(
-        id=cloned_plan.id,
-        name=cloned_plan.name,
-        date=cloned_plan.date,
-        practice_type=PracticeType(cloned_plan.practice_type),
-        is_template=cloned_plan.is_template,
-        is_public=cloned_plan.is_public,
-        total_duration=total_duration,
-        drill_count=len(timeline_data),
-        clone_count=cloned_plan.clone_count,
-        created_at=cloned_plan.created_at,
-        updated_at=cloned_plan.updated_at
-    )
+    return PracticePlanSummary.from_db(cloned_plan)
 
 
 @app.delete("/api/plans/{plan_id}")

@@ -38,6 +38,3 @@ export const MOBILE_MIN_TOUCH_TARGET_PX = 44; // Minimum touch target size for m
 export const DEBOUNCE_SEARCH_MS = 300; // Debounce delay for search input
 export const SUCCESS_MESSAGE_DURATION_MS = 3000; // How long to show success messages
 export const RESIZE_ANIMATION_DELAY_MS = 50; // Delay before turning off resize mode
-
-// Cookie/Session Constants
-export const REFRESH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days

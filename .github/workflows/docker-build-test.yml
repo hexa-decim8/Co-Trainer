@@ -57,7 +57,6 @@ jobs:
           docker run -d --name co-trainer-ci \
             -p 8000:8000 \
             -e SECRET_KEY=ci-secret-key-please-change \
-            -e DATABASE_URL=sqlite:////app/data/ci.db \
             -e NOTION_API_KEY=ci-placeholder \
             -e NOTION_DATABASE_ID=ci-placeholder \
             co-trainer:ci

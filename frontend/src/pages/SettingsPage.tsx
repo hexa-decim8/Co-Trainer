@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { getApiErrorDetail } from '../api';
 
 export default function SettingsPage() {
   const { user, updateProfile } = useAuth();
@@ -106,10 +107,10 @@ export default function SettingsPage() {
                 setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
                 setDerbyName('');
                 setTimeout(() => setProfileMessage(null), 5000);
-              } catch (error: any) {
+              } catch (error: unknown) {
                 setProfileMessage({ 
                   type: 'error', 
-                  text: error.response?.data?.detail || 'Failed to update profile' 
+                  text: getApiErrorDetail(error, 'Failed to update profile') 
                 });
                 setTimeout(() => setProfileMessage(null), 5000);
               }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -10,9 +10,11 @@ import TimelinePlanner from '../components/TimelinePlanner';
 import CircularProgress from '../components/CircularProgress';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
+import { useFilteredDrills } from '../hooks/useFilteredDrills';
 import { useSearchContext } from '../contexts/SearchContext';
 import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
 import { buildPlanText } from '../utils/planTextExport';
+import { getPracticeTypeLabel, getPracticeTypeBgColor } from '../utils/practiceTypes';
 import { 
   PRACTICE_DURATION_MINUTES,
   DEFAULT_SECTION_DURATION,
@@ -123,84 +125,8 @@ export default function PlannerPage() {
     refetch: refetchDrills,
   } = useStreamingDrills({ enabled: true });
 
-  // Apply filters client-side with single-pass optimization (O(n) instead of O(n*m))
-  const drills = useMemo(() => {
-    return allDrills.filter(drill => {
-      // Text search - check exercise, description, and all tag fields
-      if (activeFilters.search) {
-        const searchLower = activeFilters.search.toLowerCase();
-        const matchesSearch = 
-          drill.exercise.toLowerCase().includes(searchLower) ||
-          (drill.description && drill.description.toLowerCase().includes(searchLower)) ||
-          drill.type.some(t => t.toLowerCase().includes(searchLower)) ||
-          (drill.contact_level && drill.contact_level.toLowerCase().includes(searchLower)) ||
-          drill.position_focus.some(pf => pf.toLowerCase().includes(searchLower)) ||
-          drill.skater_level.some(sl => sl.toLowerCase().includes(searchLower)) ||
-          (drill.drill_type && drill.drill_type.toLowerCase().includes(searchLower)) ||
-          (drill.equipment && drill.equipment.toLowerCase().includes(searchLower)) ||
-          (drill.game_type && drill.game_type.toLowerCase().includes(searchLower));
-        if (!matchesSearch) return false;
-      }
-
-      // Contact level filter
-      if (activeFilters.contact_level?.length) {
-        if (!drill.contact_level || !activeFilters.contact_level.includes(drill.contact_level)) {
-          return false;
-        }
-      }
-
-      // Difficulty filter
-      if (activeFilters.difficulty?.length) {
-        if (drill.difficulty == null || !activeFilters.difficulty.includes(drill.difficulty)) {
-          return false;
-        }
-      }
-
-      // Drill type filter
-      if (activeFilters.drill_type?.length) {
-        if (!drill.drill_type || !activeFilters.drill_type.includes(drill.drill_type)) {
-          return false;
-        }
-      }
-
-      // Equipment filter
-      if (activeFilters.equipment?.length) {
-        if (!drill.equipment || !activeFilters.equipment.includes(drill.equipment)) {
-          return false;
-        }
-      }
-
-      // Game type filter
-      if (activeFilters.game_type?.length) {
-        if (!drill.game_type || !activeFilters.game_type.includes(drill.game_type)) {
-          return false;
-        }
-      }
-
-      // Position focus filter
-      if (activeFilters.position_focus?.length) {
-        if (!activeFilters.position_focus.some(pf => drill.position_focus?.includes(pf))) {
-          return false;
-        }
-      }
-
-      // Skater level filter
-      if (activeFilters.skater_level?.length) {
-        if (!activeFilters.skater_level.some(sl => drill.skater_level?.includes(sl))) {
-          return false;
-        }
-      }
-
-      // Type filter
-      if (activeFilters.type?.length) {
-        if (!activeFilters.type.some(t => drill.type?.includes(t))) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [allDrills, activeFilters]);
+  // Apply filters client-side using shared hook
+  const drills = useFilteredDrills(allDrills, activeFilters);
 
   // Fetch filter options with centralized config
   const { data: filterOptions } = useQuery({
@@ -603,20 +529,6 @@ export default function PlannerPage() {
     }
   };
 
-  const getPracticeTypeColor = (type: PracticeType) => {
-    if (type === 'fundamentals') return 'bg-practice-fundamentals';
-    if (type === 'skills_and_drills') return 'bg-practice-skills';
-    if (type === 'scrimmage') return 'bg-practice-scrimmage';
-    return 'bg-gray-500';
-  };
-
-  const getPracticeTypeLabel = (type: PracticeType) => {
-    if (type === 'fundamentals') return 'Fundamentals';
-    if (type === 'skills_and_drills') return 'Skills & Drills';
-    if (type === 'scrimmage') return 'Scrimmage';
-    return type;
-  };
-
   const createPlanExportText = useCallback(() => {
     return buildPlanText({
       planName,
@@ -904,7 +816,7 @@ export default function PlannerPage() {
                   onClick={() => setPracticeType(type)}
                   className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                     practiceType === type
-                      ? `${getPracticeTypeColor(type)} text-white shadow-lg scale-105`
+                      ? `${getPracticeTypeBgColor(type)} text-white shadow-lg scale-105`
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >

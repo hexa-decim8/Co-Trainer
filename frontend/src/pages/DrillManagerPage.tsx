@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Archive, Loader2 } from 'lucide-react';
 import { drillsApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
+import { useFilteredDrills } from '../hooks/useFilteredDrills';
 import { useSearchContext } from '../contexts/SearchContext';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillFormModal from '../components/DrillFormModal';
@@ -54,50 +55,8 @@ export default function DrillManagerPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Client-side filtering
-  const drills = useMemo(() => {
-    return allDrills.filter((drill) => {
-      if (activeFilters.search) {
-        const q = activeFilters.search.toLowerCase();
-        const matches =
-          drill.exercise.toLowerCase().includes(q) ||
-          (drill.description && drill.description.toLowerCase().includes(q)) ||
-          drill.type.some((t) => t.toLowerCase().includes(q)) ||
-          (drill.contact_level && drill.contact_level.toLowerCase().includes(q)) ||
-          drill.position_focus.some((pf) => pf.toLowerCase().includes(q)) ||
-          drill.skater_level.some((sl) => sl.toLowerCase().includes(q)) ||
-          (drill.drill_type && drill.drill_type.toLowerCase().includes(q)) ||
-          (drill.equipment && drill.equipment.toLowerCase().includes(q)) ||
-          (drill.game_type && drill.game_type.toLowerCase().includes(q));
-        if (!matches) return false;
-      }
-      if (activeFilters.contact_level?.length) {
-        if (!drill.contact_level || !activeFilters.contact_level.includes(drill.contact_level)) return false;
-      }
-      if (activeFilters.difficulty?.length) {
-        if (drill.difficulty == null || !activeFilters.difficulty.includes(drill.difficulty)) return false;
-      }
-      if (activeFilters.drill_type?.length) {
-        if (!drill.drill_type || !activeFilters.drill_type.includes(drill.drill_type)) return false;
-      }
-      if (activeFilters.equipment?.length) {
-        if (!drill.equipment || !activeFilters.equipment.includes(drill.equipment)) return false;
-      }
-      if (activeFilters.game_type?.length) {
-        if (!drill.game_type || !activeFilters.game_type.includes(drill.game_type)) return false;
-      }
-      if (activeFilters.position_focus?.length) {
-        if (!activeFilters.position_focus.some((pf) => drill.position_focus?.includes(pf))) return false;
-      }
-      if (activeFilters.skater_level?.length) {
-        if (!activeFilters.skater_level.some((sl) => drill.skater_level?.includes(sl))) return false;
-      }
-      if (activeFilters.type?.length) {
-        if (!activeFilters.type.some((t) => drill.type?.includes(t))) return false;
-      }
-      return true;
-    });
-  }, [allDrills, activeFilters]);
+  // Client-side filtering using shared hook
+  const drills = useFilteredDrills(allDrills, activeFilters);
 
   const handleSave = useCallback(
     async (data: DrillCreate | DrillUpdate, drillId?: string) => {
@@ -121,8 +80,8 @@ export default function DrillManagerPage() {
         refetchDrills();
         queryClient.invalidateQueries({ queryKey: ['filter-options'] });
         setArchiveConfirm(null);
-      } catch {
-        // Error is shown in the confirm dialog
+      } catch (err) {
+        console.error('Failed to archive drill:', err);
       } finally {
         setArchiving(false);
       }

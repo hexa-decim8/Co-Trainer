@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiErrorDetail } from '../api';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -58,8 +59,8 @@ export default function RegisterPage() {
       }
 
       navigate('/planner');
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed. Please try again.');
+    } catch (err: unknown) {
+      setError(getApiErrorDetail(err, 'Registration failed. Please try again.'));
     } finally {
       setLoading(false);
     }

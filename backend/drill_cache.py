@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class DrillCacheManager:
-    """Manages persistent drill caching in SQLite database."""
+    """Manages persistent drill caching in the database."""
     
     def load_from_cache(self, db: Session) -> Optional[List[Drill]]:
         """Load drills from database cache."""

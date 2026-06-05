@@ -156,6 +156,32 @@ class PracticePlanSummary(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @classmethod
+    def from_db(cls, plan, **overrides) -> 'PracticePlanSummary':
+        import json as _json
+        try:
+            timeline_data = _json.loads(plan.timeline_json)
+            total_duration = sum(item["duration_minutes"] for item in timeline_data)
+            drill_count = len(timeline_data)
+        except (ValueError, KeyError, TypeError):
+            total_duration = 0
+            drill_count = 0
+        fields = dict(
+            id=plan.id,
+            name=plan.name,
+            date=plan.date,
+            practice_type=PracticeType(plan.practice_type),
+            is_template=plan.is_template,
+            is_public=getattr(plan, 'is_public', False),
+            total_duration=total_duration,
+            drill_count=drill_count,
+            clone_count=getattr(plan, 'clone_count', 0),
+            created_at=plan.created_at,
+            updated_at=plan.updated_at,
+        )
+        fields.update(overrides)
+        return cls(**fields)
+
 
 class PracticePlanWithDrills(BaseModel):
     """Practice plan with full drill details hydrated from Notion."""
@@ -198,12 +224,6 @@ class UserCreate(BaseModel):
         return v
 
 
-class UserLogin(BaseModel):
-    """Model for user login."""
-    email: str
-    password: str
-
-
 class UserResponse(BaseModel):
     """Model for user data returned to client (no password)."""
     id: int
@@ -213,6 +233,18 @@ class UserResponse(BaseModel):
     is_approved: bool = False
     dark_mode: bool = False
     created_at: datetime
+
+    @classmethod
+    def from_db(cls, user) -> 'UserResponse':
+        return cls(
+            id=user.id,
+            email=user.email,
+            derby_name=user.derby_name,
+            role=user.role,
+            is_approved=user.is_approved,
+            dark_mode=user.dark_mode,
+            created_at=user.created_at,
+        )
 
 
 class Token(BaseModel):
@@ -274,18 +306,20 @@ class PaginatedPlansResponse(BaseModel):
     total_pages: int
 
 
+def _validate_plan_name(v: str) -> str:
+    """Shared validator for plan name fields."""
+    if not v or not v.strip():
+        raise ValueError('Plan name is required')
+    v = v.strip()
+    if len(v) > 200:
+        raise ValueError('Plan name must be 200 characters or less')
+    return v
+
+
 class PlanCloneRequest(BaseModel):
     """Request model for cloning a practice plan."""
     new_name: str
-    
-    @validator('new_name')
-    def validate_new_name(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Plan name is required')
-        v = v.strip()
-        if len(v) > 200:
-            raise ValueError('Plan name must be 200 characters or less')
-        return v
+    _validate = validator('new_name', allow_reuse=True)(_validate_plan_name)
 
 
 class PlanVisibilityUpdate(BaseModel):
@@ -296,15 +330,33 @@ class PlanVisibilityUpdate(BaseModel):
 class PlanRenameRequest(BaseModel):
     """Request model for renaming a practice plan."""
     new_name: str
-    
-    @validator('new_name')
-    def validate_new_name(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Plan name is required')
-        v = v.strip()
-        if len(v) > 200:
-            raise ValueError('Plan name must be 200 characters or less')
-        return v
+    _validate = validator('new_name', allow_reuse=True)(_validate_plan_name)
+
+
+# ─── Shared drill validators ──────────────────────────────────────────────────
+
+def _normalize_contact_level(v):
+    if isinstance(v, list):
+        return next((item for item in v if item), None)
+    if isinstance(v, str):
+        return v or None
+    return None
+
+def _validate_difficulty(v):
+    if v is not None and (v < 1 or v > 5):
+        raise ValueError('Difficulty must be between 1 and 5')
+    return v
+
+def _validate_video_link(v):
+    if v is None:
+        return None
+    normalized = v.strip()
+    if not normalized:
+        return None
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError('Video link must be a valid http(s) URL')
+    return normalized
 
 
 # Drill Management Models
@@ -323,6 +375,7 @@ class DrillCreate(BaseModel):
     position_focus: List[str] = []
     skater_level: List[str] = []
     skaters_needed: Optional[int] = None
+    teamwork: Optional[str] = None
     type: List[str] = []
     video_link: Optional[str] = None
 
@@ -332,38 +385,15 @@ class DrillCreate(BaseModel):
             raise ValueError('Exercise name is required')
         return v.strip()
 
-    @validator('difficulty')
-    def validate_difficulty(cls, v):
-        if v is not None and (v < 1 or v > 5):
-            raise ValueError('Difficulty must be between 1 and 5')
-        return v
-
-    @validator('contact_level', pre=True)
-    def normalize_contact_level(cls, v):
-        if isinstance(v, list):
-            return next((item for item in v if item), None)
-        if isinstance(v, str):
-            return v or None
-        return None
+    _difficulty = validator('difficulty', allow_reuse=True)(_validate_difficulty)
+    _contact = validator('contact_level', pre=True, allow_reuse=True)(_normalize_contact_level)
+    _video = validator('video_link', allow_reuse=True)(_validate_video_link)
 
     @validator('depends_on', 'position_focus', 'skater_level', 'type', pre=True)
     def ensure_list(cls, v):
         if isinstance(v, str):
             return [v] if v else []
         return v if v is not None else []
-
-    @validator('video_link')
-    def validate_video_link(cls, v):
-        if v is None:
-            return None
-        normalized = v.strip()
-        if not normalized:
-            return None
-
-        parsed = urlparse(normalized)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError('Video link must be a valid http(s) URL')
-        return normalized
 
 
 class DrillUpdate(BaseModel):
@@ -390,32 +420,9 @@ class DrillUpdate(BaseModel):
             raise ValueError('Exercise name cannot be empty')
         return v.strip() if v else v
 
-    @validator('difficulty')
-    def validate_difficulty(cls, v):
-        if v is not None and (v < 1 or v > 5):
-            raise ValueError('Difficulty must be between 1 and 5')
-        return v
-
-    @validator('contact_level', pre=True)
-    def normalize_contact_level(cls, v):
-        if isinstance(v, list):
-            return next((item for item in v if item), None)
-        if isinstance(v, str):
-            return v or None
-        return None
-
-    @validator('video_link')
-    def validate_video_link(cls, v):
-        if v is None:
-            return None
-        normalized = v.strip()
-        if not normalized:
-            return None
-
-        parsed = urlparse(normalized)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError('Video link must be a valid http(s) URL')
-        return normalized
+    _difficulty = validator('difficulty', allow_reuse=True)(_validate_difficulty)
+    _contact = validator('contact_level', pre=True, allow_reuse=True)(_normalize_contact_level)
+    _video = validator('video_link', allow_reuse=True)(_validate_video_link)
 
 
 # ─── Progression Models ───────────────────────────────────────────────────────

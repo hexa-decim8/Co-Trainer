@@ -92,42 +92,53 @@ class NotionService:
             if idx > 0:
                 time.sleep(0.35)
             
-            try:
-                related_page = self.client.pages.retrieve(page_id=page_id)
-                related_props = related_page.get("properties", {})
-                
-                # Try common title property names
-                title = None
-                for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
-                    if title_prop in related_props:
-                        title_data = related_props[title_prop].get("title", [])
-                        if title_data and len(title_data) > 0:
-                            title = title_data[0].get("plain_text")
-                            break
-                
-                # Fallback: find any title-type property
-                if not title:
-                    for prop_name, prop_value in related_props.items():
-                        if prop_value.get("type") == "title":
-                            title_data = prop_value.get("title", [])
-                            if title_data and len(title_data) > 0:
-                                title = title_data[0].get("plain_text")
-                                break
-                
-                if title:
-                    self._relation_cache[page_id] = title
-                    cached_count += 1
-                    logger.debug(f"Cached relation page {page_id[:8]}... -> '{title}'")
-                else:
-                    logger.warning(f"No title found for relation page {page_id}")
-                    failed_count += 1
-                    
-            except Exception as e:
-                logger.error(f"Error fetching relation page {page_id}: {e}")
+            title = self._resolve_page_title(page_id)
+            if title:
+                cached_count += 1
+                logger.debug(f"Cached relation page {page_id[:8]}... -> '{title}'")
+            else:
+                logger.warning(f"No title found for relation page {page_id}")
                 failed_count += 1
         
         logger.info(f"✓ Relation cache built: {cached_count} titles cached, {failed_count} failed")
     
+    def _resolve_page_title(self, page_id: str) -> Optional[str]:
+        """Resolve a Notion page ID to its title, using cache when available."""
+        if page_id in self._relation_cache:
+            return self._relation_cache[page_id]
+
+        if not self.client:
+            return None
+
+        try:
+            related_page = self.client.pages.retrieve(page_id=page_id)
+            related_props = related_page.get("properties", {})
+
+            title = None
+            # Try common title property names
+            for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
+                if title_prop in related_props:
+                    title_data = related_props[title_prop].get("title", [])
+                    if title_data and len(title_data) > 0:
+                        title = title_data[0].get("plain_text")
+                        break
+
+            # Fallback: find any title-type property
+            if not title:
+                for prop_name, prop_value in related_props.items():
+                    if prop_value.get("type") == "title":
+                        title_data = prop_value.get("title", [])
+                        if title_data and len(title_data) > 0:
+                            title = title_data[0].get("plain_text")
+                            break
+
+            if title:
+                self._relation_cache[page_id] = title
+            return title
+        except Exception as e:
+            logger.error(f"Error fetching relation page {page_id}: {e}")
+            return None
+
     def _parse_property(self, prop: Dict[str, Any], prop_type: str) -> Any:
         """Parse a Notion property based on its type."""
         if prop is None:
@@ -167,122 +178,21 @@ class NotionService:
             # Handle relation properties (links to other database pages like Global Tags)
             if prop_data and len(prop_data) > 0:
                 page_id = prop_data[0].get("id")
-                if not page_id:
-                    return None
-                
-                # Check cache first
-                if page_id in self._relation_cache:
-                    logger.debug(f"[CACHE HIT] Relation {page_id[:8]}... -> '{self._relation_cache[page_id]}'")
-                    return self._relation_cache[page_id]
-                
-                # Fallback to API call with retry on transient errors
-                logger.debug(f"[CACHE MISS] Fetching relation {page_id[:8]}... via API")
-                retry_count = 0
-                max_retries = 1
-                last_error = None
-                
-                while retry_count <= max_retries:
-                    try:
-                        if self.client:
-                            related_page = self.client.pages.retrieve(page_id=page_id)
-                            related_props = related_page.get("properties", {})
-                            # Try common title property names (including "Tag Name" for Global Tags)
-                            for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
-                                if title_prop in related_props:
-                                    title_data = related_props[title_prop].get("title", [])
-                                    if title_data and len(title_data) > 0:
-                                        tag_name = title_data[0].get("plain_text")
-                                        # **CRITICAL FIX**: Cache the result for future use
-                                        self._relation_cache[page_id] = tag_name
-                                        logger.debug(f"Found tag name '{tag_name}' from related page {page_id} (cached)")
-                                        return tag_name
-                            # If no title property found, try to find any title-type property
-                            for prop_name, prop_value in related_props.items():
-                                if prop_value.get("type") == "title":
-                                    title_data = prop_value.get("title", [])
-                                    if title_data and len(title_data) > 0:
-                                        tag_name = title_data[0].get("plain_text")
-                                        # **CRITICAL FIX**: Cache the result for future use
-                                        self._relation_cache[page_id] = tag_name
-                                        logger.debug(f"Found tag name '{tag_name}' from title property '{prop_name}' in related page {page_id} (cached)")
-                                        return tag_name
-                            logger.warning(f"No title property found in related page {page_id}. Available properties: {list(related_props.keys())}")
-                        break
-                    except Exception as e:
-                        last_error = e
-                        retry_count += 1
-                        if retry_count <= max_retries:
-                            logger.debug(f"[RETRY] Transient error fetching relation {page_id[:8]}...: {e}")
-                            time.sleep(0.5)  # Brief backoff before retry
-                        else:
-                            logger.error(f"Error fetching related page after {max_retries} retries: {e}")
+                if page_id:
+                    return self._resolve_page_title(page_id)
             return None
         
         elif prop_type == "multi_relation":
             # Handle multi-relation properties (fetch ALL related Global Tags)
-            logger.debug(f"[MULTI-RELATION] prop_data type: {type(prop_data)}, value: {prop_data}")
             results = []
             if prop_data and len(prop_data) > 0:
-                logger.debug(f"[MULTI-RELATION] Processing {len(prop_data)} relation items")
-                try:
-                    for relation_item in prop_data:
-                        page_id = relation_item.get("id")
-                        if not page_id:
-                            continue
-                        
-                        # Check cache first
-                        if page_id in self._relation_cache:
-                            tag_name = self._relation_cache[page_id]
-                            logger.debug(f"[CACHE HIT] Multi-relation {page_id[:8]}... -> '{tag_name}'")
-                            results.append(tag_name)
-                            continue
-                        
-                        # Fallback to API call with retry
-                        logger.debug(f"[CACHE MISS] Fetching multi-relation {page_id[:8]}... via API")
-                        retry_count = 0
-                        max_retries = 1
-                        
-                        while retry_count <= max_retries:
-                            try:
-                                if self.client:
-                                    related_page = self.client.pages.retrieve(page_id=page_id)
-                                    related_props = related_page.get("properties", {})
-                                    found = False
-                                    for title_prop in ["Tag Name", "Name", "Title", "Tag"]:
-                                        if title_prop in related_props:
-                                            title_data = related_props[title_prop].get("title", [])
-                                            if title_data and len(title_data) > 0:
-                                                tag_name = title_data[0].get("plain_text")
-                                                # **CRITICAL FIX**: Cache the result for future use
-                                                self._relation_cache[page_id] = tag_name
-                                                logger.debug(f"[MULTI-RELATION] Found tag: '{tag_name}' (cached)")
-                                                results.append(tag_name)
-                                                found = True
-                                                break
-                                    if not found:
-                                        for prop_name, prop_value in related_props.items():
-                                            if prop_value.get("type") == "title":
-                                                title_data = prop_value.get("title", [])
-                                                if title_data and len(title_data) > 0:
-                                                    tag_name = title_data[0].get("plain_text")
-                                                    # **CRITICAL FIX**: Cache the result for future use
-                                                    self._relation_cache[page_id] = tag_name
-                                                    logger.debug(f"[MULTI-RELATION] Found tag via type '{prop_name}': '{tag_name}' (cached)")
-                                                    results.append(tag_name)
-                                                    break
-                                    if not found:
-                                        logger.debug(f"[MULTI-RELATION] No title found. Available properties: {list(related_props.keys())}")
-                                break
-                            except Exception as e:
-                                retry_count += 1
-                                if retry_count <= max_retries:
-                                    logger.debug(f"[RETRY] Transient error in multi-relation {page_id[:8]}...: {e}")
-                                    time.sleep(0.5)
-                                else:
-                                    logger.error(f"[MULTI-RELATION] Error after {max_retries} retries: {e}")
-                except Exception as e:
-                    logger.error(f"[MULTI-RELATION] Error: {e}")
-            logger.debug(f"[MULTI-RELATION] Returning: {results}")
+                for relation_item in prop_data:
+                    page_id = relation_item.get("id")
+                    if not page_id:
+                        continue
+                    title = self._resolve_page_title(page_id)
+                    if title:
+                        results.append(title)
             return results
         
         elif prop_type == "rollup":
@@ -479,8 +389,7 @@ class NotionService:
                         # Extract Notion's last_edited_time
                         last_edited = page.get("last_edited_time")
                         if last_edited:
-                            from datetime import datetime as dt
-                            notion_timestamps[drill.id] = dt.fromisoformat(last_edited.replace('Z', '+00:00'))
+                            notion_timestamps[drill.id] = datetime.fromisoformat(last_edited.replace('Z', '+00:00'))
                 except Exception as e:
                     logger.error(f"  ✗ Error parsing drill {page.get('id')}: {e}")
             
@@ -630,7 +539,7 @@ class NotionService:
             if cached_drills and not should_rebuild:
                 logger.info(f"✓ Streaming {len(cached_drills)} drills from fresh cache")
                 for idx, drill in enumerate(cached_drills):
-                    yield {"type": "drill", "data": drill.dict()}
+                    yield {"type": "drill", "data": drill.model_dump()}
                     if (idx + 1) % 10 == 0:
                         yield {"type": "progress", "count": idx + 1}
                 logger.info(f"✓ Completed streaming {len(cached_drills)} drills from cache")
@@ -641,7 +550,7 @@ class NotionService:
                 if not self.client or not self.database_id:
                     logger.info(f"✓ Using stale cache ({len(cached_drills)} drills) - Notion not configured")
                     for drill in cached_drills:
-                        yield {"type": "drill", "data": drill.dict()}
+                        yield {"type": "drill", "data": drill.model_dump()}
                     yield {"type": "complete", "total": len(cached_drills)}
                     return
                 else:
@@ -663,7 +572,7 @@ class NotionService:
                 if cached_drills:
                     logger.info("Streaming stale cache (Notion not configured)")
                     for drill in cached_drills:
-                        yield {"type": "drill", "data": drill.dict()}
+                        yield {"type": "drill", "data": drill.model_dump()}
                     yield {"type": "complete", "total": len(cached_drills)}
                     return
             yield {"type": "error", "message": "Notion API not configured"}
@@ -710,10 +619,9 @@ class NotionService:
                         # Extract Notion's last_edited_time
                         last_edited = page.get("last_edited_time")
                         if last_edited:
-                            from datetime import datetime as dt
-                            notion_timestamps[drill.id] = dt.fromisoformat(last_edited.replace('Z', '+00:00'))
+                            notion_timestamps[drill.id] = datetime.fromisoformat(last_edited.replace('Z', '+00:00'))
                         count += 1
-                        yield {"type": "drill", "data": drill.dict()}
+                        yield {"type": "drill", "data": drill.model_dump()}
                         
                         # Send progress update every 10 drills
                         if count % 10 == 0:

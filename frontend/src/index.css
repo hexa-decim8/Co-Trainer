@@ -5,7 +5,6 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.6;
   font-weight: 400;
   
@@ -70,7 +69,8 @@ body {
   .btn-secondary {
     @apply bg-gray-800 text-white px-6 py-3 rounded-lg font-semibold 
            hover:bg-gray-900 hover:shadow-track transition-all duration-200 
-           active:scale-95;
+           active:scale-95
+           dark:bg-gray-600 dark:hover:bg-gray-700;
   }
   
   .btn-danger {

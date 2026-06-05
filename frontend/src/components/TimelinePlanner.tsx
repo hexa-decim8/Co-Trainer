@@ -8,6 +8,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Trash2, GripVertical, Shield, Zap, X, Plus } from 'lucide-react';
 import type { PracticeSection, TimelineDrill } from '../types';
+import { formatMinutes } from '../utils/timeFormat';
 import {  
   getContactColor,
   getContactBadgeColor, 
@@ -104,12 +105,6 @@ function TimelineDrillItem({
     };
   }, [isResizing, initialY, initialDuration, drill.duration, onUpdateDuration]);
 
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}:${mins.toString().padStart(2, '0')}` : `${mins}min`;
-  };
-
   return (
     <div
       ref={setNodeRef}
@@ -145,7 +140,7 @@ function TimelineDrillItem({
                   maxHeight: drillHeight >= 50 ? '20px' : '0px'
                 }}
               >
-                {formatTime(drill.startTime)} - {formatTime(drill.startTime + drill.duration)}
+                {formatMinutes(drill.startTime)} - {formatMinutes(drill.startTime + drill.duration)}
               </div>
               <h4 className={`font-semibold text-gray-900 dark:text-white transition-all duration-200 ${drillHeight < 60 ? 'text-xs' : 'text-sm'}`}>
                 {drill.drill.exercise}

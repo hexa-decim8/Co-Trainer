@@ -1,4 +1,5 @@
 import type { PracticeSection, PracticeType } from '../types';
+import { getPracticeTypeLabel } from './practiceTypes';
 
 interface BuildPlanTextOptions {
   planName: string;
@@ -6,12 +7,6 @@ interface BuildPlanTextOptions {
   practiceType: PracticeType;
   sections: PracticeSection[];
 }
-
-const PRACTICE_TYPE_LABELS: Record<PracticeType, string> = {
-  fundamentals: 'Fundamentals',
-  skills_and_drills: 'Skills & Drills',
-  scrimmage: 'Scrimmage',
-};
 
 const pad = (value: number): string => value.toString().padStart(2, '0');
 
@@ -50,7 +45,7 @@ export const buildPlanText = ({
   const lines: string[] = [
     `Practice Plan: ${safePlanName}`,
     `Date: ${planDate?.trim() || 'Not set'}`,
-    `Practice Type: ${PRACTICE_TYPE_LABELS[practiceType]}`,
+    `Practice Type: ${getPracticeTypeLabel(practiceType)}`,
     `Target Duration: ${formatDuration(totalTargetDuration)}`,
     `Planned Drill Time: ${formatDuration(totalUsedDuration)}`,
     `Drill Count: ${allDrills.length}`,

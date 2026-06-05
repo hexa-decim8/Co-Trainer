@@ -3,8 +3,7 @@ set -e
 
 # ---------------------------------------------------------------------------
 # Co-Trainer entrypoint
-# Runs as root. Starts the embedded PostgreSQL server, performs one-time
-# SQLite migration if needed, then drops to appuser and execs gunicorn.
+# Runs as root. Starts the embedded PostgreSQL server, then drops to appuser and execs gunicorn.
 # ---------------------------------------------------------------------------
 
 PGDATA="${PGDATA:-/var/lib/postgresql/data}"
@@ -12,7 +11,6 @@ PG_LOG="/var/log/postgresql/postgresql.log"
 DB_NAME="cotrainer"
 DB_USER="cotrainer"
 DB_PASS="cotrainer"
-SQLITE_FILE="/app/data/cotrainer.db"
 
 # ---------------------------------------------------------------------------
 # 1. Resolve Postgres binary directory
@@ -77,33 +75,149 @@ EOSQL
 echo "[entrypoint] Role '${DB_USER}' and database '${DB_NAME}' are ready"
 
 # ---------------------------------------------------------------------------
-# 6. One-time migration: SQLite → PostgreSQL
-#    Only runs if the SQLite file exists and the users table is empty.
+# 5b. Create auth schema and migrate users table into it (idempotent)
+#     User account data is kept in the 'auth' schema, separate from the
+#     application data tables which live in the default 'public' schema.
 # ---------------------------------------------------------------------------
-if [ -f "${SQLITE_FILE}" ]; then
-    USER_COUNT=$(gosu postgres "${PG_BIN}/psql" -d "${DB_NAME}" -tAc \
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='users';" 2>/dev/null || echo "0")
-    if [ "${USER_COUNT}" != "0" ]; then
-        ROW_COUNT=$(PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
-            -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" -tAc \
-            "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0")
-    else
-        ROW_COUNT="0"
-    fi
+PGPASSWORD="${DB_PASS}" "${PG_BIN}/psql" \
+    -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" \
+    -v ON_ERROR_STOP=1 <<-EOSQL
 
-    if [ "${ROW_COUNT}" = "0" ]; then
-        echo "[entrypoint] Detected SQLite file and empty Postgres DB — running migration..."
-        gosu appuser python /app/migrate_to_postgres.py
-        echo "[entrypoint] Migration complete"
-    else
-        echo "[entrypoint] Postgres already has data (${ROW_COUNT} users) — skipping migration"
-    fi
-else
-    echo "[entrypoint] No SQLite file found — fresh install, skipping migration"
-fi
+    -- Create the auth schema (no-op if it already exists)
+    CREATE SCHEMA IF NOT EXISTS auth;
+
+    DO \$\$
+    BEGIN
+        -- ----------------------------------------------------------------
+        -- Migrate public.users → auth.users (only if not already done)
+        -- ----------------------------------------------------------------
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'users'
+        ) THEN
+            RAISE NOTICE '[schema-migration] Moving public.users to auth.users';
+
+            -- Drop FK constraints on child tables that reference public.users
+            -- practice_plans.user_id
+            IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'practice_plans_user_id_fkey'
+                  AND table_schema = 'public'
+            ) THEN
+                ALTER TABLE public.practice_plans DROP CONSTRAINT practice_plans_user_id_fkey;
+            END IF;
+
+            -- plan_clones.user_id
+            IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'plan_clones_user_id_fkey'
+                  AND table_schema = 'public'
+            ) THEN
+                ALTER TABLE public.plan_clones DROP CONSTRAINT plan_clones_user_id_fkey;
+            END IF;
+
+            -- plan_clones.original_plan_id (FK to practice_plans — drop+recreate with CASCADE)
+            IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'plan_clones_original_plan_id_fkey'
+                  AND table_schema = 'public'
+            ) THEN
+                ALTER TABLE public.plan_clones DROP CONSTRAINT plan_clones_original_plan_id_fkey;
+            END IF;
+
+            -- plan_clones.cloned_plan_id (FK to practice_plans — drop+recreate with CASCADE)
+            IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'plan_clones_cloned_plan_id_fkey'
+                  AND table_schema = 'public'
+            ) THEN
+                ALTER TABLE public.plan_clones DROP CONSTRAINT plan_clones_cloned_plan_id_fkey;
+            END IF;
+
+            -- progression_charts.user_id
+            IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'progression_charts_user_id_fkey'
+                  AND table_schema = 'public'
+            ) THEN
+                ALTER TABLE public.progression_charts DROP CONSTRAINT progression_charts_user_id_fkey;
+            END IF;
+
+            -- Move the table to the auth schema
+            ALTER TABLE public.users SET SCHEMA auth;
+
+            RAISE NOTICE '[schema-migration] public.users moved to auth.users';
+        ELSE
+            RAISE NOTICE '[schema-migration] auth.users already in place, skipping move';
+        END IF;
+
+        -- ----------------------------------------------------------------
+        -- Recreate / ensure FK constraints point at auth.users
+        -- ----------------------------------------------------------------
+
+        -- practice_plans.user_id → auth.users.id
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'practice_plans_user_id_fkey'
+              AND table_schema = 'public'
+        ) THEN
+            ALTER TABLE public.practice_plans
+                ADD CONSTRAINT practice_plans_user_id_fkey
+                FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        END IF;
+
+        -- plan_clones.user_id → auth.users.id
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'plan_clones_user_id_fkey'
+              AND table_schema = 'public'
+        ) THEN
+            ALTER TABLE public.plan_clones
+                ADD CONSTRAINT plan_clones_user_id_fkey
+                FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        END IF;
+
+        -- plan_clones.original_plan_id → public.practice_plans.id (CASCADE)
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'plan_clones_original_plan_id_fkey'
+              AND table_schema = 'public'
+        ) THEN
+            ALTER TABLE public.plan_clones
+                ADD CONSTRAINT plan_clones_original_plan_id_fkey
+                FOREIGN KEY (original_plan_id) REFERENCES public.practice_plans(id) ON DELETE CASCADE;
+        END IF;
+
+        -- plan_clones.cloned_plan_id → public.practice_plans.id (CASCADE)
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'plan_clones_cloned_plan_id_fkey'
+              AND table_schema = 'public'
+        ) THEN
+            ALTER TABLE public.plan_clones
+                ADD CONSTRAINT plan_clones_cloned_plan_id_fkey
+                FOREIGN KEY (cloned_plan_id) REFERENCES public.practice_plans(id) ON DELETE CASCADE;
+        END IF;
+
+        -- progression_charts.user_id → auth.users.id
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'progression_charts_user_id_fkey'
+              AND table_schema = 'public'
+        ) THEN
+            ALTER TABLE public.progression_charts
+                ADD CONSTRAINT progression_charts_user_id_fkey
+                FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        END IF;
+
+    END
+    \$\$;
+EOSQL
+
+echo "[entrypoint] auth schema and FK constraints are up to date"
 
 # ---------------------------------------------------------------------------
-# 7. Launch gunicorn as non-root appuser
+# 6. Launch gunicorn as non-root appuser
 # ---------------------------------------------------------------------------
 echo "[entrypoint] Starting gunicorn..."
 exec gosu appuser gunicorn main:app \

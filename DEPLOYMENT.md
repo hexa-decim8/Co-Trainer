@@ -6,13 +6,12 @@ This project now deploys as a single Docker image that serves both:
 
 Production assumptions:
 - TLS/HTTPS is terminated by an in-container Nginx reverse proxy with Let's Encrypt Certbot
-- Database is an external PostgreSQL instance (managed service recommended)
+- Database is an embedded PostgreSQL instance that runs inside the container
 
 ## Prerequisites
 
 - Docker Engine 24+
 - Docker Compose plugin
-- External PostgreSQL database
 - Public DNS A/AAAA record pointing your domain to this host
 - Open inbound ports 80 and 443 on your firewall/security group
 
@@ -23,7 +22,6 @@ cp .env.production.example .env.production
 ```
 
 Set required values in `.env.production`:
-- `DATABASE_URL` (required in production)
 - `SECRET_KEY` (required)
 - `NOTION_API_KEY` (optional)
 - `NOTION_DATABASE_ID` (optional)
@@ -123,7 +121,7 @@ docker compose up -d --build
 
 For local/single-container Docker Compose usage (`docker-compose.yml`), Co-Trainer stores state in named volumes:
 
-- `cotrainer_data` mounted at `/app/data` (SQLite database and users)
+- `cotrainer_pgdata` mounted at `/var/lib/postgresql/data` (PostgreSQL data directory)
 - `cotrainer_config` mounted at `/app/config` (encrypted settings and JWT secret key)
 
 Safe update flow (preserves users and auth state):
@@ -158,12 +156,6 @@ docker compose down
 docker compose logs cotrainer
 ```
 
-### Database connection issues
-
-- Verify `DATABASE_URL` format and credentials.
-- Confirm database network access allows the deployment host.
-- For Render/Supabase/Neon URLs that start with `postgres://`, the app auto-normalizes to `postgresql://`.
-
 ### Healthcheck failing
 
 ```bash
@@ -185,8 +177,7 @@ docker compose logs certbot
 
 ## Notes
 
-- SQLite is still supported for local/dev fallback but is not recommended for production.
-- `frontend/nginx.frontend.conf` is a static frontend artifact and is not used for production reverse-proxy TLS.
+- The embedded PostgreSQL data persists across container restarts in the `cotrainer_pgdata` volume. Use `docker compose down -v` only if you intend to wipe all data.
 
 ## CI Docker Hub Publishing
 

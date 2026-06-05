@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { formatMinutes } from '../utils/timeFormat';
 import {
   Play,
   Pause,
@@ -10,20 +11,11 @@ import {
   ChevronUp,
   ArrowLeft,
   Edit3,
-  BookOpen,
-  Lightbulb,
-  AlertCircle,
-  TrendingUp,
-  Flame,
-  Wind,
-  GitBranch,
-  Shield,
-  Info,
 } from 'lucide-react';
 import { plansApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import DrillVideoSection from '../components/DrillVideoSection';
-import { parseDescription, getSectionColors, getSectionIcon } from '../utils/descriptionParser';
+import DrillDescriptionBox from '../components/DrillDescriptionBox';
 import './MobileViewPage.print.css';
 
 export default function MobileViewPage() {
@@ -102,12 +94,6 @@ export default function MobileViewPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatMinutes = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}:${mins.toString().padStart(2, '0')}` : `${mins}min`;
-  };
-
   const getCurrentDrillIndex = () => {
     if (!plan) return -1;
     const elapsedMinutes = elapsed / 60;
@@ -160,74 +146,6 @@ export default function MobileViewPage() {
     new Set(plan.timeline.map(item => item.drill?.equipment).filter(Boolean))
   );
   const isOwner = user && plan.user_id === user.id;
-
-  const getIconComponent = (iconName: string) => {
-    const iconMap: Record<string, any> = {
-      BookOpen,
-      Lightbulb,
-      AlertCircle,
-      TrendingUp,
-      Flame,
-      Wind,
-      GitBranch,
-      Shield,
-      Info,
-    };
-    return iconMap[iconName] || Info;
-  };
-
-  const renderDescriptionInfoBox = (description: string | null | undefined) => {
-    if (!description) return null;
-
-    const parsed = parseDescription(description);
-
-    if (parsed.hasStructuredSections) {
-      return (
-        <div className="space-y-2">
-          {parsed.unmatched && (
-            <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                {parsed.unmatched}
-              </p>
-            </div>
-          )}
-
-          {parsed.sections.map((section, sectionIndex) => {
-            const colors = getSectionColors(section.type);
-            const iconName = getSectionIcon(section.type);
-            const IconComponent = getIconComponent(iconName);
-
-            return (
-              <div
-                key={`${section.title}-${sectionIndex}`}
-                className={`${colors.bg} border ${colors.border} rounded-lg p-3`}
-              >
-                <h4 className={`text-sm font-semibold ${colors.headerText} mb-1.5 flex items-center`}>
-                  <IconComponent className="w-4 h-4 mr-1.5" />
-                  {section.title}
-                </h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                  {section.content}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-
-    return (
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1.5 flex items-center">
-          <AlertCircle className="w-4 h-4 mr-1.5" />
-          Description
-        </h4>
-        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-          {description}
-        </p>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
@@ -441,7 +359,7 @@ export default function MobileViewPage() {
                       {item.drill.description && (
                         <div>
                           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Description</h4>
-                          {renderDescriptionInfoBox(item.drill.description)}
+                          <DrillDescriptionBox description={item.drill.description} size="base" />
                         </div>
                       )}
 
@@ -532,7 +450,7 @@ export default function MobileViewPage() {
                 {plan.timeline[selectedDrill].drill?.description && (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</h3>
-                    {renderDescriptionInfoBox(plan.timeline[selectedDrill].drill.description)}
+                    <DrillDescriptionBox description={plan.timeline[selectedDrill].drill.description} size="base" />
                   </div>
                 )}
 

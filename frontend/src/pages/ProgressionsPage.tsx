@@ -167,8 +167,8 @@ export default function ProgressionsPage() {
     try {
       const updated = await progressionsApi.update(currentChart.id, {
         name: nameValue,
-        nodes: nodes as unknown as object[],
-        edges: edges as unknown as object[],
+        nodes: nodes as unknown as Record<string, unknown>[],
+        edges: edges as unknown as Record<string, unknown>[],
       });
       setCurrentChart(updated);
       setCharts((prev) => prev.map((c) => c.id === updated.id ? { ...c, name: updated.name, updated_at: updated.updated_at } : c));
