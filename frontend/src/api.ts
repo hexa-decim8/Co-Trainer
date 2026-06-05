@@ -49,10 +49,15 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Don't retry the refresh endpoint itself or already retried requests
+    // Don't retry refresh/login/register endpoints or already-retried requests.
+    // Login/register returning 401 means bad credentials, not an expired token —
+    // attempting a refresh here would surface "Invalid refresh token" to the user
+    // instead of the real error from the auth endpoint.
+    const url = originalRequest.url ?? '';
+    const isAuthEndpoint = url.includes('/auth/refresh') || url.includes('/auth/login') || url.includes('/auth/register');
     if (error.response?.status === 401 && 
         !originalRequest._retry && 
-        !originalRequest.url?.includes('/auth/refresh')) {
+        !isAuthEndpoint) {
       originalRequest._retry = true;
       
       try {

@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function SettingsPage() {
-  const [derbyName, setDerbyName] = useState('');
-  const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
   const { user, updateProfile } = useAuth();
   const { darkMode, toggleDarkMode } = useTheme();
+
+  const [derbyName, setDerbyName] = useState(user?.derby_name || '');
+  const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Sync derby name when user object loads or changes (e.g. after initial auth check).
+  useEffect(() => {
+    setDerbyName(user?.derby_name || '');
+  }, [user?.derby_name]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

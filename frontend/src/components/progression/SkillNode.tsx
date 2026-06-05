@@ -28,13 +28,17 @@ function SkillNode({ id, data, selected }: SkillNodeProps) {
       <button
         type="button"
         className="nodrag nopan absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-600"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           data.onDelete?.(id);
         }}
       >
-        <X className="w-3 h-3" />
+        <X className="w-3 h-3 pointer-events-none" />
       </button>
 
       <p className={`text-xs font-bold leading-tight line-clamp-2 ${cfg.text}`}>

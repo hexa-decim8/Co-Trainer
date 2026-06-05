@@ -124,32 +124,15 @@ async def database_status(db: Session = Depends(get_db)):
         # Test database connection
         db.execute(text("SELECT 1"))
         
-        # Get database type
-        db_url = settings.database_url
-        if db_url.startswith("sqlite"):
-            db_type = "SQLite"
-            sqlite_path = db_url.replace("sqlite:///", "", 1)
-            persistent = sqlite_path.startswith("/app/data/") or sqlite_path == "/app/data/cotrainer.db"
-            warning = None if persistent else "SQLite is configured on a non-persistent path. Use /app/data or PostgreSQL for persistence."
-        elif db_url.startswith("postgresql"):
-            db_type = "PostgreSQL"
-            persistent = True
-            warning = None
-        else:
-            db_type = "Unknown"
-            persistent = False
-            warning = "Unknown database type"
-        
         # Get user count
         from database import UserDB
         user_count = db.query(UserDB).count()
         
         return {
             "status": "connected",
-            "database_type": db_type,
-            "persistent": persistent,
-            "user_count": user_count,
-            "warning": warning
+            "database_type": "PostgreSQL",
+            "persistent": True,
+            "user_count": user_count
         }
     except Exception as e:
         return {
@@ -377,8 +360,13 @@ async def refresh_token(
     refresh_token: Optional[str] = Cookie(None),
     db: Session = Depends(get_db)
 ):
-    """Refresh access token using cookie-based refresh token."""
+    """Refresh access token using cookie-based refresh token.
+    
+    If the refresh token is invalid or missing, the refresh token cookie is deleted.
+    This allows users to login with their password even if their refresh token has expired or been corrupted.
+    """
     if not refresh_token:
+        response.delete_cookie(key="refresh_token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No refresh token provided"
@@ -386,6 +374,8 @@ async def refresh_token(
     
     user = verify_refresh_token(db, refresh_token)
     if not user:
+        # Clear the invalid refresh token cookie so user can login with password
+        response.delete_cookie(key="refresh_token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"

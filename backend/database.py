@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
-from config import settings
+from config import INTERNAL_DB_URL
 
 Base = declarative_base()
 
@@ -112,13 +112,8 @@ class ProgressionChartDB(Base):
     user = relationship("UserDB", back_populates="progression_charts")
 
 
-# Create database engine
-if settings.database_url.startswith("sqlite"):
-    # timeout=30: wait up to 30s for write lock instead of default 5s,
-    # prevents "database is locked" errors with multiple gunicorn workers
-    engine = create_engine(settings.database_url, connect_args={"check_same_thread": False, "timeout": 30})
-else:
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+# Create database engine (always the embedded PostgreSQL instance)
+engine = create_engine(INTERNAL_DB_URL, pool_pre_ping=True)
 
 # Create session maker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -165,10 +160,7 @@ def _ensure_practice_plan_columns() -> None:
     if "notion_page_id" not in existing_columns:
         pending_columns.append(("notion_page_id", "VARCHAR"))
     if "notion_last_edited_time" not in existing_columns:
-        if engine.dialect.name == "postgresql":
-            pending_columns.append(("notion_last_edited_time", "TIMESTAMP"))
-        else:
-            pending_columns.append(("notion_last_edited_time", "DATETIME"))
+        pending_columns.append(("notion_last_edited_time", "TIMESTAMP"))
 
     if not pending_columns:
         return

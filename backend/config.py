@@ -4,13 +4,17 @@ import secrets
 import os
 
 
+# Connection string for the embedded PostgreSQL instance that runs inside the
+# container. Not configurable via environment — this app is self-contained.
+INTERNAL_DB_URL = "postgresql://cotrainer:cotrainer@127.0.0.1/cotrainer"
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     notion_api_key: Optional[str] = None
     notion_database_id: Optional[str] = None
     notion_practice_plan_database_id: Optional[str] = None
-    database_url: str = "sqlite:///./cotrainer.db"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     debug: bool = True  # Set to False in production for secure cookies
@@ -30,14 +34,6 @@ settings = Settings()
 # Capture secret key from environment (via pydantic settings) before secure
 # storage is loaded so we can prefer a stable externally managed key.
 env_secret_key = (settings.secret_key or "").strip()
-
-# Override database URL from environment variable if provided
-if os.getenv("DATABASE_URL"):
-    database_url = os.getenv("DATABASE_URL")
-    # Fix postgres:// to postgresql:// for SQLAlchemy compatibility
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    settings.database_url = database_url
 
 # Load or generate JWT secret key
 try:
