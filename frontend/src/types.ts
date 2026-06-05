@@ -15,8 +15,12 @@ export interface Drill {
   position_focus: string[];
   skater_level: string[];
   skaters_needed: number | null;
+  teamwork: string | null;
   type: string[];
   video_link: string | null;
+  video_link_resolved?: boolean | null;
+  video_link_error?: string | null;
+  video_link_checked_at?: string | null;
 }
 
 export interface DrillFilters {
@@ -28,6 +32,7 @@ export interface DrillFilters {
   game_type?: string[];
   position_focus?: string[];
   skater_level?: string[];
+  teamwork?: string[];
   type?: string[];
 }
 
@@ -39,6 +44,7 @@ export interface FilterOptions {
   game_types: string[];
   position_focus: string[];
   skater_levels: string[];
+  teamworks: string[];
   types: string[];
 }
 
@@ -110,6 +116,46 @@ export interface PlanCloneRequest {
 
 export interface PlanVisibilityUpdate {
   isPublic: boolean;
+}
+
+// ─── Progressions ────────────────────────────────────────────────────────────
+
+export type ProgressionNodeType = 'drill' | 'skill';
+
+export type SkillLevel = 'basic' | 'intermediate' | 'advanced' | 'elite';
+
+export interface ProgressionNodeData extends Record<string, unknown> {
+  nodeType: ProgressionNodeType;
+  label: string;
+  // drill node fields
+  drill_id?: string;
+  difficulty?: number | null;
+  contact_level?: string | null;
+  drill_type?: string | null;
+  // skill node fields
+  level?: SkillLevel;
+}
+
+export interface ProgressionEdgeData {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+}
+
+export interface ProgressionChartSummary {
+  id: number;
+  name: string;
+  updated_at: string;
+}
+
+export interface ProgressionChartFull {
+  id: number;
+  name: string;
+  nodes: object[];
+  edges: ProgressionEdgeData[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TimelineItemWithDrill {

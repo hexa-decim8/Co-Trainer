@@ -22,6 +22,7 @@ class UserDB(Base):
     
     # Relationships
     practice_plans = relationship("PracticePlanDB", back_populates="user", cascade="all, delete-orphan")
+    progression_charts = relationship("ProgressionChartDB", back_populates="user", cascade="all, delete-orphan")
 
 
 class PracticePlanDB(Base):
@@ -91,6 +92,21 @@ class SyncMetadata(Base):
     last_full_sync = Column(DateTime, nullable=True)
     last_incremental_sync = Column(DateTime, nullable=True)
     drill_count = Column(Integer, default=0)
+
+
+class ProgressionChartDB(Base):
+    """SQLAlchemy model for skill progression charts."""
+    __tablename__ = "progression_charts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    nodes_json = Column(Text, nullable=False, default="[]")
+    edges_json = Column(Text, nullable=False, default="[]")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("UserDB", back_populates="progression_charts")
 
 
 # Create database engine

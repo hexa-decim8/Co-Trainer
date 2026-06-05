@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     api_port: int = 8000
     debug: bool = True  # Set to False in production for secure cookies
     secret_key: str = ""  # JWT signing key - will be loaded or generated
+    video_link_validation_timeout_seconds: int = 5
+    video_link_validation_cache_ttl_seconds: int = 900
     
     model_config = SettingsConfigDict(
         env_file=".env",

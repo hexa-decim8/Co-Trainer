@@ -9,6 +9,7 @@ import TimelinePlanner from '../components/TimelinePlanner';
 import CircularProgress from '../components/CircularProgress';
 import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
+import { useSearchContext } from '../contexts/SearchContext';
 import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
 import { buildPlanText } from '../utils/planTextExport';
 import { 
@@ -36,7 +37,7 @@ export default function PlannerPage() {
     })
   );
 
-  const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
+  const { activeFilters, setActiveFilters } = useSearchContext();
   
   // Initialize with Main Practice section
   const [sections, setSections] = useState<PracticeSection[]>([{

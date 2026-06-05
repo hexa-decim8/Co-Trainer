@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Clock, Shield, Users, Target, Zap, GripVertical, ChevronDown, Award, Link2, ExternalLink, AlertCircle, BookOpen, Lightbulb, TrendingUp, Flame, Wind, GitBranch, Info } from 'lucide-react';
+import { Clock, Shield, Users, Target, Zap, GripVertical, ChevronDown, Award, Link2, AlertCircle, BookOpen, Lightbulb, TrendingUp, Flame, Wind, GitBranch, Info } from 'lucide-react';
 import type { Drill, DrillFilters } from '../types';
 import {
   getContactColor,
@@ -10,6 +10,7 @@ import {
   getDrillTypeGradientColor,
 } from '../utils/drillColors';
 import { parseDescription, getSectionIcon, getSectionColors } from '../utils/descriptionParser';
+import DrillVideoSection from './DrillVideoSection';
 
 interface DrillCardProps {
   drill: Drill;
@@ -418,19 +419,13 @@ export default function DrillCard({
               </div>
             )}
 
-            {/* Video Link */}
-            {drill.video_link && (
-              <a
-                href={drill.video_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center justify-center bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-2.5 px-4 rounded-lg transition-all text-xs"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Watch Video Tutorial
-              </a>
-            )}
+            <DrillVideoSection
+              videoLink={drill.video_link}
+              videoLinkResolved={drill.video_link_resolved}
+              videoLinkError={drill.video_link_error}
+              stopPropagation
+              compact
+            />
           </div>
         )}
       </div>

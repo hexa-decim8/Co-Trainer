@@ -4,6 +4,7 @@ from notion_client import Client
 from config import settings
 from models import Drill, DrillCreate, DrillUpdate
 from drill_cache import drill_cache_manager
+from video_link_validator import validate_video_link
 import logging
 import json
 import time
@@ -325,6 +326,7 @@ class NotionService:
             "position_focus": ["Position", "Position Focus"],
             "skater_level": ["Skater Level", "Level"],
             "skaters_needed": ["Skaters Needed", "Skaters"],
+            "teamwork": ["Teamwork"],
             "type": ["Type"],
             "video_link": ["Video Link", "Video"],
         }
@@ -370,6 +372,9 @@ class NotionService:
             if field != "exercise" and not self._find_property_by_name(props, prop_names):
                 logger.debug(f"Expected property '{prop_names[0]}' not found in drill {page['id'][:8]}...")
         
+        video_link = get_prop_value(property_map["video_link"], "url")
+        video_validation = validate_video_link(video_link)
+
         return Drill(
             id=page["id"],
             exercise=exercise,
@@ -385,8 +390,12 @@ class NotionService:
             position_focus=position_focus_values,
             skater_level=skater_level_values,
             skaters_needed=get_prop_value(property_map["skaters_needed"], "number"),
+            teamwork=get_prop_value(property_map["teamwork"], "select"),
             type=type_values,
-            video_link=get_prop_value(property_map["video_link"], "url")
+            video_link=video_link,
+            video_link_resolved=video_validation["resolved"],
+            video_link_error=video_validation["error"],
+            video_link_checked_at=video_validation["checked_at"],
         )
     
     async def get_all_drills(self, db=None, force_sync: bool = False) -> List[Drill]:
@@ -929,6 +938,7 @@ class NotionService:
             "position_focus": ["Position", "Position Focus"],
             "skater_level": ["Skater Level", "Level"],
             "skaters_needed": ["Skaters Needed", "Skaters"],
+            "teamwork": ["Teamwork"],
             "type": ["Type"],
             "video_link": ["Video Link", "Video"],
             "depends_on": ["Depends on", "Depends On", "Dependencies"],

@@ -6,7 +6,6 @@ import {
   Pause,
   RotateCcw,
   Check,
-  ExternalLink,
   ChevronDown,
   ChevronUp,
   ArrowLeft,
@@ -24,6 +23,7 @@ import {
 } from 'lucide-react';
 import { plansApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
+import DrillVideoSection from '../components/DrillVideoSection';
 import { parseDescription, getSectionColors, getSectionIcon } from '../utils/descriptionParser';
 import './MobileViewPage.print.css';
 
@@ -460,17 +460,11 @@ export default function MobileViewPage() {
                         </div>
                       )}
 
-                      {item.drill.video_link && (
-                        <a
-                          href={item.drill.video_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          Watch Video
-                        </a>
-                      )}
+                      <DrillVideoSection
+                        videoLink={item.drill.video_link}
+                        videoLinkResolved={item.drill.video_link_resolved}
+                        videoLinkError={item.drill.video_link_error}
+                      />
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         {item.drill.difficulty && (
@@ -557,18 +551,12 @@ export default function MobileViewPage() {
                   </div>
                 )}
 
-                {/* Video link */}
-                {plan.timeline[selectedDrill].drill?.video_link && (
-                  <a
-                    href={plan.timeline[selectedDrill].drill.video_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Watch Video
-                  </a>
-                )}
+                {/* Video */}
+                <DrillVideoSection
+                  videoLink={plan.timeline[selectedDrill].drill?.video_link}
+                  videoLinkResolved={plan.timeline[selectedDrill].drill?.video_link_resolved}
+                  videoLinkError={plan.timeline[selectedDrill].drill?.video_link_error}
+                />
 
                 {/* Details grid */}
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">

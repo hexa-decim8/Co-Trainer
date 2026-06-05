@@ -3,10 +3,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Archive, Loader2 } from 'lucide-react';
 import { drillsApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
+import { useSearchContext } from '../contexts/SearchContext';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillFormModal from '../components/DrillFormModal';
 import CircularProgress from '../components/CircularProgress';
-import type { Drill, DrillFilters, DrillCreate, DrillUpdate, AvailableTags } from '../types';
+import DrillVideoSection from '../components/DrillVideoSection';
+import type { Drill, DrillCreate, DrillUpdate, AvailableTags } from '../types';
 import { QUERY_STALE_TIMES, QUERY_GC_TIMES } from '../config/queryConfig';
 import {
   getContactBadgeColor,
@@ -17,7 +19,7 @@ import {
 
 export default function DrillManagerPage() {
   const queryClient = useQueryClient();
-  const [activeFilters, setActiveFilters] = useState<DrillFilters>({});
+  const { activeFilters, setActiveFilters } = useSearchContext();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDrill, setEditingDrill] = useState<Drill | null>(null);
   const [archiveConfirm, setArchiveConfirm] = useState<Drill | null>(null);
@@ -418,11 +420,13 @@ function DrillManagerCard({
             {drill.skaters_needed != null && (
               <p><span className="font-medium">Skaters Needed:</span> {drill.skaters_needed}</p>
             )}
-            {drill.video_link && (
-              <a href={drill.video_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs inline-flex items-center gap-1">
-                Video Link ↗
-              </a>
-            )}
+            <DrillVideoSection
+              videoLink={drill.video_link}
+              videoLinkResolved={drill.video_link_resolved}
+              videoLinkError={drill.video_link_error}
+              stopPropagation
+              compact
+            />
             {drill.depends_on.length > 0 && (
               <p><span className="font-medium">Depends On:</span> {drill.depends_on.join(', ')}</p>
             )}

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { SearchProvider } from './contexts/SearchContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import PlannerPage from './pages/PlannerPage';
@@ -13,6 +14,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminPage from './pages/AdminPage';
 import DrillManagerPage from './pages/DrillManagerPage';
+import ExperimentalPage from './pages/ExperimentalPage';
 import Layout from './components/Layout';
 import { createQueryClient } from './config/queryConfig';
 
@@ -24,7 +26,8 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ThemeProvider>
-            <BrowserRouter>
+            <SearchProvider>
+              <BrowserRouter>
               <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={
@@ -75,6 +78,11 @@ function App() {
                       <AdminPage />
                     </ErrorBoundary>
                   } />
+                  <Route path="experimental/*" element={
+                    <ErrorBoundary>
+                      <ExperimentalPage />
+                    </ErrorBoundary>
+                  } />
                   <Route path="practice/:id" element={
                     <ErrorBoundary>
                       <MobileViewPage />
@@ -83,6 +91,7 @@ function App() {
                 </Route>
               </Routes>
             </BrowserRouter>
+            </SearchProvider>
           </ThemeProvider>
         </AuthProvider>
       </QueryClientProvider>

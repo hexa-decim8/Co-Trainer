@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Library, Settings, Menu, X, User, LogOut, Shield, BarChart3, ClipboardList } from 'lucide-react';
+import { Calendar, Library, Settings, Menu, X, User, LogOut, Shield, BarChart3, ClipboardList, FlaskConical } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,6 +16,7 @@ export default function Layout() {
   }
 
   const isActive = (path: string) => location.pathname === path;
+  const isActivePrefix = (prefix: string) => location.pathname.startsWith(prefix);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -76,6 +77,17 @@ export default function Layout() {
               >
                 <BarChart3 className="w-5 h-5" />
                 Statistics
+              </Link>
+              <Link
+                to="/experimental"
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
+                  isActivePrefix('/experimental')
+                    ? 'bg-primary-600 text-white shadow-derby'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <FlaskConical className="w-5 h-5" />
+                Experimental
               </Link>
 
               {/* User Menu */}
@@ -193,6 +205,18 @@ export default function Layout() {
               >
                 <BarChart3 className="w-5 h-5" />
                 Statistics
+              </Link>
+              <Link
+                to="/experimental"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${
+                  isActivePrefix('/experimental')
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <FlaskConical className="w-5 h-5" />
+                Experimental
               </Link>
               <Link
                 to="/settings"

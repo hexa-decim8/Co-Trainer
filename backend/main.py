@@ -22,10 +22,13 @@ from models import (
     UserCreate, UserLogin, UserResponse, Token, UserUpdate, PasswordChange,
     UserRoleUpdate, AdminPasswordReset, UserListResponse,
     PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
-    PlanRenameRequest, DrillCreate, DrillUpdate
+    PlanRenameRequest, DrillCreate, DrillUpdate,
+    ProgressionChartCreate, ProgressionChartUpdate,
+    ProgressionChartSummary, ProgressionChartFull
 )
 from notion_service import notion_service
 from database import PracticePlanDB, PlanClone
+from database import ProgressionChartDB
 from auth import (
     get_password_hash, authenticate_user, create_access_token, create_refresh_token,
     get_current_user, verify_password, verify_refresh_token, require_admin, require_coach_or_admin
@@ -818,6 +821,7 @@ async def get_filter_options(
     game_types = set()
     position_focus_list = set()
     skater_levels = set()
+    teamwork_list = set()
     types = set()
     
     for drill in drills:
@@ -841,6 +845,8 @@ async def get_filter_options(
             equipment_list.add(drill.equipment)
         if drill.game_type:
             game_types.add(drill.game_type)
+        if drill.teamwork:
+            teamwork_list.add(drill.teamwork)
     
     return FilterOptions(
         contact_levels=sorted(contact_levels),
@@ -850,6 +856,7 @@ async def get_filter_options(
         game_types=sorted(game_types),
         position_focus=sorted(position_focus_list),
         skater_levels=sorted(skater_levels),
+        teamworks=sorted(teamwork_list),
         types=sorted(types)
     )
 
@@ -1403,6 +1410,122 @@ async def list_templates(
 ):
     """List all practice plan templates."""
     return await list_plans(is_template=True, page=page, page_size=page_size, db=db, current_user=current_user)
+
+
+# ─── Progression Chart Endpoints ──────────────────────────────────────────────
+
+@app.get("/api/progressions", response_model=List[ProgressionChartSummary])
+async def list_progression_charts(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """List all progression charts owned by the current user."""
+    charts = (
+        db.query(ProgressionChartDB)
+        .filter(ProgressionChartDB.user_id == current_user.id)
+        .order_by(ProgressionChartDB.updated_at.desc())
+        .all()
+    )
+    return [
+        ProgressionChartSummary(id=c.id, name=c.name, updated_at=c.updated_at)
+        for c in charts
+    ]
+
+
+@app.post("/api/progressions", response_model=ProgressionChartFull, status_code=status.HTTP_201_CREATED)
+async def create_progression_chart(
+    payload: ProgressionChartCreate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Create a new (empty) progression chart."""
+    chart = ProgressionChartDB(
+        user_id=current_user.id,
+        name=payload.name,
+        nodes_json="[]",
+        edges_json="[]",
+    )
+    db.add(chart)
+    db.commit()
+    db.refresh(chart)
+    return ProgressionChartFull(
+        id=chart.id,
+        name=chart.name,
+        nodes=[],
+        edges=[],
+        created_at=chart.created_at,
+        updated_at=chart.updated_at,
+    )
+
+
+@app.get("/api/progressions/{chart_id}", response_model=ProgressionChartFull)
+async def get_progression_chart(
+    chart_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Retrieve a single progression chart (owner only)."""
+    chart = db.query(ProgressionChartDB).filter(ProgressionChartDB.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Progression chart not found")
+    if chart.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this chart")
+    return ProgressionChartFull(
+        id=chart.id,
+        name=chart.name,
+        nodes=json.loads(chart.nodes_json or "[]"),
+        edges=json.loads(chart.edges_json or "[]"),
+        created_at=chart.created_at,
+        updated_at=chart.updated_at,
+    )
+
+
+@app.put("/api/progressions/{chart_id}", response_model=ProgressionChartFull)
+async def update_progression_chart(
+    chart_id: int,
+    payload: ProgressionChartUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Save nodes/edges and optionally rename a progression chart (owner only)."""
+    chart = db.query(ProgressionChartDB).filter(ProgressionChartDB.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Progression chart not found")
+    if chart.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this chart")
+    if payload.name is not None:
+        chart.name = payload.name
+    if payload.nodes is not None:
+        chart.nodes_json = json.dumps(payload.nodes)
+    if payload.edges is not None:
+        chart.edges_json = json.dumps(payload.edges)
+    chart.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(chart)
+    return ProgressionChartFull(
+        id=chart.id,
+        name=chart.name,
+        nodes=json.loads(chart.nodes_json or "[]"),
+        edges=json.loads(chart.edges_json or "[]"),
+        created_at=chart.created_at,
+        updated_at=chart.updated_at,
+    )
+
+
+@app.delete("/api/progressions/{chart_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_progression_chart(
+    chart_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Delete a progression chart (owner only)."""
+    chart = db.query(ProgressionChartDB).filter(ProgressionChartDB.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Progression chart not found")
+    if chart.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this chart")
+    db.delete(chart)
+    db.commit()
 
 
 # Serve frontend for all non-API routes (SPA support) - MUST be last route

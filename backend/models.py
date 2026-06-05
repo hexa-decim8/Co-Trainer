@@ -2,6 +2,7 @@ from typing import Optional, List
 from pydantic import BaseModel, HttpUrl, validator, Field
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urlparse
 
 
 class PracticeType(str, Enum):
@@ -27,8 +28,12 @@ class Drill(BaseModel):
     position_focus: List[str] = []  # multi-select
     skater_level: List[str] = []  # multi-select
     skaters_needed: Optional[int] = None
+    teamwork: Optional[str] = None  # single select
     type: List[str] = []  # multi-select
     video_link: Optional[str] = None
+    video_link_resolved: Optional[bool] = None
+    video_link_error: Optional[str] = None
+    video_link_checked_at: Optional[datetime] = None
     
     @validator('contact_level', pre=True)
     def normalize_contact_level(cls, v):
@@ -57,6 +62,7 @@ class DrillFilters(BaseModel):
     game_type: Optional[List[str]] = None
     position_focus: Optional[List[str]] = None
     skater_level: Optional[List[str]] = None
+    teamwork: Optional[List[str]] = None
     type: Optional[List[str]] = None
 
 
@@ -69,6 +75,7 @@ class FilterOptions(BaseModel):
     game_types: List[str]
     position_focus: List[str]
     skater_levels: List[str]
+    teamworks: List[str]
     types: List[str]
 
 
@@ -335,6 +342,19 @@ class DrillCreate(BaseModel):
             return [v] if v else []
         return v if v is not None else []
 
+    @validator('video_link')
+    def validate_video_link(cls, v):
+        if v is None:
+            return None
+        normalized = v.strip()
+        if not normalized:
+            return None
+
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError('Video link must be a valid http(s) URL')
+        return normalized
+
 
 class DrillUpdate(BaseModel):
     """Model for updating an existing drill. All fields optional."""
@@ -373,3 +393,66 @@ class DrillUpdate(BaseModel):
         if isinstance(v, str):
             return v or None
         return None
+
+    @validator('video_link')
+    def validate_video_link(cls, v):
+        if v is None:
+            return None
+        normalized = v.strip()
+        if not normalized:
+            return None
+
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError('Video link must be a valid http(s) URL')
+        return normalized
+
+
+# ─── Progression Models ───────────────────────────────────────────────────────
+
+class ProgressionChartCreate(BaseModel):
+    """Request model for creating a new progression chart."""
+    name: str
+
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Chart name is required')
+        v = v.strip()
+        if len(v) > 200:
+            raise ValueError('Chart name must be 200 characters or less')
+        return v
+
+
+class ProgressionChartUpdate(BaseModel):
+    """Request model for saving chart state (name + nodes + edges)."""
+    name: Optional[str] = None
+    nodes: Optional[List[dict]] = None
+    edges: Optional[List[dict]] = None
+
+    @validator('name')
+    def validate_name(cls, v):
+        if v is not None:
+            if not v.strip():
+                raise ValueError('Chart name cannot be empty')
+            v = v.strip()
+            if len(v) > 200:
+                raise ValueError('Chart name must be 200 characters or less')
+        return v
+
+
+class ProgressionChartSummary(BaseModel):
+    """Summary of a progression chart for list views."""
+    id: int
+    name: str
+    updated_at: datetime
+
+
+class ProgressionChartFull(BaseModel):
+    """Full progression chart with nodes and edges."""
+    id: int
+    name: str
+    nodes: List[dict]
+    edges: List[dict]
+    created_at: datetime
+    updated_at: datetime

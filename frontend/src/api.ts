@@ -9,7 +9,9 @@ import type {
   PaginatedPlansResponse,
   DrillCreate,
   DrillUpdate,
-  AvailableTags
+  AvailableTags,
+  ProgressionChartSummary,
+  ProgressionChartFull
 } from './types';
 
 export interface DrillCacheInfo {
@@ -304,5 +306,34 @@ export const plansApi = {
     if (pageSize) params.page_size = pageSize;
     const response = await api.get<PaginatedPlansResponse>('/templates', { params });
     return response.data;
+  },
+};
+
+export const progressionsApi = {
+  list: async (): Promise<ProgressionChartSummary[]> => {
+    const response = await api.get<ProgressionChartSummary[]>('/progressions');
+    return response.data;
+  },
+
+  create: async (name: string): Promise<ProgressionChartFull> => {
+    const response = await api.post<ProgressionChartFull>('/progressions', { name });
+    return response.data;
+  },
+
+  get: async (id: number): Promise<ProgressionChartFull> => {
+    const response = await api.get<ProgressionChartFull>(`/progressions/${id}`);
+    return response.data;
+  },
+
+  update: async (
+    id: number,
+    data: { name?: string; nodes?: object[]; edges?: object[] }
+  ): Promise<ProgressionChartFull> => {
+    const response = await api.put<ProgressionChartFull>(`/progressions/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/progressions/${id}`);
   },
 };

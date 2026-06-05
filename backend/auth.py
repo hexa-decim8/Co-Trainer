@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import hmac
+import secrets
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -22,6 +24,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 days
+REFRESH_TOKEN_PREFIX = "rt"
 
 
 def _get_secret_key() -> str:
@@ -51,12 +54,41 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def create_refresh_token(data: dict) -> str:
-    """Create a JWT refresh token with longer expiration."""
-    to_encode = data.copy()
+    """Create an opaque refresh token with embedded expiration timestamp.
+
+    Opaque refresh tokens avoid coupling session continuity to JWT signing
+    secret stability across container updates. The token is still one-time
+    rotatable because we persist a single active value per user in the DB.
+    """
+    _ = data  # Kept for compatibility with existing call sites.
     expire = datetime.utcnow() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, _get_secret_key(), algorithm=ALGORITHM)
-    return encoded_jwt
+    expire_ts = int(expire.timestamp())
+    random_part = secrets.token_urlsafe(48)
+    return f"{REFRESH_TOKEN_PREFIX}.{expire_ts}.{random_part}"
+
+
+def _verify_opaque_refresh_token(db: Session, refresh_token: str) -> Optional[UserDB]:
+    """Verify opaque refresh token format, expiration, and DB match."""
+    try:
+        prefix, expire_ts_raw, _ = refresh_token.split(".", 2)
+        if prefix != REFRESH_TOKEN_PREFIX:
+            return None
+        expire_ts = int(expire_ts_raw)
+    except (ValueError, AttributeError):
+        return None
+
+    if expire_ts < int(datetime.utcnow().timestamp()):
+        return None
+
+    user = db.query(UserDB).filter(UserDB.refresh_token == refresh_token).first()
+    if user is None:
+        return None
+
+    # Constant-time comparison to avoid leaking equality timing details.
+    if not hmac.compare_digest((user.refresh_token or ""), refresh_token):
+        return None
+
+    return user
 
 
 async def get_current_user(
@@ -94,7 +126,17 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[UserDB
 
 
 def verify_refresh_token(db: Session, refresh_token: str) -> Optional[UserDB]:
-    """Verify a refresh token and return the user."""
+    """Verify a refresh token and return the user.
+
+    Supports both:
+    - current opaque refresh tokens (preferred)
+    - legacy JWT refresh tokens (backward compatibility)
+    """
+    opaque_user = _verify_opaque_refresh_token(db, refresh_token)
+    if opaque_user is not None:
+        return opaque_user
+
+    # Legacy JWT fallback for already-issued refresh tokens.
     try:
         payload = jwt.decode(refresh_token, _get_secret_key(), algorithms=[ALGORITHM])
         email: str = payload.get("sub")
@@ -104,7 +146,10 @@ def verify_refresh_token(db: Session, refresh_token: str) -> Optional[UserDB]:
             return None
             
         user = db.query(UserDB).filter(UserDB.email == email).first()
-        if user is None or user.refresh_token != refresh_token:
+        if user is None:
+            return None
+
+        if not hmac.compare_digest((user.refresh_token or ""), refresh_token):
             return None
             
         return user
