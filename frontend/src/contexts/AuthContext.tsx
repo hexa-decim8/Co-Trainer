@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import axios from 'axios';
 import api from '../api';
 
 interface User {
@@ -48,33 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const checkAuth = async () => {
       const token = localStorage.getItem('auth_token');
-      
-      if (token) {
-        // Try to verify existing token
-        try {
-          const response = await api.get('/auth/me');
-          if (!cancelled) {
-            setUser(response.data);
-            setLoading(false);
-          }
-          return;
-        } catch (error) {
-          // Token might be expired, try refresh
-        }
+      if (!token) {
+        setLoading(false);
+        return;
       }
-      
-      // Try to refresh using HTTP-only cookie
       try {
-        const response = await axios.post('/api/auth/refresh', {}, {
-          withCredentials: true  // Include cookies
-        });
-        const { access_token, user: userData } = response.data;
+        const response = await api.get('/auth/me');
         if (!cancelled) {
-          localStorage.setItem('auth_token', access_token);
-          setUser(userData);
+          setUser(response.data);
         }
       } catch (error) {
-        // No valid session
         if (!cancelled) {
           localStorage.removeItem('auth_token');
         }
@@ -99,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      withCredentials: true  // Include cookies
     });
 
     const { access_token, user: userData } = response.data;
@@ -111,8 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await api.post('/auth/register', {
       email,
       password,
-    }, {
-      withCredentials: true  // Include cookies
     });
 
     if (response.data.pending_approval) {
@@ -134,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await api.post('/auth/logout', {}, { withCredentials: true });
+      await api.post('/auth/logout', {});
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

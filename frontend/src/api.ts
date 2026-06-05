@@ -29,7 +29,6 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,  // Include cookies in all requests
 });
 
 // Add authentication token to requests
@@ -41,51 +40,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 unauthorized responses with auto-refresh
-let refreshPromise: Promise<string> | null = null;
-
+// On 401, clear token and notify AuthContext
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // Don't retry refresh/login/register endpoints or already-retried requests.
-    // Login/register returning 401 means bad credentials, not an expired token —
-    // attempting a refresh here would surface "Invalid refresh token" to the user
-    // instead of the real error from the auth endpoint.
-    const url = originalRequest.url ?? '';
-    const isAuthEndpoint = url.includes('/auth/refresh') || url.includes('/auth/login') || url.includes('/auth/register');
-    if (error.response?.status === 401 && 
-        !originalRequest._retry && 
-        !isAuthEndpoint) {
-      originalRequest._retry = true;
-      
-      try {
-        // Use a shared promise so concurrent 401s only trigger one refresh
-        if (!refreshPromise) {
-          refreshPromise = axios.post('/api/auth/refresh', {}, {
-            withCredentials: true
-          }).then(({ data }) => {
-            localStorage.setItem('auth_token', data.access_token);
-            return data.access_token as string;
-          }).finally(() => {
-            refreshPromise = null;
-          });
-        }
-        
-        const newToken = await refreshPromise;
-        
-        // Retry original request with new token
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-        return axios(originalRequest);
-      } catch (refreshError) {
-        // Refresh failed — clear token and notify AuthContext (no hard redirect)
+  (error) => {
+    if (error.response?.status === 401) {
+      const url = error.config?.url ?? '';
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isAuthEndpoint) {
         localStorage.removeItem('auth_token');
         window.dispatchEvent(new Event('auth:session-expired'));
-        return Promise.reject(refreshError);
       }
     }
-    
     return Promise.reject(error);
   }
 );

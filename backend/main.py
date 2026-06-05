@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, status, Response, Cookie
+from fastapi import FastAPI, Depends, HTTPException, Query, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,8 +30,8 @@ from notion_service import notion_service
 from database import PracticePlanDB, PlanClone
 from database import ProgressionChartDB
 from auth import (
-    get_password_hash, authenticate_user, create_access_token, create_refresh_token,
-    get_current_user, verify_password, verify_refresh_token, require_admin, require_coach_or_admin
+    get_password_hash, authenticate_user, create_access_token,
+    get_current_user, verify_password, require_admin, require_coach_or_admin
 )
 
 # Configure logging to display in terminal
@@ -271,23 +271,8 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
             message="Account created and pending administrator approval. You can sign in after approval."
         )
     
-    # Create tokens
+    # Create access token
     access_token = create_access_token(data={"sub": db_user.email})
-    refresh_token = create_refresh_token(data={"sub": db_user.email})
-    
-    # Store refresh token in database
-    db_user.refresh_token = refresh_token  # type: ignore
-    db.commit()
-    
-    # Set refresh token as HTTP-only cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=not settings.debug,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30  # 30 days
-    )
     
     return Token(
         access_token=access_token,
@@ -305,7 +290,7 @@ async def register(user_data: UserCreate, response: Response, db: Session = Depe
 
 
 @app.post("/api/auth/login", response_model=Token)
-async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with email and password."""
     user = authenticate_user(db, form_data.username, form_data.password)  # username field contains email
     if not user:
@@ -321,23 +306,8 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
             detail="Account pending administrator approval"
         )
     
-    # Create tokens
+    # Create access token
     access_token = create_access_token(data={"sub": user.email})
-    refresh_token = create_refresh_token(data={"sub": user.email})
-    
-    # Store refresh token in database
-    user.refresh_token = refresh_token  # type: ignore
-    db.commit()
-    
-    # Set refresh token as HTTP-only cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=not settings.debug,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30  # 30 days
-    )
     
     return Token(
         access_token=access_token,
@@ -354,85 +324,9 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
     )
 
 
-@app.post("/api/auth/refresh", response_model=Token)
-async def refresh_token(
-    response: Response,
-    refresh_token: Optional[str] = Cookie(None),
-    db: Session = Depends(get_db)
-):
-    """Refresh access token using cookie-based refresh token.
-    
-    If the refresh token is invalid or missing, the refresh token cookie is deleted.
-    This allows users to login with their password even if their refresh token has expired or been corrupted.
-    """
-    if not refresh_token:
-        response.delete_cookie(key="refresh_token")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No refresh token provided"
-        )
-    
-    user = verify_refresh_token(db, refresh_token)
-    if not user:
-        # Clear the invalid refresh token cookie so user can login with password
-        response.delete_cookie(key="refresh_token")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
-        )
-
-    if not user.is_approved:  # type: ignore
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account pending administrator approval"
-        )
-    
-    # Create new tokens
-    new_access_token = create_access_token(data={"sub": user.email})
-    new_refresh_token = create_refresh_token(data={"sub": user.email})
-    
-    # Update refresh token in database
-    user.refresh_token = new_refresh_token  # type: ignore
-    db.commit()
-    
-    # Update cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token,
-        httponly=True,
-        secure=not settings.debug,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30  # 30 days
-    )
-    
-    return Token(
-        access_token=new_access_token,
-        token_type="bearer",
-        user=UserResponse(
-            id=user.id,  # type: ignore
-            email=user.email,  # type: ignore
-            derby_name=user.derby_name,  # type: ignore
-            role=user.role,  # type: ignore
-            is_approved=user.is_approved,  # type: ignore
-            dark_mode=user.dark_mode,  # type: ignore
-            created_at=user.created_at  # type: ignore
-        )
-    )
-
-
 @app.post("/api/auth/logout")
-async def logout(
-    response: Response,
-    current_user: UserDB = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Logout user by invalidating refresh token."""
-    current_user.refresh_token = None  # type: ignore
-    db.commit()
-    
-    # Clear cookie
-    response.delete_cookie(key="refresh_token")
-    
+async def logout(current_user: UserDB = Depends(get_current_user)):
+    """Logout user."""
     return {"message": "Successfully logged out"}
 
 
