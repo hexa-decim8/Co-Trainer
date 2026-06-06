@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from notion_client import Client
 
-from config import settings, INTERNAL_DB_URL
+from config import settings, INTERNAL_DB_URL, get_cors_origins
 from database import get_db, init_db, UserDB, PracticePlanDB, PlanClone, ProgressionChartDB, SyncMetadata, DrillCache
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
@@ -55,13 +55,19 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
 # Configure CORS
+cors_origins = get_cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins since frontend is served from same domain
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if cors_origins:
+    logger.info("CORS configured with %d origin(s)", len(cors_origins))
+else:
+    logger.info("CORS configured for same-origin requests only")
 
 # Mount static assets (CSS, JS, images)
 if STATIC_DIR.exists():

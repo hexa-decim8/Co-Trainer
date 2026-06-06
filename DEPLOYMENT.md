@@ -12,10 +12,95 @@ Production assumptions:
 
 - Docker Engine 24+
 - Docker Compose plugin
-- Public DNS A/AAAA record pointing your domain to this host
-- Open inbound ports 80 and 443 on your firewall/security group
+- (Optional) SWAG reverse proxy already running with TLS, or in-container nginx+certbot for TLS
 
-## 1. Configure Environment
+## Deployment Options
+
+### A. With External Reverse Proxy (SWAG, Traefik, etc.)
+
+Use this if you already have a reverse proxy handling TLS termination.
+
+**1. Configure Environment**
+
+```bash
+cp .env.production.example .env.production
+```
+
+Set required values in `.env.production`:
+- `SECRET_KEY` (required) — generate with `openssl rand -hex 32`
+- `APP_URL` (required) — public HTTPS URL, e.g., `https://ameri.boo`
+- `CORS_ALLOW_ORIGINS` (optional) — comma-separated list; leave empty to use `APP_URL`
+- `DEBUG` (`false` in production)
+- `NOTION_API_KEY` (optional)
+- `NOTION_DATABASE_ID` (optional)
+
+**2. Start Application**
+
+```bash
+docker compose up -d --build
+```
+
+That's it. SWAG handles TLS + renewal. Backend runs on internal port 8000, SWAG proxies HTTPS traffic to it.
+
+**3. Configure SWAG Proxy**
+
+Add to SWAG's proxy-confs:
+
+```nginx
+# /config/nginx/proxy-confs/co-trainer.subdomain.conf
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name cotrainer.*;
+
+    include /config/nginx/ssl.conf;
+
+    # Security headers (recommended)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    location / {
+        proxy_pass http://cotrainer:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+# HTTP redirect
+server {
+    listen 80;
+    listen [::]:80;
+    server_name cotrainer.*;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+```
+
+Also update your SWAG environment to include `cotrainer` in SUBDOMAINS:
+
+```yaml
+- SUBDOMAINS=audiobookshelf,cotrainer
+```
+
+Then reload SWAG for the new proxy config to take effect.
+
+**4. Health Check**
+
+```bash
+curl https://cotrainer.ameri.boo/api/health
+```
+
+### B. With In-Container TLS (nginx + Certbot)
+
+Use this if you want TLS managed entirely within this container.
+
+**1. Configure Environment**
 
 ```bash
 cp .env.production.example .env.production
@@ -23,99 +108,90 @@ cp .env.production.example .env.production
 
 Set required values in `.env.production`:
 - `SECRET_KEY` (required)
-- `NOTION_API_KEY` (optional)
-- `NOTION_DATABASE_ID` (optional)
-- `DOMAIN` (required for Let's Encrypt issuance)
+- `APP_URL` (required)
+- `DEBUG` (`false`)
+- `DOMAIN` (required) — your domain for Let's Encrypt
 - `LETSENCRYPT_EMAIL` (required)
-- `LETSENCRYPT_STAGING` (`1` for staging test certs, `0` for production certs)
+- `LETSENCRYPT_STAGING` (`1` for testing, `0` for production)
 
-Generate a secret key:
+Important: `docker compose` reads `.env` by default, not `.env.production`.
+Use `--env-file .env.production` for all deployment commands, or copy `.env.production` to `.env`.
+
+**2. Build and Start Services**
 
 ```bash
-openssl rand -hex 32
+docker compose --env-file .env.production --profile https up -d --build
 ```
 
-## 2. Build and Start Services
+This starts cotrainer, nginx, and certbot renewal loop.
+
+**3. Issue the First Let's Encrypt Certificate**
 
 ```bash
-docker compose --profile https up -d --build
-```
-
-This starts:
-- `cotrainer` on internal port 8000
-- `nginx` on ports 80 and 443
-- `certbot` renewal loop (runs every 12 hours)
-
-For the first boot, nginx generates a temporary self-signed certificate so port 443 can start before Let's Encrypt issuance.
-
-## 3. Issue the First Let's Encrypt Certificate
-
-Run initial certificate bootstrap once after the services are up:
-
-```bash
+set -a && . ./.env.production && set +a
 sh nginx/init-letsencrypt.sh
-```
-
-The script requests a cert using webroot challenge and reloads nginx.
-
-If you are testing and want staging certs first:
-
-```bash
-LETSENCRYPT_STAGING=1 sh nginx/init-letsencrypt.sh
 ```
 
 Check status:
 
 ```bash
-docker compose ps
+docker compose --env-file .env.production --profile https logs -f nginx certbot
 ```
 
-View logs:
+Expected output: `Successfully received certificate`
+
+**4. Health Checks**
 
 ```bash
-docker compose --profile https logs -f cotrainer nginx certbot
+curl http://localhost/api/health       # HTTP (redirects to HTTPS)
+curl -Iv https://yourdomain.com/api/health
 ```
 
-## 4. Health and Smoke Checks
-
-API health endpoint:
+**5. Monitor Renewal**
 
 ```bash
-curl http://localhost/api/health
+docker compose --env-file .env.production --profile https logs certbot
+# Should show "renew" activity every 12h
 ```
 
-Frontend index endpoint:
+---
 
-```bash
-curl -I http://localhost/
-```
+## Common Tasks
 
-HTTPS certificate check:
+### Update Deployment
 
-```bash
-curl -Iv https://ameri.boo/
-```
-
-## 5. Reverse Proxy / TLS
-
-Nginx listens on ports `80` and `443` and forwards traffic to:
-
-- Upstream: `http://cotrainer:8000`
-
-Let's Encrypt certificates are stored in the `letsencrypt` Docker volume and renewed by the `certbot` service.
-
-To validate renewal behavior manually:
-
-```bash
-docker compose --profile https run --rm certbot renew --dry-run --webroot -w /var/www/certbot
-```
-
-## 6. Update Deployment
-
+**Option A (SWAG):**
 ```bash
 git pull
 docker compose up -d --build
+# SWAG proxy already in place, no additional steps
 ```
+
+**Option B (In-container TLS):**
+```bash
+git pull
+docker compose --env-file .env.production --profile https up -d --build
+```
+
+### Check Certificate Status (In-container TLS Only)
+
+```bash
+# Expiry date
+docker compose --env-file .env.production --profile https exec nginx openssl x509 \
+  -in /etc/letsencrypt/live/${DOMAIN}/fullchain.pem -noout -enddate
+
+# Issuer
+docker compose --env-file .env.production --profile https exec nginx openssl x509 \
+  -in /etc/letsencrypt/live/${DOMAIN}/fullchain.pem -noout -issuer
+```
+
+### Manual Cert Renewal Test (In-container TLS Only)
+
+```bash
+docker compose --env-file .env.production --profile https run --rm certbot renew \
+  --dry-run --webroot -w /var/www/certbot
+```
+
 
 ## Data Persistence During Updates
 

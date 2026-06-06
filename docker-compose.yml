@@ -10,49 +10,12 @@ services:
       - NOTION_API_KEY=${NOTION_API_KEY}
       - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
       - SECRET_KEY=${SECRET_KEY:-}
+      - DEBUG=${DEBUG:-false}
+      - APP_URL=${APP_URL:-}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-}
     volumes:
       - cotrainer_config:/app/config
       - cotrainer_pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  nginx:
-    profiles:
-      - https
-    build:
-      context: ./nginx
-    container_name: cotrainer_nginx
-    depends_on:
-      - cotrainer
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - DOMAIN=${DOMAIN:-example.com}
-    volumes:
-      - letsencrypt:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
-    restart: unless-stopped
-
-  certbot:
-    profiles:
-      - https
-    image: certbot/certbot:latest
-    container_name: cotrainer_certbot
-    depends_on:
-      - nginx
-    environment:
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@example.com}
-      - DOMAIN=${DOMAIN:-example.com}
-    volumes:
-      - letsencrypt:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-    entrypoint: >-
-      /bin/sh -c "trap exit TERM; while :; do
-      certbot renew --webroot -w /var/www/certbot --quiet --deploy-hook
-      'date +%s > /var/www/certbot/.certbot-reload';
-      sleep 12h;
-      done"
     restart: unless-stopped
 
 volumes:
@@ -60,5 +23,3 @@ volumes:
     name: cotrainer_config
   cotrainer_pgdata:
     name: cotrainer_pgdata
-  letsencrypt:
-  certbot_www:

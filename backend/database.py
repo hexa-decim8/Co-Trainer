@@ -141,14 +141,32 @@ def _ensure_user_columns() -> None:
 
 
 def init_db():
-    """Initialize database tables."""
+    """Initialize database tables.
+
+    Uses a PostgreSQL advisory lock to serialise DDL across concurrent
+    gunicorn workers.  Without this, two workers calling create_all()
+    simultaneously race between the table-existence check and CREATE TABLE,
+    causing a UniqueViolation on pg_type catalog entries that crashes the
+    worker and brings down the whole app.
+    """
     _ensure_auth_schema()
+    lock_conn = engine.raw_connection()
     try:
+        cur = lock_conn.cursor()
+        cur.execute("SELECT pg_advisory_lock(42)")
+        cur.close()
+        lock_conn.commit()
         Base.metadata.create_all(bind=engine)
-    except (IntegrityError, OperationalError):
-        # Race condition: another worker already created the tables concurrently; safe to ignore.
-        pass
-    _ensure_user_columns()
+        _ensure_user_columns()
+    finally:
+        try:
+            cur = lock_conn.cursor()
+            cur.execute("SELECT pg_advisory_unlock(42)")
+            cur.close()
+            lock_conn.commit()
+        except Exception:
+            pass  # Lock auto-releases on connection close
+        lock_conn.close()
 
 
 def get_db():

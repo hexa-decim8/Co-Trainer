@@ -11,13 +11,15 @@ INTERNAL_DB_URL = "postgresql://cotrainer:cotrainer@127.0.0.1/cotrainer"
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
     notion_api_key: Optional[str] = None
     notion_database_id: Optional[str] = None
     notion_practice_plan_database_id: Optional[str] = None
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    debug: bool = True  # Set to False in production for secure cookies
+    debug: bool = False
+    app_url: Optional[str] = None
+    cors_allow_origins: str = ""
     secret_key: str = ""  # JWT signing key - will be loaded or generated
     video_link_validation_timeout_seconds: int = 5
     video_link_validation_cache_ttl_seconds: int = 900
@@ -30,6 +32,26 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_cors_origins() -> list[str]:
+    """Resolve allowed CORS origins from explicit env or app URL."""
+    if settings.cors_allow_origins:
+        return [origin.strip() for origin in settings.cors_allow_origins.split(",") if origin.strip()]
+
+    if settings.app_url:
+        return [settings.app_url.strip()]
+
+    if settings.debug:
+        return [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+
+    return []
+
 
 # Capture secret key from environment (via pydantic settings) before secure
 # storage is loaded so we can prefer a stable externally managed key.
