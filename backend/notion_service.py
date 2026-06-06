@@ -301,12 +301,17 @@ class NotionService:
             # Some workspaces keep the video field as text instead of URL.
             video_link_raw = get_prop_value(property_map["video_link"], "rich_text")
         if not video_link_raw:
-            videoish = [name for name in props.keys() if "video" in name.lower()]
-            if videoish:
+            video_aliases = {name.strip().lower() for name in property_map["video_link"]}
+            unmapped_videoish = [
+                name
+                for name in props.keys()
+                if "video" in name.lower() and name.strip().lower() not in video_aliases
+            ]
+            if unmapped_videoish:
                 logger.info(
                     "Drill %s has video-like properties not mapped to URL parsing: %s",
                     page.get("id", "")[:8],
-                    videoish,
+                    unmapped_videoish,
                 )
         raw_urls = extract_urls(video_link_raw)
         video_links_info: list[VideoLinkInfo] = []
