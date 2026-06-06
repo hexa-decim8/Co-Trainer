@@ -15,14 +15,22 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies (including PostgreSQL server and gosu for privilege drop)
-# PostgreSQL major version is pinned to prevent apt resolving a newer major version
-# on a future rebuild, which would make the existing cotrainer_pgdata volume unreadable.
-RUN apt-get update && apt-get install -y \
+# PostgreSQL is installed from the official PGDG apt repository with a pinned
+# major version (17) so the data directory format never changes between image
+# builds regardless of which Debian release the python base image uses.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gnupg \
+    lsb-release \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+       | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    curl \
     gosu \
-    postgresql-15 \
+    postgresql-17 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python dependencies and install
