@@ -18,6 +18,13 @@ WORKDIR /app
 # PostgreSQL is installed from the official PGDG apt repository with a pinned
 # major version (17) so the data directory format never changes between image
 # builds regardless of which Debian release the python base image uses.
+#
+# !! CRITICAL: Do NOT change the postgresql-17 version without a migration plan.
+# !! The persisted data volume (cotrainer_pgdata) is formatted for this major
+# !! version. Changing it (e.g. to postgresql-18) will make the container unable
+# !! to start against existing data, forcing a volume wipe that DESTROYS all
+# !! user accounts and saved plans. See entrypoint.sh for the version-mismatch
+# !! guard and DEPLOYMENT.md for the upgrade procedure.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg \

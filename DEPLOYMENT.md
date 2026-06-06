@@ -124,6 +124,10 @@ For local/single-container Docker Compose usage (`docker-compose.yml`), Co-Train
 - `cotrainer_pgdata` mounted at `/var/lib/postgresql/data` (PostgreSQL data directory)
 - `cotrainer_config` mounted at `/app/config` (encrypted settings and JWT secret key)
 
+> **CRITICAL:** Never run `docker compose down -v` unless you intentionally want to
+> **delete all user accounts and saved data**. The `-v` flag removes named volumes.
+> Use `docker compose down` (without `-v`) to stop services while keeping data intact.
+
 Safe update flow (preserves users and auth state):
 
 ```bash
@@ -139,23 +143,26 @@ docker compose up -d --build
 
 Important reset caveat:
 
-- `docker compose down` preserves volumes
-- `docker compose down -v` removes volumes and permanently resets persisted data
+- `docker compose down` preserves volumes — **safe, use this**
+- `docker compose down -v` **removes volumes and permanently deletes all data**
+- `docker system prune --volumes` also removes unused volumes — **avoid this**
 
-Persistence verification checklist (before and after updates):
+### Automatic Backups
+
+Set `PG_AUTO_BACKUP=1` in your environment to automatically dump the database to
+`/app/config/backups/` on every container start (before the app launches). The 5
+most recent backups are kept; older ones are pruned automatically.
 
 ```bash
-# 1) Verify the container is mounted to the expected data volume
-docker inspect cotrainer --format '{{ json .Mounts }}'
-
-# 2) Verify plans exist at the database layer
-docker compose exec cotrainer psql -U cotrainer -d cotrainer -c "SELECT COUNT(*) AS plans FROM practice_plans;"
-
-# 3) Verify runtime diagnostics (requires admin auth token)
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" http://localhost/api/admin/persistence/status
+# In .env.production or docker-compose.yml environment section:
+PG_AUTO_BACKUP=1
 ```
 
-Backup and restore (recommended before major updates):
+Backups are stored in the `cotrainer_config` volume and survive container rebuilds.
+
+### Manual Backup and Restore
+
+Recommended before major updates:
 
 ```bash
 # Backup
@@ -164,6 +171,56 @@ docker compose exec -T cotrainer pg_dump -U cotrainer -d cotrainer > cotrainer-b
 # Restore
 docker compose exec -T cotrainer psql -U cotrainer -d cotrainer < cotrainer-backup.sql
 ```
+
+### Persistence Verification
+
+Run these checks before and after updates to confirm data survived:
+
+```bash
+# 1) Verify the data volume exists
+docker volume ls | grep cotrainer_pgdata
+
+# 2) Verify the container is mounted to the expected data volume
+docker inspect cotrainer --format '{{ json .Mounts }}'
+
+# 3) Verify users exist at the database layer
+docker compose exec cotrainer psql -U cotrainer -d cotrainer \
+  -c "SELECT COUNT(*) AS users FROM auth.users;"
+
+# 4) Check startup logs for user count (should be > 0)
+docker compose logs cotrainer 2>&1 | grep 'Startup DB diagnostics'
+```
+
+### PostgreSQL Version Mismatch
+
+Co-Trainer embeds PostgreSQL 17 inside the container. The data volume is formatted
+for this specific major version. If a future image change installs a different PG
+major version (e.g., 18), the container will **refuse to start** and print:
+
+```
+[entrypoint] FATAL: PostgreSQL version mismatch!
+  Installed binary version : 18
+  Data directory version   : 17
+```
+
+**This is intentional** — it prevents silent data loss. To upgrade PostgreSQL:
+
+1. With the **old** image still running, back up:
+   ```bash
+   docker compose exec -T cotrainer pg_dump -U cotrainer -d cotrainer > cotrainer-backup.sql
+   ```
+2. Stop and remove the old volume:
+   ```bash
+   docker compose down -v
+   ```
+3. Start fresh with the new image:
+   ```bash
+   docker compose up -d
+   ```
+4. Restore data:
+   ```bash
+   docker compose exec -T cotrainer psql -U cotrainer -d cotrainer < cotrainer-backup.sql
+   ```
 
 ## 7. Stop Deployment
 

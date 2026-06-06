@@ -97,19 +97,21 @@ async def startup_event():
     finally:
         db.close()
     
-    # Warm the in-memory cache from DB and trigger background incremental sync
+    # Warm in-memory cache and sync Notion in a worker thread.
+    # Notion SDK calls and cache hydration can block; running them on the
+    # event loop can delay auth/login responses and make the UI feel frozen.
     import asyncio
-    async def _background_sync():
+
+    def _run_startup_sync_blocking():
         from database import SessionLocal
+
         db = SessionLocal()
         try:
-            # Load cached drills into memory for fast first response
-            cached = await notion_service.get_all_drills(db=db, force_sync=False)
+            cached = asyncio.run(notion_service.get_all_drills(db=db, force_sync=False))
             if cached:
                 logger.info(f"Startup: warmed in-memory cache with {len(cached)} drills from DB")
-                # Trigger incremental sync to pick up any Notion changes
                 try:
-                    changed = await notion_service.sync_changed_drills(db=db)
+                    changed = asyncio.run(notion_service.sync_changed_drills(db=db))
                     if changed:
                         logger.info(f"Startup: incremental sync found {len(changed)} changed drills")
                     else:
@@ -122,7 +124,10 @@ async def startup_event():
             logger.warning(f"Startup: cache warming failed: {e}")
         finally:
             db.close()
-    
+
+    async def _background_sync():
+        await asyncio.to_thread(_run_startup_sync_blocking)
+
     asyncio.create_task(_background_sync())
 
 
