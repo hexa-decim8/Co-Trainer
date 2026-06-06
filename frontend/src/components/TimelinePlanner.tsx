@@ -6,8 +6,9 @@ import {
   useSortable 
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash2, GripVertical, Shield, Zap, X, Plus } from 'lucide-react';
-import type { PracticeSection, TimelineDrill } from '../types';
+import { Trash2, GripVertical, Shield, Zap, X, Plus, FileText } from 'lucide-react';
+import type { BlankCardItem, PracticeSection, TimelineDrill } from '../types';
+import { isBlankCardItem, isTimelineDrill } from '../types';
 import { formatMinutes } from '../utils/timeFormat';
 import {  
   getContactColor,
@@ -29,6 +30,7 @@ interface TimelinePlannerProps {
   sections: PracticeSection[];
   onRemoveDrill: (sectionId: string, index: number) => void;
   onUpdateDuration: (sectionId: string, index: number, newDuration: number) => void;
+  onUpdateBlankCard: (sectionId: string, itemId: string, updates: { title?: string; notes?: string }) => void;
   onDeleteSection: (sectionId: string) => void;
   onResizeSection: (sectionId: string, newDuration: number) => void;
   onUpdateSectionName: (sectionId: string, newName: string) => void;
@@ -214,10 +216,151 @@ function TimelineDrillItem({
   );
 }
 
+function BlankCardTimelineItem({
+  item,
+  onRemove,
+  onUpdateDuration,
+  onUpdate,
+}: {
+  item: BlankCardItem;
+  onRemove: () => void;
+  onUpdateDuration: (duration: number) => void;
+  onUpdate: (updates: { title?: string; notes?: string }) => void;
+}) {
+  const [isResizing, setIsResizing] = useState(false);
+  const [initialY, setInitialY] = useState(0);
+  const [initialDuration, setInitialDuration] = useState(0);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, data: { kind: 'blank_card' } });
+
+  const itemHeight = Math.max(item.duration * PIXELS_PER_MINUTE_TIMELINE, MIN_DRILL_HEIGHT_PX);
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: isResizing ? 'none' : transition,
+    opacity: isDragging ? 0.5 : 1,
+    minHeight: `${itemHeight}px`,
+  };
+
+  const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    setInitialY(e.clientY);
+    setInitialDuration(item.duration);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = e.clientY - initialY;
+      const deltaMinutes = Math.round(deltaY / PIXELS_PER_MINUTE_TIMELINE);
+      const newDuration = Math.max(MIN_DRILL_DURATION, initialDuration + deltaMinutes);
+      if (newDuration !== item.duration) {
+        onUpdateDuration(newDuration);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [initialDuration, initialY, isResizing, item.duration, onUpdateDuration]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-300 dark:border-purple-700 rounded-lg overflow-hidden relative group"
+    >
+      <div className="absolute inset-0 pointer-events-none z-0 bg-gradient-to-r from-purple-200/60 via-purple-100/20 to-transparent dark:from-purple-800/40 dark:via-purple-900/10" />
+
+      <div className={`flex items-start gap-3 h-full relative z-10 transition-all duration-200 ${itemHeight < 70 ? 'p-2' : 'p-3'}`}>
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing mt-1 flex-shrink-0 relative z-20 touch-none"
+          title="Drag to reorder"
+        >
+          <GripVertical className={`text-purple-500 dark:text-purple-300 transition-all duration-200 ${itemHeight < 70 ? 'w-4 h-4' : 'w-5 h-5'}`} />
+        </div>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-1 text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide">
+              <FileText className="w-3 h-3" />
+              Strategy Card
+            </div>
+            <button
+              onClick={onRemove}
+              className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0"
+              title="Remove card"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={item.title}
+            onChange={(e) => onUpdate({ title: e.target.value })}
+            placeholder="Card title"
+            className="w-full bg-white/80 dark:bg-gray-800/70 border border-purple-200 dark:border-purple-800 text-sm font-semibold text-gray-900 dark:text-white rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+
+          <textarea
+            value={item.notes}
+            onChange={(e) => onUpdate({ notes: e.target.value })}
+            placeholder="Type your strategy notes..."
+            rows={itemHeight < 100 ? 2 : 3}
+            className="w-full resize-none bg-white/80 dark:bg-gray-800/70 border border-purple-200 dark:border-purple-800 text-sm text-gray-800 dark:text-gray-100 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+
+          <div className="text-xs font-medium text-purple-700 dark:text-purple-300">{item.duration} min</div>
+        </div>
+      </div>
+
+      <div
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          handleResizeStart(event);
+        }}
+        className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-30 ${
+          isResizing
+            ? 'bg-purple-500'
+            : 'bg-transparent hover:bg-purple-200 dark:hover:bg-purple-700 group-hover:bg-purple-100 dark:group-hover:bg-purple-800'
+        } transition-colors flex items-center justify-center`}
+      >
+        <div
+          className={`w-12 h-1 rounded-full ${
+            isResizing ? 'bg-white' : 'bg-purple-400 dark:bg-purple-500 opacity-0 group-hover:opacity-100'
+          }`}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SectionContainer({
   section,
   onRemoveDrill,
   onUpdateDuration,
+  onUpdateBlankCard,
   onDeleteSection,
   onUpdateSectionName,
   onResizeSection,
@@ -227,6 +370,7 @@ function SectionContainer({
   section: PracticeSection;
   onRemoveDrill: (sectionId: string, index: number) => void;
   onUpdateDuration: (sectionId: string, index: number, newDuration: number) => void;
+  onUpdateBlankCard: (sectionId: string, itemId: string, updates: { title?: string; notes?: string }) => void;
   onDeleteSection: (sectionId: string) => void;
   onUpdateSectionName: (sectionId: string, newName: string) => void;
   onResizeSection: (sectionId: string, newDuration: number) => void;
@@ -416,7 +560,7 @@ function SectionContainer({
             <div className="min-h-[120px] flex items-center justify-center text-gray-400 dark:text-gray-500">
               <div className="text-center">
                 <Plus className="w-6 h-6 mx-auto mb-1" />
-                <p className="text-xs">Drop drills here</p>
+                <p className="text-xs">Drop drills or add blank cards</p>
               </div>
             </div>
           ) : (
@@ -425,18 +569,32 @@ function SectionContainer({
                 items={section.drills.map(d => d.id)} 
                 strategy={verticalListSortingStrategy}
               >
-              {section.drills.map((drill, index) => (
-                <TimelineDrillItem
-                  key={drill.id}
-                  drill={drill}
-                  onRemove={() => onRemoveDrill(section.id, index)}
-                  onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
-                  isSelected={selectedTimelineDrillId === drill.id}
-                  onSelect={() => onSelectTimelineDrill?.(section, drill)}
-                />
-              ))}
-            </SortableContext>
-          </div>
+                {section.drills.map((item, index) => {
+                  if (isBlankCardItem(item)) {
+                    return (
+                      <BlankCardTimelineItem
+                        key={item.id}
+                        item={item}
+                        onRemove={() => onRemoveDrill(section.id, index)}
+                        onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
+                        onUpdate={(updates) => onUpdateBlankCard(section.id, item.id, updates)}
+                      />
+                    );
+                  }
+
+                  return (
+                    <TimelineDrillItem
+                      key={item.id}
+                      drill={item}
+                      onRemove={() => onRemoveDrill(section.id, index)}
+                      onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
+                      isSelected={selectedTimelineDrillId === item.id}
+                      onSelect={() => onSelectTimelineDrill?.(section, item)}
+                    />
+                  );
+                })}
+              </SortableContext>
+            </div>
           )}
         </div>
       </div>
@@ -463,6 +621,7 @@ export default function TimelinePlanner({
   sections,
   onRemoveDrill,
   onUpdateDuration,
+  onUpdateBlankCard,
   onDeleteSection,
   onResizeSection,
   onUpdateSectionName,
@@ -471,7 +630,8 @@ export default function TimelinePlanner({
   practiceType,
 }: TimelinePlannerProps) {
   const totalDuration = sections.reduce((sum, s) => sum + s.duration, 0);
-  const totalDrills = sections.reduce((sum, s) => sum + s.drills.length, 0);
+  const totalDrills = sections.reduce((sum, s) => sum + s.drills.filter(isTimelineDrill).length, 0);
+  const totalItems = sections.reduce((sum, s) => sum + s.drills.length, 0);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -489,7 +649,7 @@ export default function TimelinePlanner({
               {totalDuration} min
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              {totalDrills} drill{totalDrills !== 1 ? 's' : ''} • {sections.length} section{sections.length !== 1 ? 's' : ''}
+              {totalItems} item{totalItems !== 1 ? 's' : ''} • {totalDrills} drill{totalDrills !== 1 ? 's' : ''} • {sections.length} section{sections.length !== 1 ? 's' : ''}
             </div>
           </div>
         </div>
@@ -507,6 +667,7 @@ export default function TimelinePlanner({
               section={section}
               onRemoveDrill={onRemoveDrill}
               onUpdateDuration={onUpdateDuration}
+              onUpdateBlankCard={onUpdateBlankCard}
               onDeleteSection={onDeleteSection}
               onUpdateSectionName={onUpdateSectionName}
               onResizeSection={onResizeSection}
@@ -523,7 +684,7 @@ export default function TimelinePlanner({
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Equipment Needed</h3>
           <div className="flex flex-wrap gap-2">
             {Array.from(new Set(
-              sections.flatMap(s => s.drills.map(d => d.drill.equipment).filter(Boolean))
+              sections.flatMap(s => s.drills.filter(isTimelineDrill).map(d => d.drill.equipment).filter(Boolean))
             )).map((equipment) => (
               <span key={equipment} className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm rounded-full">
                 {equipment}

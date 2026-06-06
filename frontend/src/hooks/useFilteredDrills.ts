@@ -64,6 +64,15 @@ export function useFilteredDrills(drills: Drill[], filters: DrillFilters): Drill
         if (!filters.type.some(t => drill.type?.includes(t))) return false;
       }
 
+      // Has video filter
+      if (filters.has_video === true) {
+        const hasVideo =
+          (drill.video_links && drill.video_links.length > 0) ||
+          !!drill.video_link ||
+          !!drill.video_link_final_url;
+        if (!hasVideo) return false;
+      }
+
       return true;
     });
   }, [drills, filters]);

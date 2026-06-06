@@ -1,4 +1,5 @@
 import type { PracticeSection, PracticeType } from '../types';
+import { isBlankCardItem, isTimelineDrill } from '../types';
 import { getPracticeTypeLabel } from './practiceTypes';
 
 interface BuildPlanTextOptions {
@@ -38,9 +39,10 @@ export const buildPlanText = ({
   sections,
 }: BuildPlanTextOptions): string => {
   const safePlanName = planName.trim() || 'Untitled Practice Plan';
-  const allDrills = sections.flatMap(section => section.drills);
+  const allItems = sections.flatMap(section => section.drills);
+  const allDrills = allItems.filter(isTimelineDrill);
   const totalTargetDuration = sections.reduce((sum, section) => sum + section.duration, 0);
-  const totalUsedDuration = allDrills.reduce((sum, drill) => sum + drill.duration, 0);
+  const totalUsedDuration = allItems.reduce((sum, item) => sum + item.duration, 0);
 
   const lines: string[] = [
     `Practice Plan: ${safePlanName}`,
@@ -48,6 +50,7 @@ export const buildPlanText = ({
     `Practice Type: ${getPracticeTypeLabel(practiceType)}`,
     `Target Duration: ${formatDuration(totalTargetDuration)}`,
     `Planned Drill Time: ${formatDuration(totalUsedDuration)}`,
+    `Timeline Items: ${allItems.length}`,
     `Drill Count: ${allDrills.length}`,
     '',
     'Sections',
@@ -65,22 +68,31 @@ export const buildPlanText = ({
       return;
     }
 
-    section.drills.forEach((timelineDrill, drillIndex) => {
-      const start = formatMinuteClock(timelineDrill.startTime);
-      const end = formatMinuteClock(timelineDrill.startTime + timelineDrill.duration);
-      const contact = timelineDrill.drill.contact_level || 'Unknown contact';
+    section.drills.forEach((item, itemIndex) => {
+      const start = formatMinuteClock(item.startTime);
+      const end = formatMinuteClock(item.startTime + item.duration);
 
+      if (isBlankCardItem(item)) {
+        lines.push(`   ${itemIndex + 1}. [${start}-${end}] ${item.title || 'Strategy Note'} (${item.duration} min)`);
+        if (item.notes?.trim()) {
+          const condensed = item.notes.replace(/\s+/g, ' ').trim();
+          lines.push(`      Notes: ${condensed}`);
+        }
+        return;
+      }
+
+      const contact = item.drill.contact_level || 'Unknown contact';
       lines.push(
-        `   ${drillIndex + 1}. [${start}-${end}] ${timelineDrill.drill.exercise} (${timelineDrill.duration} min)`
+        `   ${itemIndex + 1}. [${start}-${end}] ${item.drill.exercise} (${item.duration} min)`
       );
       lines.push(`      Contact: ${contact}`);
 
-      if (timelineDrill.drill.drill_type) {
-        lines.push(`      Drill Type: ${timelineDrill.drill.drill_type}`);
+      if (item.drill.drill_type) {
+        lines.push(`      Drill Type: ${item.drill.drill_type}`);
       }
 
-      if (timelineDrill.drill.description?.trim()) {
-        const condensed = timelineDrill.drill.description.replace(/\s+/g, ' ').trim();
+      if (item.drill.description?.trim()) {
+        const condensed = item.drill.description.replace(/\s+/g, ' ').trim();
         lines.push(`      Notes: ${condensed}`);
       }
     });

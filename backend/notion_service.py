@@ -24,6 +24,18 @@ class NotionService:
         self.practice_plan_database_id = settings.notion_practice_plan_database_id
         self._cache: Optional[List[Drill]] = None
         self._relation_cache: Dict[str, str] = {}  # page_id -> title mapping
+        self._video_backfill_attempted = False
+
+    def _has_any_video_metadata(self, drills: List[Drill]) -> bool:
+        """Return True when at least one drill carries video data usable by the frontend."""
+        for drill in drills:
+            if drill.video_links:
+                return True
+            if drill.video_link:
+                return True
+            if drill.video_link_final_url:
+                return True
+        return False
     
     def _find_property_by_name(self, props: Dict[str, Any], target_names: List[str]) -> Optional[Dict[str, Any]]:
         """
@@ -240,7 +252,7 @@ class NotionService:
             "skaters_needed": ["Skaters Needed", "Skaters"],
             "teamwork": ["Teamwork"],
             "type": ["Type"],
-            "video_link": ["Video Link", "Video"],
+            "video_link": ["Video Link", "Video", "Video URL", "Video Url", "Videos"],
         }
         
         # Helper to get property with case-insensitive matching
@@ -285,6 +297,17 @@ class NotionService:
                 logger.debug(f"Expected property '{prop_names[0]}' not found in drill {page['id'][:8]}...")
         
         video_link_raw = get_prop_value(property_map["video_link"], "url")
+        if not video_link_raw:
+            # Some workspaces keep the video field as text instead of URL.
+            video_link_raw = get_prop_value(property_map["video_link"], "rich_text")
+        if not video_link_raw:
+            videoish = [name for name in props.keys() if "video" in name.lower()]
+            if videoish:
+                logger.info(
+                    "Drill %s has video-like properties not mapped to URL parsing: %s",
+                    page.get("id", "")[:8],
+                    videoish,
+                )
         raw_urls = extract_urls(video_link_raw)
         video_links_info: list[VideoLinkInfo] = []
         for url in raw_urls:
@@ -336,6 +359,18 @@ class NotionService:
         """
         # Check memory cache first
         if not force_sync and self._cache is not None:
+            if (
+                self.client
+                and self.database_id
+                and not self._video_backfill_attempted
+                and self._cache
+                and not self._has_any_video_metadata(self._cache)
+            ):
+                logger.warning(
+                    "In-memory drill cache has no video metadata; forcing one-time full rebuild from Notion"
+                )
+                self._video_backfill_attempted = True
+                return await self.get_all_drills(db=db, force_sync=True)
             logger.info(f"✓ Using in-memory cache: {len(self._cache)} drills")
             return self._cache
         
@@ -346,6 +381,17 @@ class NotionService:
             if not drill_cache_manager.should_sync(db, max_age_hours=None):
                 cached_drills = drill_cache_manager.load_from_cache(db)
                 if cached_drills:
+                    if (
+                        self.client
+                        and self.database_id
+                        and not self._video_backfill_attempted
+                        and not self._has_any_video_metadata(cached_drills)
+                    ):
+                        logger.warning(
+                            "Database drill cache has no video metadata; forcing one-time full rebuild from Notion"
+                        )
+                        self._video_backfill_attempted = True
+                        return await self.get_all_drills(db=db, force_sync=True)
                     logger.info(f"✓ Using database cache: {len(cached_drills)} drills")
                     self._cache = cached_drills
                     return cached_drills

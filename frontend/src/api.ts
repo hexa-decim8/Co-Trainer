@@ -91,6 +91,9 @@ export const drillsApi = {
     if (filters?.type?.length) {
       filters.type.forEach(v => params.append('type', v));
     }
+    if (filters?.has_video === true) {
+      params.append('has_video', 'true');
+    }
     
     const response = await api.get<Drill[]>('/drills', { params });
     return response.data;
@@ -192,8 +195,13 @@ export const drillsApi = {
     }
   },
 
-  incrementalSync: async (): Promise<{ success: boolean; count: number; sync_type: string }> => {
+  incrementalSync: async (): Promise<{ success: boolean; count: number; sync_type: string; message?: string }> => {
     const response = await api.post('/drills/sync?full_rebuild=false');
+    return response.data;
+  },
+
+  fullRebuildSync: async (): Promise<{ success: boolean; count: number; sync_type: string; message?: string }> => {
+    const response = await api.post('/drills/sync?full_rebuild=true');
     return response.data;
   },
 

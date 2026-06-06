@@ -590,6 +590,7 @@ async def get_drills(
     position_focus: Optional[List[str]] = Query(None),
     skater_level: Optional[List[str]] = Query(None),
     type_filter: Optional[List[str]] = Query(None, alias="type"),
+    has_video: Optional[bool] = Query(None),
     force_sync: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
@@ -667,7 +668,14 @@ async def get_drills(
             d for d in filtered_drills
             if any(t in d.type for t in type_filter)
         ]
-    
+
+    # Has video filter
+    if has_video is True:
+        filtered_drills = [
+            d for d in filtered_drills
+            if d.video_links or d.video_link or d.video_link_final_url
+        ]
+
     logger.info(f"API: Returning {len(filtered_drills)} drill cards (filtered from {len(drills)} total)")
     return filtered_drills
 

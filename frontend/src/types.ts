@@ -44,6 +44,8 @@ export interface DrillFilters {
   skater_level?: string[];
   teamwork?: string[];
   type?: string[];
+  /** Synthetic filter — true means only drills that have at least one video attached */
+  has_video?: boolean;
 }
 
 export interface FilterOptions {
@@ -66,16 +68,36 @@ export interface TimelineItem {
 // New section-based structure where sections contain drills
 export interface TimelineDrill {
   id: string;
+  type?: 'drill';
   drill: Drill;
   duration: number;
   startTime: number; // Section-relative time (0 to section.duration)
 }
 
+export interface BlankCardItem {
+  id: string;
+  type: 'blank_card';
+  title: string;
+  notes: string;
+  duration: number;
+  startTime: number; // Section-relative time (0 to section.duration)
+}
+
+export type PracticeSectionItem = TimelineDrill | BlankCardItem;
+
+export const isBlankCardItem = (item: PracticeSectionItem): item is BlankCardItem => {
+  return item.type === 'blank_card';
+};
+
+export const isTimelineDrill = (item: PracticeSectionItem): item is TimelineDrill => {
+  return !isBlankCardItem(item);
+};
+
 export interface PracticeSection {
   id: string;
   name: string;
   duration: number; // Minutes allocated to this section
-  drills: TimelineDrill[];
+  drills: PracticeSectionItem[];
   isMainPractice: boolean;
   color: string;
 }

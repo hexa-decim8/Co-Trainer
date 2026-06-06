@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { Search, ChevronDown, ChevronUp, Filter as FilterIcon } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Filter as FilterIcon, Video } from 'lucide-react';
 import type { Drill, DrillFilters, FilterOptions } from '../types';
 
 const PREVIEW_LIMIT = 6;
@@ -85,23 +85,36 @@ export default function FilterSidebar({
   }) => {
     const activeValues = (activeFilters[category] as any[]) || [];
     const isExpanded = expandedSections.has(id);
+    const sectionContentId = `${id}-filter-options`;
     
     return (
       <div className="mb-4 border-b border-gray-200 dark:border-gray-700 pb-4 last:border-b-0">
         <button
+          type="button"
           onClick={() => toggleSection(id)}
-          className="flex items-center justify-between w-full text-left mb-3 group"
+          aria-expanded={isExpanded}
+          aria-controls={sectionContentId}
+          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${title} filters`}
+          className="flex items-center justify-between w-full text-left mb-3"
         >
           <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">{title}</h3>
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
-          )}
+          <span
+            className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 focus-visible:outline-none ${
+              isExpanded
+                ? 'bg-primary-100 dark:bg-primary-900/40 border-primary-500 text-primary-700 dark:text-primary-300'
+                : 'bg-white dark:bg-gray-800 border-primary-300 dark:border-primary-700 text-primary-600 dark:text-primary-400'
+            }`}
+          >
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </span>
         </button>
         
         {isExpanded && (
-          <div className="space-y-2">
+          <div id={sectionContentId} className="space-y-2">
             {options.map(option => (
               <label 
                 key={option} 
@@ -253,6 +266,35 @@ export default function FilterSidebar({
               id="position_focus"
             />
           )}
+        </div>
+
+        {/* Media Group */}
+        <div className="mb-6">
+          <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Video className="w-3.5 h-3.5" /> Media
+          </h2>
+          <div className="mb-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+            <label className="flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors group">
+              <input
+                type="checkbox"
+                checked={activeFilters.has_video === true}
+                onChange={() =>
+                  onFilterChange({
+                    ...activeFilters,
+                    has_video: activeFilters.has_video === true ? undefined : true,
+                  })
+                }
+                className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 dark:bg-gray-700 cursor-pointer"
+              />
+              <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white flex items-center gap-1.5">
+                <Video className="w-3.5 h-3.5 text-primary-500" />
+                Has Video
+              </span>
+              {activeFilters.has_video === true && (
+                <span className="ml-auto text-primary-600 dark:text-primary-400 font-bold">✓</span>
+              )}
+            </label>
+          </div>
         </div>
 
         {/* Logistics Group */}

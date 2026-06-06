@@ -13,7 +13,8 @@ import { drillsApi, plansApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import { useFilteredDrills } from '../hooks/useFilteredDrills';
 import { useSearchContext } from '../contexts/SearchContext';
-import type { Drill, DrillFilters, PracticeType, PracticeSection, TimelineDrill } from '../types';
+import type { Drill, DrillFilters, PracticeType, PracticeSection, PracticeSectionItem, TimelineDrill } from '../types';
+import { isBlankCardItem, isTimelineDrill } from '../types';
 import { buildPlanText } from '../utils/planTextExport';
 
 import { 
@@ -155,23 +156,27 @@ export default function PlannerPage() {
     gcTime: QUERY_GC_TIMES.FILTER_OPTIONS,
   });
 
-  const calculateStartTimes = (drills: Omit<TimelineDrill, 'startTime'>[]): TimelineDrill[] => {
+  const calculateStartTimes = (items: Omit<PracticeSectionItem, 'startTime'>[]): PracticeSectionItem[] => {
     let currentTime = 0;
-    return drills.map(drill => {
-      const drillWithTime = { ...drill, startTime: currentTime };
-      currentTime += drill.duration;
-      return drillWithTime;
+    return items.map((item): PracticeSectionItem => {
+      const itemWithTime = { ...item, startTime: currentTime } as PracticeSectionItem;
+      currentTime += item.duration;
+      return itemWithTime;
     });
   };
 
   // Helper function to get all drills across all sections (for compatibility)
   const getAllDrills = (): TimelineDrill[] => {
+    return sections.flatMap(section => section.drills.filter(isTimelineDrill));
+  };
+
+  const getAllSectionItems = (): PracticeSectionItem[] => {
     return sections.flatMap(section => section.drills);
   };
 
-  // Helper function to find which section contains a drill
-  const findSectionByDrillId = (drillId: string): PracticeSection | undefined => {
-    return sections.find(section => section.drills.some(d => d.id === drillId));
+  // Helper function to find which section contains an item
+  const findSectionByItemId = (itemId: string): PracticeSection | undefined => {
+    return sections.find(section => section.drills.some(d => d.id === itemId));
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -200,8 +205,8 @@ export default function PlannerPage() {
       }
     }
 
-    // Case 2: dropped on a drill inside a section
-    const parentSection = findSectionByDrillId(overId);
+    // Case 2: dropped on an item inside a section
+    const parentSection = findSectionByItemId(overId);
     if (parentSection) {
       const drillIndex = parentSection.drills.findIndex(d => d.id === overId);
       return { sectionId: parentSection.id, insertIndex: drillIndex !== -1 ? drillIndex : parentSection.drills.length };
@@ -241,8 +246,8 @@ export default function PlannerPage() {
         const candidateId = overId.replace('-drop', '');
         if (sections.some(s => s.id === candidateId)) overSectionId = candidateId;
       } else {
-        // Cursor is over a drill inside a section; find that section
-        overSectionId = findSectionByDrillId(overId)?.id;
+        // Cursor is over an item inside a section; find that section
+        overSectionId = findSectionByItemId(overId)?.id;
       }
 
       if (overSectionId) {
@@ -255,13 +260,13 @@ export default function PlannerPage() {
       return;
     }
 
-    // --- Drill operations (reorder / move / add from library) ---
-    const sourceSection = findSectionByDrillId(activeId);
-    const isExistingDrill = !!sourceSection;
+    // --- Item operations (reorder / move / add from library) ---
+    const sourceSection = findSectionByItemId(activeId);
+    const isExistingItem = !!sourceSection;
 
-    // Within-section reorder: both active and over are drills in the same section
-    if (isExistingDrill && sourceSection) {
-      const overSection = findSectionByDrillId(overId);
+    // Within-section reorder: both active and over are items in the same section
+    if (isExistingItem && sourceSection) {
+      const overSection = findSectionByItemId(overId);
 
       if (overSection && overSection.id === sourceSection.id && activeId !== overId) {
         // Same-section reorder
@@ -282,8 +287,8 @@ export default function PlannerPage() {
       // the drill is moved to the end.
       if (target.sectionId === sourceSection.id && overId !== `${sourceSection.id}-drop`) return;
 
-      const draggedDrill = sourceSection.drills.find(d => d.id === activeId);
-      if (!draggedDrill) return;
+      const draggedItem = sourceSection.drills.find(d => d.id === activeId);
+      if (!draggedItem) return;
 
       // Remove from source, insert at correct position in target
       const afterRemove = sections.map(section => {
@@ -293,12 +298,12 @@ export default function PlannerPage() {
         return section;
       });
 
-      const movedDrill = { ...draggedDrill, startTime: 0 };
+      const movedItem = { ...draggedItem, startTime: 0 };
 
       const finalSections = afterRemove.map(section => {
         if (section.id === target.sectionId) {
           const drills = [...section.drills];
-          drills.splice(target.insertIndex, 0, movedDrill);
+          drills.splice(target.insertIndex, 0, movedItem);
           return { ...section, drills: calculateStartTimes(drills) };
         }
         return section;
@@ -310,8 +315,9 @@ export default function PlannerPage() {
 
     // --- Adding new drill from library ---
     if (active.data?.current) {
-      const drill = active.data.current as Drill;
-      if (!drill || !drill.id) return;
+      const data = active.data.current as Partial<Drill>;
+      if (!data || !data.id || !data.exercise) return;
+      const drill = data as Drill;
 
       const target = resolveDropTarget(overId);
       if (!target) return;
@@ -347,6 +353,27 @@ export default function PlannerPage() {
       }
       return section;
     });
+    setSections(updatedSections);
+  };
+
+  const handleUpdateBlankCard = (
+    sectionId: string,
+    itemId: string,
+    updates: { title?: string; notes?: string }
+  ) => {
+    const updatedSections = sections.map(section => {
+      if (section.id !== sectionId) return section;
+
+      const updatedItems = section.drills.map(item => {
+        if (item.id !== itemId || !isBlankCardItem(item)) {
+          return item;
+        }
+        return { ...item, ...updates };
+      });
+
+      return { ...section, drills: updatedItems };
+    });
+
     setSections(updatedSections);
   };
 
@@ -394,6 +421,35 @@ export default function PlannerPage() {
     setSections([...sections, newSection]);
   };
 
+  const handleAddBlankCard = () => {
+    const selectedSectionId = selectedPlannerDrill?.sectionId;
+    const mainSectionId = sections.find(section => section.isMainPractice)?.id;
+    const fallbackSectionId = sections[0]?.id;
+    const targetSectionId = selectedSectionId || mainSectionId || fallbackSectionId;
+
+    if (!targetSectionId) {
+      return;
+    }
+
+    const newBlankCard: PracticeSectionItem = {
+      id: `blank-${Date.now()}-${Math.random()}`,
+      type: 'blank_card',
+      title: 'Strategy Note',
+      notes: '',
+      duration: 10,
+      startTime: 0,
+    };
+
+    const updatedSections = sections.map(section => {
+      if (section.id !== targetSectionId) return section;
+      const updated = [...section.drills, newBlankCard];
+      return { ...section, drills: calculateStartTimes(updated) };
+    });
+
+    setSelectedPlannerDrill(null);
+    setSections(updatedSections);
+  };
+
   const handleDeleteSection = (sectionId: string) => {
     const section = sections.find(s => s.id === sectionId);
     if (!section) return;
@@ -404,9 +460,9 @@ export default function PlannerPage() {
       return;
     }
 
-    // Confirm if section has drills
+    // Confirm if section has items
     if (section.drills.length > 0) {
-      if (!confirm(`Delete "${section.name}" and its ${section.drills.length} drill(s)?`)) {
+      if (!confirm(`Delete "${section.name}" and its ${section.drills.length} item(s)?`)) {
         return;
       }
     }
@@ -457,9 +513,10 @@ export default function PlannerPage() {
       return;
     }
 
+    const allItems = getAllSectionItems();
     const allDrills = getAllDrills();
-    if (allDrills.length === 0) {
-      setSaveError({ message: 'Please add at least one drill to the practice plan.' });
+    if (allItems.length === 0) {
+      setSaveError({ message: 'Please add at least one timeline item to the practice plan.' });
       return;
     }
 
@@ -485,10 +542,12 @@ export default function PlannerPage() {
 
       // For backward compatibility with backend, flatten sections into a single timeline
       const timeline = sections.flatMap(section => 
-        section.drills.map(d => ({
-          drill_id: d.drill.id,
-          duration_minutes: d.duration,
-        }))
+        section.drills
+          .filter(isTimelineDrill)
+          .map(d => ({
+            drill_id: d.drill.id,
+            duration_minutes: d.duration,
+          }))
       );
 
       // Prepare sections_v2 for new API - send simplified drill references for backend
@@ -496,12 +555,26 @@ export default function PlannerPage() {
         id: section.id,
         name: section.name,
         duration: section.duration,
-        drills: section.drills.map(d => ({
-          id: d.id,
-          drill_id: d.drill.id,
-          duration: d.duration,
-          start_time: d.startTime,
-        })),
+        drills: section.drills.map(d => {
+          if (isBlankCardItem(d)) {
+            return {
+              id: d.id,
+              type: 'blank_card',
+              title: d.title,
+              notes: d.notes,
+              duration: d.duration,
+              start_time: d.startTime,
+            };
+          }
+
+          return {
+            id: d.id,
+            type: 'drill',
+            drill_id: d.drill.id,
+            duration: d.duration,
+            start_time: d.startTime,
+          };
+        }),
         isMainPractice: section.isMainPractice,
         color: section.color,
       })) as any;  // Backend expects different structure than frontend PracticeSection
@@ -648,15 +721,26 @@ export default function PlannerPage() {
 
     const sectionsFromPlan = (editingPlan.sections_v2 || []).map((section, sectionIndex) => {
       let sectionTime = 0;
-      const sectionDrills = ((section as any).drills || []).map((drillRef: any, drillIndex: number) => {
+      const sectionItems = ((section as any).drills || []).map((drillRef: any, drillIndex: number) => {
+        const duration = Number(drillRef.duration ?? drillRef.duration_minutes ?? 0) || 15;
+        const startTime = Number(drillRef.start_time ?? sectionTime) || sectionTime;
+        sectionTime = startTime + duration;
+
+        if (drillRef.type === 'blank_card') {
+          return {
+            id: String(drillRef.id || `blank-${Date.now()}-${sectionIndex}-${drillIndex}`),
+            type: 'blank_card' as const,
+            title: String(drillRef.title || 'Strategy Note'),
+            notes: String(drillRef.notes || ''),
+            duration,
+            startTime,
+          };
+        }
+
         const drill = drillLookup.get(drillRef.drill_id);
         if (!drill) {
           return null;
         }
-
-        const duration = Number(drillRef.duration ?? drillRef.duration_minutes ?? 0) || 15;
-        const startTime = Number(drillRef.start_time ?? sectionTime) || sectionTime;
-        sectionTime = startTime + duration;
 
         return {
           id: String(drillRef.id || `drill-${Date.now()}-${sectionIndex}-${drillIndex}`),
@@ -664,14 +748,14 @@ export default function PlannerPage() {
           duration,
           startTime,
         };
-      }).filter(Boolean) as TimelineDrill[];
+      }).filter(Boolean) as PracticeSectionItem[];
 
       const rawMainPractice = (section as any).isMainPractice ?? (section as any).is_main_practice;
       return {
         id: String((section as any).id || `section-${Date.now()}-${sectionIndex}`),
         name: (section as any).name || `Section ${sectionIndex + 1}`,
-        duration: Number((section as any).duration ?? sectionDrills.reduce((sum, d) => sum + d.duration, 0)) || DEFAULT_SECTION_DURATION,
-        drills: sectionDrills,
+        duration: Number((section as any).duration ?? sectionItems.reduce((sum, d) => sum + d.duration, 0)) || DEFAULT_SECTION_DURATION,
+        drills: sectionItems,
         isMainPractice: Boolean(rawMainPractice),
         color: (section as any).color || SECTION_COLORS[sectionIndex % SECTION_COLORS.length],
       } as PracticeSection;
@@ -703,7 +787,9 @@ export default function PlannerPage() {
     : undefined;
 
   const selectedTimelineDrill = selectedPlannerDrill && selectedSection
-    ? selectedSection.drills.find((drill) => drill.id === selectedPlannerDrill.drillId)
+    ? selectedSection.drills.find((drill): drill is TimelineDrill => (
+      isTimelineDrill(drill) && drill.id === selectedPlannerDrill.drillId
+    ))
     : undefined;
 
   return (
@@ -868,8 +954,17 @@ export default function PlannerPage() {
         {/* Right: Timeline and details panel */}
         <div className="flex-1 min-w-0 flex gap-1 overflow-hidden">
           <div className="flex-1 min-w-0 flex flex-col gap-1">
-            {/* Timeline Header with Add Section Button */}
+            {/* Timeline Header with Add controls */}
             <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 flex justify-end">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAddBlankCard}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 text-purple-800 dark:text-purple-200 rounded-lg text-xs font-semibold transition-colors"
+                  title="Add a blank strategy card"
+                >
+                  <FileText className="w-4 h-4" />
+                  Add Blank Card
+                </button>
               <button
                 onClick={handleAddSection}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
@@ -878,6 +973,7 @@ export default function PlannerPage() {
                 <Plus className="w-4 h-4" />
                 Add Section
               </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-hidden">
@@ -885,6 +981,7 @@ export default function PlannerPage() {
                 sections={sections}
                 onRemoveDrill={handleRemoveDrill}
                 onUpdateDuration={handleUpdateDuration}
+                onUpdateBlankCard={handleUpdateBlankCard}
                 onDeleteSection={handleDeleteSection}
                 onResizeSection={handleResizeSection}
                 onUpdateSectionName={handleUpdateSectionName}
@@ -897,25 +994,61 @@ export default function PlannerPage() {
             </div>
 
             {/* Save buttons */}
-            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg planner-actions-compact">
               {!showSaveDialog ? (
                 <div className="space-y-2">
+                  {saveError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <p className="text-sm text-red-600 dark:text-red-400">{saveError.message}</p>
+                    </div>
+                  )}
+                  {saveSuccess && (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-600 dark:text-green-400">{saveSuccess}</p>
+                    </div>
+                  )}
                   <button
-                    onClick={() => setShowSaveDialog(true)}
-                    disabled={getAllDrills().length === 0}
-                    className="w-full btn-primary flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setSaveError(null);
+                      if (isEditMode) {
+                        handleSavePlan(false);
+                        return;
+                      }
+                      setShowSaveDialog(true);
+                    }}
+                    disabled={getAllSectionItems().length === 0}
+                    className="btn-planner-primary-compact flex items-center justify-center gap-1.5"
+                    aria-label={isEditMode ? 'Update Practice Plan' : 'Save Practice Plan'}
                   >
-                    <Save className="w-5 h-5" />
-                    {isEditMode ? 'Update Practice Plan' : 'Save Practice Plan'}
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">{isEditMode ? 'Update Practice Plan' : 'Save Practice Plan'}</span>
+                    <span className="sm:hidden">{isEditMode ? 'Update' : 'Save'}</span>
                   </button>
                   <button
                     onClick={handleOpenExportDialog}
-                    disabled={getAllDrills().length === 0}
-                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={getAllSectionItems().length === 0}
+                    className="btn-planner-secondary-compact flex items-center justify-center gap-1.5"
+                    aria-label="Export Plan as Text"
                   >
-                    <FileText className="w-5 h-5" />
-                    Export Plan as Text
+                    <FileText className="w-4 h-4" />
+                    <span className="hidden sm:inline">Export Plan as Text</span>
+                    <span className="sm:hidden">Export</span>
                   </button>
+                  {isEditMode && (
+                    <button
+                      onClick={() => {
+                        setSaveError(null);
+                        setShowSaveDialog(true);
+                      }}
+                      disabled={getAllSectionItems().length === 0}
+                      className="btn-planner-secondary-compact flex items-center justify-center gap-1.5"
+                      aria-label="Edit Plan Details"
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span className="hidden sm:inline">Edit Details</span>
+                      <span className="sm:hidden">Details</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -953,25 +1086,29 @@ export default function PlannerPage() {
                       className="input-derby"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className={`grid gap-2 ${isEditMode ? 'grid-cols-1' : 'grid-cols-2'}`}>
                     <button
                       onClick={() => handleSavePlan(false)}
                       className="btn-primary"
                     >
                       {isEditMode ? 'Update Plan' : 'Save Plan'}
                     </button>
-                    <button
-                      onClick={() => handleSavePlan(true)}
-                      className="px-4 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 hover:shadow-lg transition-all duration-200 active:scale-95"
-                    >
-                      Save Template
-                    </button>
+                    {!isEditMode && (
+                      <button
+                        onClick={() => handleSavePlan(true)}
+                        className="px-4 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 hover:shadow-lg transition-all duration-200 active:scale-95"
+                      >
+                        Save Template
+                      </button>
+                    )}
                   </div>
                   <button
                     onClick={() => {
                       setShowSaveDialog(false);
-                      setPlanName('');
-                      setPlanDate('');
+                      if (!isEditMode) {
+                        setPlanName('');
+                        setPlanDate('');
+                      }
                       setSaveError(null);
                       setSaveSuccess(null);
                     }}

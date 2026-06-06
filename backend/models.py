@@ -75,6 +75,7 @@ class DrillFilters(BaseModel):
     skater_level: Optional[List[str]] = None
     teamwork: Optional[List[str]] = None
     type: Optional[List[str]] = None
+    has_video: Optional[bool] = None
 
 
 class FilterOptions(BaseModel):
@@ -104,12 +105,25 @@ class TimelineDrill(BaseModel):
     start_time: int  # Section-relative start time in minutes
 
 
+class BlankCardItem(BaseModel):
+    """A user-authored strategy/note card within a section."""
+    id: str
+    type: str = "blank_card"
+    title: str
+    notes: str = ""
+    duration: int
+    start_time: int  # Section-relative start time in minutes
+
+
+SectionItem = Union[TimelineDrill, BlankCardItem]
+
+
 class PracticeSection(BaseModel):
     """A section of practice containing drills with metadata."""
     id: str
     name: str
     duration: int  # Total minutes allocated to this section
-    drills: List[TimelineDrill]
+    drills: List[SectionItem]
     is_main_practice: bool = Field(alias='isMainPractice')  # Accept both snake_case and camelCase
     color: str
     
@@ -143,10 +157,16 @@ class PracticePlan(BaseModel):
     
     @validator('timeline')
     def validate_timeline(cls, v):
-        if not v or len(v) == 0:
-            raise ValueError('Practice plan must have at least one drill')
         if len(v) > 50:
             raise ValueError('Practice plan cannot have more than 50 drills')
+        return v
+
+    @validator('sections_v2', always=True)
+    def validate_has_timeline_items(cls, v, values):
+        timeline = values.get('timeline') or []
+        has_section_items = any(getattr(section, 'drills', None) for section in (v or []))
+        if len(timeline) == 0 and not has_section_items:
+            raise ValueError('Practice plan must have at least one timeline item')
         return v
 
 
