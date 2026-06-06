@@ -124,10 +124,26 @@ def _ensure_auth_schema() -> None:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
 
 
+def _ensure_user_columns() -> None:
+    """Idempotent column migrations for auth.users.
+
+    Runs every startup. Uses ADD COLUMN IF NOT EXISTS so it is safe to call
+    on a database that already has the columns.  DEFAULT TRUE on is_approved
+    means pre-existing users are grandfathered as approved; new users inserted
+    by the ORM still default to False (model-level default).
+    """
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE auth.users "
+            "ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT TRUE"
+        ))
+
+
 def init_db():
     """Initialize database tables."""
     _ensure_auth_schema()
     Base.metadata.create_all(bind=engine)
+    _ensure_user_columns()
 
 
 def get_db():

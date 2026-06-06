@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session
 from database import get_db, UserDB
 from config import settings
 
-# Password hashing - use argon2 instead of bcrypt to avoid 72-byte limitation
-# Argon2 is more secure and has no password length restrictions
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# Password hashing - argon2 is primary; bcrypt retained for verifying hashes created
+# before the argon2 migration so existing accounts survive the upgrade.
+# New passwords are always stored as argon2. bcrypt hashes are transparently
+# re-hashed to argon2 on the next successful login (passlib handles this automatically).
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated=["bcrypt"])
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")

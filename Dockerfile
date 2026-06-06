@@ -15,12 +15,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies (including PostgreSQL server and gosu for privilege drop)
+# PostgreSQL major version is pinned to prevent apt resolving a newer major version
+# on a future rebuild, which would make the existing cotrainer_pgdata volume unreadable.
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
     gosu \
-    postgresql \
+    postgresql-15 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python dependencies and install
