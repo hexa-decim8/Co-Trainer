@@ -4,7 +4,7 @@ from notion_client import Client
 from config import settings
 from models import Drill, DrillCreate, DrillUpdate, VideoLinkInfo
 from drill_cache import drill_cache_manager
-from video_link_validator import validate_video_link, extract_urls
+from video_link_validator import extract_urls
 import logging
 import json
 import time
@@ -314,16 +314,19 @@ class NotionService:
                     unmapped_videoish,
                 )
         raw_urls = extract_urls(video_link_raw)
-        video_links_info: list[VideoLinkInfo] = []
-        for url in raw_urls:
-            validation = validate_video_link(url)
-            video_links_info.append(VideoLinkInfo(
+        # Populate video_links with unvalidated entries — no blocking HTTP during parse.
+        # Validation (resolve/redirect check) happens lazily on first frontend request
+        # via the in-process validation cache in video_link_validator.py.
+        video_links_info: list[VideoLinkInfo] = [
+            VideoLinkInfo(
                 url=url,
-                final_url=validation["final_url"],
-                resolved=validation["resolved"],
-                error=validation["error"],
-                checked_at=validation["checked_at"],
-            ))
+                final_url=None,
+                resolved=None,
+                error=None,
+                checked_at=None,
+            )
+            for url in raw_urls
+        ]
 
         # Backward compat: populate singular fields from the first URL
         first = video_links_info[0] if video_links_info else None
