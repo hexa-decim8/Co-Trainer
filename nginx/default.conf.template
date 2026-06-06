@@ -2,6 +2,13 @@ upstream cotrainer_app {
     server cotrainer:8000;
 }
 
+# Per-IP request limits (defined at http context level in included conf).
+limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=30r/s;
+
+log_format security '$remote_addr - [$time_local] "$request" $status $body_bytes_sent '
+                    '"$http_referer" "$http_user_agent" rt=$request_time';
+
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -23,6 +30,18 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
 
+    access_log /var/log/nginx/access.log security;
+    error_log /var/log/nginx/error.log warn;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: wss:; frame-ancestors 'self';" always;
+
+    # Baseline API protection against high-rate scanners.
+    limit_req zone=api_limit burst=60 nodelay;
+
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -38,5 +57,24 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_buffering off;
         proxy_cache off;
+    }
+
+    # Stronger limits on credential endpoints to slow brute-force attempts.
+    location = /api/auth/login {
+        limit_req zone=auth_limit burst=10 nodelay;
+        proxy_pass http://cotrainer_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /api/auth/register {
+        limit_req zone=auth_limit burst=5 nodelay;
+        proxy_pass http://cotrainer_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }

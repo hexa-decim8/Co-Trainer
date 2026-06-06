@@ -37,6 +37,9 @@ interface TimelinePlannerProps {
   onSelectTimelineDrill?: (section: PracticeSection, drill: TimelineDrill) => void;
   selectedTimelineDrillId?: string | null;
   practiceType: string;
+  activeDragId?: string | null;
+  activeOverId?: string | null;
+  isInvalidDrop?: boolean;
 }
 
 function TimelineDrillItem({ 
@@ -59,6 +62,11 @@ function TimelineDrillItem({
   const [isResizing, setIsResizing] = useState(false);
   const [initialY, setInitialY] = useState(0);
   const [initialDuration, setInitialDuration] = useState(0);
+  const lastEmittedDurationRef = useRef(drill.duration);
+
+  useEffect(() => {
+    lastEmittedDurationRef.current = drill.duration;
+  }, [drill.duration]);
 
   const {
     attributes,
@@ -95,7 +103,8 @@ function TimelineDrillItem({
       const deltaMinutes = Math.round(deltaY / PIXELS_PER_MINUTE_TIMELINE);
       const newDuration = Math.max(MIN_DRILL_DURATION, initialDuration + deltaMinutes);
       
-      if (newDuration !== drill.duration) {
+      if (newDuration !== lastEmittedDurationRef.current) {
+        lastEmittedDurationRef.current = newDuration;
         onUpdateDuration(newDuration);
       }
     };
@@ -221,15 +230,22 @@ function BlankCardTimelineItem({
   onRemove,
   onUpdateDuration,
   onUpdate,
+  isDropTarget = false,
 }: {
   item: BlankCardItem;
   onRemove: () => void;
   onUpdateDuration: (duration: number) => void;
   onUpdate: (updates: { title?: string; notes?: string }) => void;
+  isDropTarget?: boolean;
 }) {
   const [isResizing, setIsResizing] = useState(false);
   const [initialY, setInitialY] = useState(0);
   const [initialDuration, setInitialDuration] = useState(0);
+  const lastEmittedDurationRef = useRef(item.duration);
+
+  useEffect(() => {
+    lastEmittedDurationRef.current = item.duration;
+  }, [item.duration]);
 
   const {
     attributes,
@@ -264,7 +280,8 @@ function BlankCardTimelineItem({
       const deltaY = e.clientY - initialY;
       const deltaMinutes = Math.round(deltaY / PIXELS_PER_MINUTE_TIMELINE);
       const newDuration = Math.max(MIN_DRILL_DURATION, initialDuration + deltaMinutes);
-      if (newDuration !== item.duration) {
+      if (newDuration !== lastEmittedDurationRef.current) {
+        lastEmittedDurationRef.current = newDuration;
         onUpdateDuration(newDuration);
       }
     };
@@ -286,8 +303,15 @@ function BlankCardTimelineItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-300 dark:border-purple-700 rounded-lg overflow-hidden relative group"
+      className={`bg-purple-50 dark:bg-purple-900/20 border-2 rounded-lg overflow-hidden relative group ${
+        isDropTarget
+          ? 'border-primary-500 ring-2 ring-primary-400/60'
+          : 'border-purple-300 dark:border-purple-700'
+      }`}
     >
+      {isDropTarget && (
+        <div className="absolute -top-1 left-3 right-3 h-1 bg-primary-500 rounded-full z-40" />
+      )}
       <div className="absolute inset-0 pointer-events-none z-0 bg-gradient-to-r from-purple-200/60 via-purple-100/20 to-transparent dark:from-purple-800/40 dark:via-purple-900/10" />
 
       <div className={`flex items-start gap-3 h-full relative z-10 transition-all duration-200 ${itemHeight < 70 ? 'p-2' : 'p-3'}`}>
@@ -366,6 +390,8 @@ function SectionContainer({
   onResizeSection,
   onSelectTimelineDrill,
   selectedTimelineDrillId,
+  activeDragId,
+  activeOverId,
 }: {
   section: PracticeSection;
   onRemoveDrill: (sectionId: string, index: number) => void;
@@ -376,6 +402,8 @@ function SectionContainer({
   onResizeSection: (sectionId: string, newDuration: number) => void;
   onSelectTimelineDrill?: (section: PracticeSection, drill: TimelineDrill) => void;
   selectedTimelineDrillId?: string | null;
+  activeDragId?: string | null;
+  activeOverId?: string | null;
 }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(section.name);
@@ -405,6 +433,8 @@ function SectionContainer({
   const remaining = displayDuration - totalUsed;
 
   const minHeight = Math.max(displayDuration * PIXELS_PER_MINUTE_SECTION, MIN_SECTION_HEIGHT_PX);
+  const sectionDropId = `${section.id}-drop`;
+  const isEndDropTarget = activeOverId === sectionDropId;
 
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -425,18 +455,16 @@ function SectionContainer({
       const newDuration = Math.max(MIN_SECTION_DURATION, initialDuration + deltaMinutes);
       
       // Update both state (for visual) and ref (for final value)
-      setTempDuration(newDuration);
-      tempDurationRef.current = newDuration;
+      if (newDuration !== tempDurationRef.current) {
+        setTempDuration(newDuration);
+        tempDurationRef.current = newDuration;
+      }
     };
 
     const handleMouseUp = () => {
       // Update parent with the final value from ref
       onResizeSection(section.id, tempDurationRef.current);
-      
-      // Delay turning off resize mode to prevent visual jump
-      setTimeout(() => {
-        setIsResizing(false);
-      }, 50);
+      setIsResizing(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -555,6 +583,9 @@ function SectionContainer({
           isOver ? 'bg-primary-50 dark:bg-primary-900/20' : ''
         }`}
       >
+        {isEndDropTarget && (
+          <div className="absolute bottom-2 left-4 right-4 h-1 bg-primary-500 rounded-full z-40" />
+        )}
         <div className="p-3 flex-1 flex flex-col">
           {section.drills.length === 0 ? (
             <div className="min-h-[120px] flex items-center justify-center text-gray-400 dark:text-gray-500">
@@ -570,6 +601,8 @@ function SectionContainer({
                 strategy={verticalListSortingStrategy}
               >
                 {section.drills.map((item, index) => {
+                  const isDropTarget = Boolean(activeOverId && activeOverId === item.id && activeDragId !== item.id);
+
                   if (isBlankCardItem(item)) {
                     return (
                       <BlankCardTimelineItem
@@ -578,19 +611,24 @@ function SectionContainer({
                         onRemove={() => onRemoveDrill(section.id, index)}
                         onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
                         onUpdate={(updates) => onUpdateBlankCard(section.id, item.id, updates)}
+                        isDropTarget={isDropTarget}
                       />
                     );
                   }
 
                   return (
-                    <TimelineDrillItem
-                      key={item.id}
-                      drill={item}
-                      onRemove={() => onRemoveDrill(section.id, index)}
-                      onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
-                      isSelected={selectedTimelineDrillId === item.id}
-                      onSelect={() => onSelectTimelineDrill?.(section, item)}
-                    />
+                    <div key={item.id} className="relative">
+                      {isDropTarget && (
+                        <div className="absolute -top-1 left-3 right-3 h-1 bg-primary-500 rounded-full z-40" />
+                      )}
+                      <TimelineDrillItem
+                        drill={item}
+                        onRemove={() => onRemoveDrill(section.id, index)}
+                        onUpdateDuration={(duration) => onUpdateDuration(section.id, index, duration)}
+                        isSelected={selectedTimelineDrillId === item.id}
+                        onSelect={() => onSelectTimelineDrill?.(section, item)}
+                      />
+                    </div>
                   );
                 })}
               </SortableContext>
@@ -628,6 +666,9 @@ export default function TimelinePlanner({
   onSelectTimelineDrill,
   selectedTimelineDrillId,
   practiceType,
+  activeDragId,
+  activeOverId,
+  isInvalidDrop = false,
 }: TimelinePlannerProps) {
   const totalDuration = sections.reduce((sum, s) => sum + s.duration, 0);
   const totalDrills = sections.reduce((sum, s) => sum + s.drills.filter(isTimelineDrill).length, 0);
@@ -656,7 +697,12 @@ export default function TimelinePlanner({
       </div>
 
       {/* Sections */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-3 transition-all ${isInvalidDrop ? 'ring-2 ring-red-400/70 ring-inset rounded-lg bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+        {isInvalidDrop && (
+          <div className="sticky top-0 z-20 mb-2 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-100/90 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-md px-3 py-1.5 backdrop-blur-sm">
+            Drop not available here. Move over a section to place the item.
+          </div>
+        )}
         <SortableContext
           items={sections.map(s => `section-sortable-${s.id}`)}
           strategy={verticalListSortingStrategy}
@@ -673,6 +719,8 @@ export default function TimelinePlanner({
               onResizeSection={onResizeSection}
               onSelectTimelineDrill={onSelectTimelineDrill}
               selectedTimelineDrillId={selectedTimelineDrillId}
+              activeDragId={activeDragId}
+              activeOverId={activeOverId}
             />
           ))}
         </SortableContext>

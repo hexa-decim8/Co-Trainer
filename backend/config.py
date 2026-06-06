@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     secret_key: str = ""  # JWT signing key - will be loaded or generated
     video_link_validation_timeout_seconds: int = 5
     video_link_validation_cache_ttl_seconds: int = 900
+    auth_rate_limit_requests: int = 10
+    auth_rate_limit_window_seconds: int = 60
     
     model_config = SettingsConfigDict(
         env_file=".env",

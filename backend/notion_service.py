@@ -609,7 +609,7 @@ class NotionService:
             if cached_drills and not should_rebuild:
                 logger.info(f"✓ Streaming {len(cached_drills)} drills from fresh cache")
                 for idx, drill in enumerate(cached_drills):
-                    yield {"type": "drill", "data": drill.model_dump()}
+                    yield {"type": "drill", "data": drill.model_dump(mode='json')}
                     if (idx + 1) % 10 == 0:
                         yield {"type": "progress", "count": idx + 1}
                 logger.info(f"✓ Completed streaming {len(cached_drills)} drills from cache")
@@ -620,7 +620,7 @@ class NotionService:
                 if not self.client or not self.database_id:
                     logger.info(f"✓ Using stale cache ({len(cached_drills)} drills) - Notion not configured")
                     for drill in cached_drills:
-                        yield {"type": "drill", "data": drill.model_dump()}
+                        yield {"type": "drill", "data": drill.model_dump(mode='json')}
                     yield {"type": "complete", "total": len(cached_drills)}
                     return
                 else:
@@ -642,7 +642,7 @@ class NotionService:
                 if cached_drills:
                     logger.info("Streaming stale cache (Notion not configured)")
                     for drill in cached_drills:
-                        yield {"type": "drill", "data": drill.model_dump()}
+                        yield {"type": "drill", "data": drill.model_dump(mode='json')}
                     yield {"type": "complete", "total": len(cached_drills)}
                     return
             yield {"type": "error", "message": "Notion API not configured"}
@@ -691,7 +691,7 @@ class NotionService:
                         if last_edited:
                             notion_timestamps[drill.id] = datetime.fromisoformat(last_edited.replace('Z', '+00:00'))
                         count += 1
-                        yield {"type": "drill", "data": drill.model_dump()}
+                        yield {"type": "drill", "data": drill.model_dump(mode='json')}
                         
                         # Send progress update every 10 drills
                         if count % 10 == 0:

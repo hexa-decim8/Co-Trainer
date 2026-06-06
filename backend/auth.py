@@ -22,7 +22,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 # settings, even if it was regenerated after module import (e.g. after a
 # container restart where the encrypted config had to be re-created).
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 
 
 def _get_secret_key() -> str:

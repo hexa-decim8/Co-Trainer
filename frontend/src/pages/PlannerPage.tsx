@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, pointerWithin, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, closestCenter, pointerWithin, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Plus, Clock, Shield, FileText, Copy, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
+import { Save, Plus, Clock, Shield, FileText, Copy, Download, PanelLeftClose, ChevronRight, ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -115,6 +115,9 @@ export default function PlannerPage() {
   const [planDate, setPlanDate] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeOverId, setActiveOverId] = useState<string | null>(null);
+  const [dragHasValidTarget, setDragHasValidTarget] = useState(true);
   const [saveError, setSaveError] = useState<SaveError | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -180,6 +183,10 @@ export default function PlannerPage() {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id));
+    setActiveOverId(null);
+    setDragHasValidTarget(true);
+
     // Don't set activeDrill for section drags — data.current is sortable metadata, not a Drill
     if (String(event.active.id).startsWith('section-sortable-')) return;
     const data = event.active.data?.current;
@@ -192,6 +199,9 @@ export default function PlannerPage() {
 
   const handleDragCancel = () => {
     setActiveDrill(null);
+    setActiveDragId(null);
+    setActiveOverId(null);
+    setDragHasValidTarget(true);
   };
 
   // Resolve an over-target ID to {sectionId, insertIndex}
@@ -224,11 +234,48 @@ export default function PlannerPage() {
     return null;
   };
 
+  const resolveSectionReorderTarget = (overId: string): string | null => {
+    if (overId.startsWith('section-sortable-')) {
+      const sectionId = overId.replace('section-sortable-', '');
+      return sections.some(s => s.id === sectionId) ? sectionId : null;
+    }
+
+    if (overId.endsWith('-drop')) {
+      const sectionId = overId.replace('-drop', '');
+      return sections.some(s => s.id === sectionId) ? sectionId : null;
+    }
+
+    const section = findSectionByItemId(overId);
+    return section ? section.id : null;
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+
+    setActiveOverId(overId);
+
+    if (!overId) {
+      setDragHasValidTarget(false);
+      return;
+    }
+
+    if (activeId.startsWith('section-sortable-')) {
+      setDragHasValidTarget(resolveSectionReorderTarget(overId) !== null);
+      return;
+    }
+
+    setDragHasValidTarget(resolveDropTarget(overId) !== null);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     // Clear activeDrill immediately to hide overlay
     setActiveDrill(null);
+    setActiveDragId(null);
+    setActiveOverId(null);
+    setDragHasValidTarget(true);
 
     if (!over) return;
 
@@ -237,18 +284,7 @@ export default function PlannerPage() {
 
     // --- Section reorder ---
     if (activeId.startsWith('section-sortable-')) {
-      // Resolve target section from either a section-sortable-* or *-drop ID
-      let overSectionId: string | undefined;
-      if (overId.startsWith('section-sortable-')) {
-        const candidateId = overId.replace('section-sortable-', '');
-        if (sections.some(s => s.id === candidateId)) overSectionId = candidateId;
-      } else if (overId.endsWith('-drop')) {
-        const candidateId = overId.replace('-drop', '');
-        if (sections.some(s => s.id === candidateId)) overSectionId = candidateId;
-      } else {
-        // Cursor is over an item inside a section; find that section
-        overSectionId = findSectionByItemId(overId)?.id;
-      }
+      const overSectionId = resolveSectionReorderTarget(overId) ?? undefined;
 
       if (overSectionId) {
         const activeIndex = sections.findIndex(s => `section-sortable-${s.id}` === activeId);
@@ -797,6 +833,7 @@ export default function PlannerPage() {
       sensors={sensors}
       onDragEnd={handleDragEnd} 
       onDragStart={handleDragStart} 
+      onDragOver={handleDragOver}
       onDragCancel={handleDragCancel} 
       collisionDetection={customCollisionDetection}
     >
@@ -827,22 +864,23 @@ export default function PlannerPage() {
                       <p className="text-gray-300 text-xs mt-0.5">Drag drills to your timeline</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center">
                     <button
                       onClick={() => setDrillLibraryOpen(prev => !prev)}
                       className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
                       title={drillLibraryOpen ? 'Collapse drill library' : 'Expand drill library'}
                       aria-label={drillLibraryOpen ? 'Collapse drill library' : 'Expand drill library'}
                     >
-                      {drillLibraryOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                      {drillLibraryOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                     </button>
+                    <div className="w-px h-5 bg-white/20 mx-1" />
                     <button
                       onClick={() => setDrillPanelOpen(false)}
                       className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-                      title="Collapse sidebar"
-                      aria-label="Collapse sidebar"
+                      title="Hide sidebar"
+                      aria-label="Hide sidebar"
                     >
-                      <ChevronLeft className="w-5 h-5" />
+                      <PanelLeftClose className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
@@ -938,14 +976,6 @@ export default function PlannerPage() {
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => setDrillLibraryOpen(prev => !prev)}
-                className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                title={drillLibraryOpen ? 'Collapse drill library content' : 'Expand drill library content'}
-                aria-label={drillLibraryOpen ? 'Collapse drill library content' : 'Expand drill library content'}
-              >
-                {drillLibraryOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-              </button>
               <ListFilter className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </div>
           )}
@@ -990,6 +1020,9 @@ export default function PlannerPage() {
                 }}
                 selectedTimelineDrillId={selectedPlannerDrill?.drillId ?? null}
                 practiceType={practiceType}
+                activeDragId={activeDragId}
+                activeOverId={activeOverId}
+                isInvalidDrop={Boolean(activeDragId) && !dragHasValidTarget}
               />
             </div>
 

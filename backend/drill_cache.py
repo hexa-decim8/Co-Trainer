@@ -55,7 +55,7 @@ class DrillCacheManager:
                 existing = db.query(DrillCache).filter(DrillCache.id == drill.id).first()
                 if existing:
                     # Update existing drill
-                    existing.data = drill.model_dump()
+                    existing.data = drill.model_dump(mode='json')
                     existing.last_synced = datetime.utcnow()
                     if notion_timestamp:
                         existing.notion_last_edited_time = notion_timestamp
@@ -63,7 +63,7 @@ class DrillCacheManager:
                     # Insert new drill
                     cached_drill = DrillCache(
                         id=drill.id,
-                        data=drill.model_dump(),
+                        data=drill.model_dump(mode='json'),
                         last_synced=datetime.utcnow(),
                         notion_last_edited_time=notion_timestamp
                     )

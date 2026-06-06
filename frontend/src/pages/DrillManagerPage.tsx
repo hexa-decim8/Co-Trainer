@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Archive, Loader2 } from 'lucide-react';
-import { drillsApi, getApiErrorDetail } from '../api';
+import { drillsApi } from '../api';
 import { useStreamingDrills } from '../hooks/useStreamingDrills';
 import { useFilteredDrills } from '../hooks/useFilteredDrills';
 import { useSearchContext } from '../contexts/SearchContext';
@@ -26,8 +26,6 @@ export default function DrillManagerPage() {
   const [archiveConfirm, setArchiveConfirm] = useState<Drill | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [rebuildingCache, setRebuildingCache] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   const {
     drills: allDrills,
@@ -131,20 +129,6 @@ export default function DrillManagerPage() {
     });
   };
 
-  const handleFullRebuild = useCallback(async () => {
-    setRebuildingCache(true);
-    setSyncStatus(null);
-    try {
-      const result = await drillsApi.fullRebuildSync();
-      refetchDrills();
-      setSyncStatus(result.message || `Full rebuild complete: ${result.count} drills synced.`);
-    } catch (err: unknown) {
-      setSyncStatus(getApiErrorDetail(err, 'Full rebuild failed. Please try again.'));
-    } finally {
-      setRebuildingCache(false);
-    }
-  }, [refetchDrills]);
-
   return (
     <div className="flex h-[calc(100vh-5rem)]">
       {/* Left: Filters */}
@@ -169,20 +153,8 @@ export default function DrillManagerPage() {
             <p className="text-gray-300 text-sm mt-1">
               {allDrills.length} drills total &middot; {drills.length} matching filters
             </p>
-            {syncStatus && (
-              <p className="text-xs text-amber-200 mt-2">{syncStatus}</p>
-            )}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleFullRebuild}
-              disabled={rebuildingCache}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
-            >
-              {rebuildingCache ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {rebuildingCache ? 'Rebuilding...' : 'Full Rebuild Sync'}
-            </button>
             <button
               type="button"
               onClick={() => {

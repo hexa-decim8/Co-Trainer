@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from collections import Counter
+from collections import defaultdict, deque
 import json
 import os
 import logging
@@ -68,6 +69,39 @@ if cors_origins:
     logger.info("CORS configured with %d origin(s)", len(cors_origins))
 else:
     logger.info("CORS configured for same-origin requests only")
+
+# In-memory auth endpoint throttling to reduce brute-force scanner impact.
+_auth_attempts: dict[str, deque[datetime]] = defaultdict(deque)
+_auth_rate_limit_requests = max(1, settings.auth_rate_limit_requests)
+_auth_rate_limit_window_seconds = max(1, settings.auth_rate_limit_window_seconds)
+_auth_rate_limited_paths = {"/api/auth/login", "/api/auth/register"}
+
+
+@app.middleware("http")
+async def auth_rate_limit_middleware(request: Request, call_next):
+    if request.url.path in _auth_rate_limited_paths:
+        # Prefer real client IP when behind a trusted reverse proxy.
+        forwarded_for = request.headers.get("x-forwarded-for", "")
+        client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else ""
+        if not client_ip:
+            client_ip = request.client.host if request.client else "unknown"
+
+        now = datetime.utcnow()
+        window_start = now - timedelta(seconds=_auth_rate_limit_window_seconds)
+        attempts = _auth_attempts[client_ip]
+
+        while attempts and attempts[0] < window_start:
+            attempts.popleft()
+
+        if len(attempts) >= _auth_rate_limit_requests:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many authentication attempts. Please try again later.",
+            )
+
+        attempts.append(now)
+
+    return await call_next(request)
 
 # Mount static assets (CSS, JS, images)
 if STATIC_DIR.exists():
@@ -154,7 +188,10 @@ async def health_check():
 
 
 @app.get("/api/database/status")
-async def database_status(db: Session = Depends(get_db)):
+async def database_status(
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     """Check database connection and return status."""
     try:
         # Test database connection
