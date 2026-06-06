@@ -57,6 +57,8 @@ services:
 
 volumes:
   cotrainer_config:
+    name: cotrainer_config
   cotrainer_pgdata:
+    name: cotrainer_pgdata
   letsencrypt:
   certbot_www:

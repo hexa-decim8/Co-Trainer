@@ -142,6 +142,29 @@ Important reset caveat:
 - `docker compose down` preserves volumes
 - `docker compose down -v` removes volumes and permanently resets persisted data
 
+Persistence verification checklist (before and after updates):
+
+```bash
+# 1) Verify the container is mounted to the expected data volume
+docker inspect cotrainer --format '{{ json .Mounts }}'
+
+# 2) Verify plans exist at the database layer
+docker compose exec cotrainer psql -U cotrainer -d cotrainer -c "SELECT COUNT(*) AS plans FROM practice_plans;"
+
+# 3) Verify runtime diagnostics (requires admin auth token)
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" http://localhost/api/admin/persistence/status
+```
+
+Backup and restore (recommended before major updates):
+
+```bash
+# Backup
+docker compose exec -T cotrainer pg_dump -U cotrainer -d cotrainer > cotrainer-backup.sql
+
+# Restore
+docker compose exec -T cotrainer psql -U cotrainer -d cotrainer < cotrainer-backup.sql
+```
+
 ## 7. Stop Deployment
 
 ```bash

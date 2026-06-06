@@ -13,9 +13,10 @@ import logging
 import math
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 from notion_client import Client
 
-from config import settings
+from config import settings, INTERNAL_DB_URL
 from database import get_db, init_db, UserDB, PracticePlanDB, PlanClone, ProgressionChartDB, SyncMetadata, DrillCache
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
@@ -73,6 +74,28 @@ if STATIC_DIR.exists():
 async def startup_event():
     """Initialize database on startup."""
     init_db()
+
+    # Log key persistence diagnostics at startup so volume drift is obvious.
+    from database import SessionLocal
+    db_identity = urlparse(INTERNAL_DB_URL)
+    pgdata_path = os.getenv("PGDATA", "/var/lib/postgresql/data")
+
+    db = SessionLocal()
+    try:
+        user_count = db.query(UserDB).count()
+        plan_count = db.query(PracticePlanDB).count()
+        logger.info(
+            "Startup DB diagnostics: host=%s db=%s pgdata=%s users=%s plans=%s",
+            db_identity.hostname,
+            db_identity.path.lstrip("/") or "unknown",
+            pgdata_path,
+            user_count,
+            plan_count,
+        )
+    except Exception as e:
+        logger.warning(f"Startup DB diagnostics failed: {e}")
+    finally:
+        db.close()
     
     # Warm the in-memory cache from DB and trigger background incremental sync
     import asyncio
@@ -140,6 +163,34 @@ async def database_status(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection error"
+        )
+
+
+@app.get("/api/admin/persistence/status")
+async def persistence_status(
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin diagnostics to verify persistence state across container updates."""
+    try:
+        db.execute(text("SELECT 1"))
+        db_identity = urlparse(INTERNAL_DB_URL)
+
+        return {
+            "status": "connected",
+            "database_type": "PostgreSQL",
+            "database_host": db_identity.hostname,
+            "database_name": db_identity.path.lstrip("/") or "unknown",
+            "pgdata_path": os.getenv("PGDATA", "/var/lib/postgresql/data"),
+            "users_count": db.query(UserDB).count(),
+            "plans_count": db.query(PracticePlanDB).count(),
+            "timestamp_utc": datetime.utcnow().isoformat() + "Z",
+        }
+    except Exception as e:
+        logger.error(f"Persistence diagnostics failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Persistence diagnostics unavailable",
         )
 
 
