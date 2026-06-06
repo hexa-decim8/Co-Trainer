@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, text
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from datetime import datetime
 from config import INTERNAL_DB_URL
@@ -142,7 +143,11 @@ def _ensure_user_columns() -> None:
 def init_db():
     """Initialize database tables."""
     _ensure_auth_schema()
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except (IntegrityError, OperationalError):
+        # Race condition: another worker already created the tables concurrently; safe to ignore.
+        pass
     _ensure_user_columns()
 
 
