@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Request, status
+from fastapi import FastAPI, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 from notion_client import Client
 
 from config import settings, INTERNAL_DB_URL, get_cors_origins
-from database import get_db, init_db, UserDB, PracticePlanDB, PlanClone, ProgressionChartDB, SyncMetadata, DrillCache
+from database import get_db, init_db, UserDB, PracticePlanDB, PlanClone, ProgressionChartDB, SyncMetadata, DrillCache, AppSettingsDB
 from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
@@ -30,7 +30,8 @@ from models import (
     ProgressionChartCreate, ProgressionChartUpdate,
     ProgressionChartSummary, ProgressionChartFull,
     StatisticsDatum, DrillLibraryStatistics, PracticePlanStatistics,
-    UsageTrendsStatistics, StatisticsOverviewResponse
+    UsageTrendsStatistics, StatisticsOverviewResponse,
+    AppBrandingResponse, AppBrandingUpdateResponse
 )
 from notion_service import notion_service
 from drill_cache import drill_cache_manager
@@ -135,6 +136,17 @@ def _apply_plan_search_filter(query, search: str):
 # Get the directory where main.py is located
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+UPLOADS_DIR = BASE_DIR / "uploads"
+BRANDING_DIR = UPLOADS_DIR / "branding"
+MAX_LOGO_BYTES = 5 * 1024 * 1024
+ALLOWED_LOGO_CONTENT_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
+
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+BRANDING_DIR.mkdir(parents=True, exist_ok=True)
 
 # Configure CORS
 cors_origins = get_cors_origins()
@@ -189,6 +201,43 @@ if STATIC_DIR.exists():
     assets_dir = STATIC_DIR / "assets"
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+app.mount("/media", StaticFiles(directory=str(UPLOADS_DIR)), name="media")
+
+
+def _get_app_settings(db: Session, create_if_missing: bool = False) -> Optional[AppSettingsDB]:
+    app_settings = db.query(AppSettingsDB).filter(AppSettingsDB.id == 1).first()
+    if app_settings is None and create_if_missing:
+        app_settings = AppSettingsDB(id=1)
+        db.add(app_settings)
+        db.commit()
+        db.refresh(app_settings)
+    return app_settings
+
+
+def _remove_logo_file(relative_path: Optional[str]) -> None:
+    if not relative_path:
+        return
+
+    file_path = UPLOADS_DIR / relative_path
+    if file_path.exists() and file_path.is_file():
+        file_path.unlink()
+
+
+def _build_branding_response(app_settings: Optional[AppSettingsDB]) -> AppBrandingResponse:
+    if app_settings is None or not app_settings.team_logo_path:
+        return AppBrandingResponse()
+
+    file_path = UPLOADS_DIR / app_settings.team_logo_path
+    if not file_path.exists():
+        return AppBrandingResponse()
+
+    cache_buster = int(app_settings.updated_at.timestamp()) if app_settings.updated_at else 0
+    return AppBrandingResponse(
+        logo_url=f"/media/{app_settings.team_logo_path}?v={cache_buster}",
+        logo_filename=app_settings.team_logo_filename,
+        updated_at=app_settings.updated_at,
+    )
 
 
 @app.on_event("startup")
@@ -333,6 +382,97 @@ async def get_settings(current_user: UserDB = Depends(get_current_user)):
         "notion_database_id": settings.notion_database_id,
         "notion_practice_plan_database_id": settings.notion_practice_plan_database_id,
     }
+
+
+@app.get("/api/branding", response_model=AppBrandingResponse)
+async def get_branding(db: Session = Depends(get_db)):
+    """Get public branding settings for the app shell."""
+    return _build_branding_response(_get_app_settings(db))
+
+
+@app.post("/api/admin/branding/logo", response_model=AppBrandingUpdateResponse)
+async def upload_branding_logo(
+    logo: UploadFile = File(...),
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Upload or replace the global team logo."""
+    if logo.content_type not in ALLOWED_LOGO_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Logo must be a PNG, JPEG, or WebP image.",
+        )
+
+    file_bytes = await logo.read()
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Logo upload was empty.",
+        )
+
+    if len(file_bytes) > MAX_LOGO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Logo must be 5 MB or smaller.",
+        )
+
+    extension = ALLOWED_LOGO_CONTENT_TYPES[logo.content_type]
+    filename = f"team-logo{extension}"
+    relative_path = f"branding/{filename}"
+    target_path = BRANDING_DIR / filename
+
+    app_settings = _get_app_settings(db, create_if_missing=True)
+    previous_path = app_settings.team_logo_path if app_settings else None
+
+    target_path.write_bytes(file_bytes)
+
+    if app_settings is None:
+        raise HTTPException(status_code=500, detail="Failed to initialize branding settings.")
+
+    app_settings.team_logo_path = relative_path
+    app_settings.team_logo_filename = logo.filename or filename
+    db.add(app_settings)
+    db.commit()
+    db.refresh(app_settings)
+
+    if previous_path and previous_path != relative_path:
+        _remove_logo_file(previous_path)
+
+    return AppBrandingUpdateResponse(
+        success=True,
+        message="Team logo updated successfully.",
+        branding=_build_branding_response(app_settings),
+    )
+
+
+@app.delete("/api/admin/branding/logo", response_model=AppBrandingUpdateResponse)
+async def delete_branding_logo(
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Remove the configured global team logo."""
+    app_settings = _get_app_settings(db)
+    if app_settings is None or not app_settings.team_logo_path:
+        return AppBrandingUpdateResponse(
+            success=True,
+            message="No team logo was configured.",
+            branding=AppBrandingResponse(),
+        )
+
+    previous_path = app_settings.team_logo_path
+    app_settings.team_logo_path = None
+    app_settings.team_logo_filename = None
+    db.add(app_settings)
+    db.commit()
+    db.refresh(app_settings)
+
+    _remove_logo_file(previous_path)
+
+    return AppBrandingUpdateResponse(
+        success=True,
+        message="Team logo removed successfully.",
+        branding=AppBrandingResponse(),
+    )
 
 
 @app.post("/api/settings")

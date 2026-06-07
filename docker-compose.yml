@@ -16,6 +16,7 @@ services:
     volumes:
       - cotrainer_config:/app/config
       - cotrainer_pgdata:/var/lib/postgresql/data
+      - cotrainer_uploads:/app/uploads
     restart: unless-stopped
 
 volumes:
@@ -23,3 +24,5 @@ volumes:
     name: cotrainer_config
   cotrainer_pgdata:
     name: cotrainer_pgdata
+  cotrainer_uploads:
+    name: cotrainer_uploads

@@ -284,3 +284,15 @@ export interface DrillCacheInfo {
   cache_age_minutes?: number;
   drill_count_in_metadata?: number;
 }
+
+export interface AppBranding {
+  logo_url?: string | null;
+  logo_filename?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AppBrandingUpdateResponse {
+  success: boolean;
+  message: string;
+  branding: AppBranding;
+}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiErrorDetail } from '../api';
+import BrandMark from '../components/BrandMark';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -70,13 +71,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="derby-star text-primary-500 text-6xl mb-4">★</div>
-          <h1 className="text-4xl font-display font-bold text-gray-900 tracking-wider">
-            CO-TRAINER
-          </h1>
-          <p className="text-gray-600 mt-2">Roller Derby Practice Planner</p>
-        </div>
+        <BrandMark variant="hero" subtitle="Roller Derby Practice Planner" />
 
         {/* Registration Form */}
         <div className="bg-white rounded-lg shadow-lg p-8">

@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Calendar, Library, Settings, Menu, X, User, LogOut, Shield, BarChart3, ClipboardList, FlaskConical } from 'lucide-react';
 import { useState } from 'react';
+import BrandMark from './BrandMark';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
@@ -25,12 +26,7 @@ export default function Layout() {
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="derby-star text-primary-500 text-4xl">★</div>
-              <h1 className="text-3xl font-display font-bold text-white tracking-wider">
-                CO-TRAINER
-              </h1>
-            </div>
+            <BrandMark />
 
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center space-x-2">

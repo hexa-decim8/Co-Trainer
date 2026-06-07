@@ -61,7 +61,7 @@ RUN mkdir -p /var/lib/postgresql/data /var/log/postgresql && \
     chown -R postgres:postgres /var/lib/postgresql /var/log/postgresql
 
 # Create runtime directories and non-root app user
-RUN mkdir -p /app/data /app/config && \
+RUN mkdir -p /app/data /app/config /app/uploads/branding && \
     useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 

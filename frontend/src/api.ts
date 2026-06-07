@@ -15,6 +15,8 @@ import type {
   ProgressionChartSummary,
   ProgressionChartFull,
   DrillCacheInfo,
+  AppBranding,
+  AppBrandingUpdateResponse,
 } from './types';
 
 const api = axios.create({
@@ -363,5 +365,29 @@ export const progressionsApi = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/progressions/${id}`);
+  },
+};
+
+export const brandingApi = {
+  get: async (): Promise<AppBranding> => {
+    const response = await api.get<AppBranding>('/branding');
+    return response.data;
+  },
+
+  uploadLogo: async (file: File): Promise<AppBrandingUpdateResponse> => {
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    const response = await api.post<AppBrandingUpdateResponse>('/admin/branding/logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  deleteLogo: async (): Promise<AppBrandingUpdateResponse> => {
+    const response = await api.delete<AppBrandingUpdateResponse>('/admin/branding/logo');
+    return response.data;
   },
 };

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi, UserCheck } from 'lucide-react';
-import api, { getApiErrorDetail } from '../api';
+import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi, UserCheck, Upload, Image as ImageIcon } from 'lucide-react';
+import api, { brandingApi, getApiErrorDetail } from '../api';
+import { useBranding } from '../contexts/BrandingContext';
 
 interface User {
   id: number;
@@ -14,6 +15,7 @@ interface User {
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
+  const { branding } = useBranding();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -25,6 +27,9 @@ export default function AdminPage() {
   const [databaseId, setDatabaseId] = useState('');
   const [plannerDatabaseId, setPlannerDatabaseId] = useState('');
   const [notionMessage, setNotionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [brandingMessage, setBrandingMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedLogo, setSelectedLogo] = useState<File | null>(null);
+  const [logoInputKey, setLogoInputKey] = useState(0);
 
   // Fetch all users
   const { data: users, isLoading, error } = useQuery<User[]>({
@@ -178,6 +183,36 @@ export default function AdminPage() {
     },
   });
 
+  const uploadLogoMutation = useMutation({
+    mutationFn: async (file: File) => brandingApi.uploadLogo(file),
+    onSuccess: (data) => {
+      setBrandingMessage({ type: 'success', text: data.message });
+      queryClient.invalidateQueries({ queryKey: ['branding'] });
+      setSelectedLogo(null);
+      setLogoInputKey((current) => current + 1);
+      setTimeout(() => setBrandingMessage(null), 5000);
+    },
+    onError: (error: unknown) => {
+      setBrandingMessage({ type: 'error', text: getApiErrorDetail(error, 'Failed to upload logo.') });
+      setTimeout(() => setBrandingMessage(null), 5000);
+    },
+  });
+
+  const deleteLogoMutation = useMutation({
+    mutationFn: brandingApi.deleteLogo,
+    onSuccess: (data) => {
+      setBrandingMessage({ type: 'success', text: data.message });
+      queryClient.invalidateQueries({ queryKey: ['branding'] });
+      setSelectedLogo(null);
+      setLogoInputKey((current) => current + 1);
+      setTimeout(() => setBrandingMessage(null), 5000);
+    },
+    onError: (error: unknown) => {
+      setBrandingMessage({ type: 'error', text: getApiErrorDetail(error, 'Failed to remove logo.') });
+      setTimeout(() => setBrandingMessage(null), 5000);
+    },
+  });
+
   const openRoleModal = (user: User) => {
     setSelectedUser(user);
     setNewRole(user.role);
@@ -230,6 +265,40 @@ export default function AdminPage() {
 
   const handleNotionTest = () => {
     testNotionMutation.mutate();
+  };
+
+  const handleLogoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) {
+      setSelectedLogo(null);
+      return;
+    }
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setBrandingMessage({ type: 'error', text: 'Logo must be a PNG, JPEG, or WebP image.' });
+      setSelectedLogo(null);
+      setLogoInputKey((current) => current + 1);
+      setTimeout(() => setBrandingMessage(null), 5000);
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setBrandingMessage({ type: 'error', text: 'Logo must be 5 MB or smaller.' });
+      setSelectedLogo(null);
+      setLogoInputKey((current) => current + 1);
+      setTimeout(() => setBrandingMessage(null), 5000);
+      return;
+    }
+
+    setBrandingMessage(null);
+    setSelectedLogo(file);
+  };
+
+  const handleLogoUpload = () => {
+    if (selectedLogo) {
+      uploadLogoMutation.mutate(selectedLogo);
+    }
   };
 
   // Check if there's only one admin
@@ -367,6 +436,87 @@ export default function AdminPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Team Branding Section */}
+      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Team Branding</h2>
+
+        {brandingMessage && (
+          <div
+            className={`mb-4 p-4 rounded-lg ${
+              brandingMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            }`}
+          >
+            {brandingMessage.text}
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[220px,1fr] lg:items-start">
+          <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 p-4 flex items-center justify-center min-h-[180px]">
+            {branding?.logo_url ? (
+              <img
+                src={branding.logo_url}
+                alt="Current team logo"
+                className="max-h-36 w-full object-contain"
+              />
+            ) : (
+              <div className="text-center text-gray-500 dark:text-gray-400">
+                <ImageIcon className="w-10 h-10 mx-auto mb-2" />
+                <p className="text-sm">No team logo uploaded yet</p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Current logo</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {branding?.logo_filename || 'Using the default Co-Trainer branding'}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Upload team logo
+              </label>
+              <input
+                key={logoInputKey}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleLogoSelection}
+                className="block w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-primary-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-primary-700"
+              />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                Recommended: square PNG, JPEG, or WebP up to 5 MB. The logo appears in the main navigation and sign-in screens.
+              </p>
+              {selectedLogo && (
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                  Ready to upload: {selectedLogo.name}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleLogoUpload}
+                disabled={!selectedLogo || uploadLogoMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                {uploadLogoMutation.isPending ? 'Uploading...' : 'Upload Logo'}
+              </button>
+              <button
+                onClick={() => deleteLogoMutation.mutate()}
+                disabled={!branding?.logo_url || deleteLogoMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleteLogoMutation.isPending ? 'Removing...' : 'Remove Logo'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Notion Configuration Section */}

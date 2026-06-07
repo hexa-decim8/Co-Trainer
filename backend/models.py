@@ -374,6 +374,20 @@ class StatisticsOverviewResponse(BaseModel):
     trends: UsageTrendsStatistics
 
 
+class AppBrandingResponse(BaseModel):
+    """Public branding settings exposed to the frontend."""
+    logo_url: Optional[str] = None
+    logo_filename: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class AppBrandingUpdateResponse(BaseModel):
+    """Response returned after branding assets change."""
+    success: bool
+    message: str
+    branding: AppBrandingResponse
+
+
 def _validate_plan_name(v: str) -> str:
     """Shared validator for plan name fields."""
     if not v or not v.strip():

@@ -199,9 +199,10 @@ For local/single-container Docker Compose usage (`docker-compose.yml`), Co-Train
 
 - `cotrainer_pgdata` mounted at `/var/lib/postgresql/data` (PostgreSQL data directory)
 - `cotrainer_config` mounted at `/app/config` (encrypted settings and JWT secret key)
+- `cotrainer_uploads` mounted at `/app/uploads` (administrator-uploaded branding assets such as the team logo)
 
 > **CRITICAL:** Never run `docker compose down -v` unless you intentionally want to
-> **delete all user accounts and saved data**. The `-v` flag removes named volumes.
+> **delete all user accounts, saved data, and uploaded branding assets**. The `-v` flag removes named volumes.
 > Use `docker compose down` (without `-v`) to stop services while keeping data intact.
 
 Safe update flow (preserves users and auth state):

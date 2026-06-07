@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
+import { BrandingProvider } from './contexts/BrandingContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SearchProvider } from './contexts/SearchContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -24,47 +25,49 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ThemeProvider>
-            <SearchProvider>
-              <BrowserRouter>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={
-                  <ErrorBoundary>
-                    <LoginPage />
-                  </ErrorBoundary>
-                } />
-                <Route path="/register" element={
-                  <ErrorBoundary>
-                    <RegisterPage />
-                  </ErrorBoundary>
-                } />
-                
-                {/* Protected routes - ErrorBoundary wraps Layout for all child routes */}
-                <Route path="/" element={
-                  <ProtectedRoute>
+        <BrandingProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <SearchProvider>
+                <BrowserRouter>
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={
                     <ErrorBoundary>
-                      <Layout />
+                      <LoginPage />
                     </ErrorBoundary>
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<Navigate to="/planner" replace />} />
-                  <Route path="planner" element={<PlannerPage />} />
-                  <Route path="library" element={<LibraryPage />} />
-                  <Route path="drills" element={<DrillManagerPage />} />
-                  <Route path="statistics" element={<StatisticsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                  <Route path="admin" element={<AdminPage />} />
-                  <Route path="experimental/*" element={<ExperimentalPage />} />
-                  <Route path="practice/:id" element={<MobileViewPage />} />
-                  <Route path="*" element={<Navigate to="/planner" replace />} />
-                </Route>
-              </Routes>
-            </BrowserRouter>
-            </SearchProvider>
-          </ThemeProvider>
-        </AuthProvider>
+                  } />
+                  <Route path="/register" element={
+                    <ErrorBoundary>
+                      <RegisterPage />
+                    </ErrorBoundary>
+                  } />
+
+                  {/* Protected routes - ErrorBoundary wraps Layout for all child routes */}
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <Layout />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  }>
+                    <Route index element={<Navigate to="/planner" replace />} />
+                    <Route path="planner" element={<PlannerPage />} />
+                    <Route path="library" element={<LibraryPage />} />
+                    <Route path="drills" element={<DrillManagerPage />} />
+                    <Route path="statistics" element={<StatisticsPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                    <Route path="admin" element={<AdminPage />} />
+                    <Route path="experimental/*" element={<ExperimentalPage />} />
+                    <Route path="practice/:id" element={<MobileViewPage />} />
+                    <Route path="*" element={<Navigate to="/planner" replace />} />
+                  </Route>
+                </Routes>
+              </BrowserRouter>
+              </SearchProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </BrandingProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

@@ -112,6 +112,17 @@ class ProgressionChartDB(Base):
     user = relationship("UserDB", back_populates="progression_charts")
 
 
+class AppSettingsDB(Base):
+    """Global application settings stored in the database."""
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    team_logo_path = Column(String, nullable=True)
+    team_logo_filename = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # Create database engine (always the embedded PostgreSQL instance)
 engine = create_engine(INTERNAL_DB_URL, pool_pre_ping=True)
 
