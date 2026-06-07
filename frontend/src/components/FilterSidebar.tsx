@@ -171,7 +171,7 @@ export default function FilterSidebar({
             onChange={(e) => handleSearchChange(e.target.value)}
             onFocus={() => setShowPreview(true)}
             onBlur={() => setTimeout(() => setShowPreview(false), 150)}
-            placeholder="Search drills..."
+            placeholder="Search terms and #tags..."
             className="w-full pl-11 pr-4 py-3 bg-white/20 dark:bg-white/10 border-2 border-white/30 dark:border-white/20 rounded-lg text-white placeholder-white/70 dark:placeholder-white/60 focus:outline-none focus:bg-white/30 dark:focus:bg-white/20 focus:border-white transition-all"
           />
           {showPreview && previewMatches.length > 0 && (
@@ -189,6 +189,9 @@ export default function FilterSidebar({
             </ul>
           )}
         </div>
+        <p className="mt-2 text-xs text-white/80">
+          Use multiple terms and hashtags, for example: warmup transition #jammer #beginner
+        </p>
 
         {/* Result count */}
         <div className="mt-4 text-center">

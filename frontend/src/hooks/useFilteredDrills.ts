@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Drill, DrillFilters } from '../types';
+import { parseSearchTokens } from '../utils/searchQuery';
 
 /**
  * Shared client-side drill filtering logic.
@@ -8,20 +9,45 @@ import type { Drill, DrillFilters } from '../types';
 export function useFilteredDrills(drills: Drill[], filters: DrillFilters): Drill[] {
   return useMemo(() => {
     return drills.filter(drill => {
-      // Text search - check exercise, description, and all tag fields
+      // Token-aware search: OR across plain terms, OR across hashtags,
+      // then AND between plain-term and hashtag groups.
       if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const matches =
-          drill.exercise.toLowerCase().includes(q) ||
-          (drill.description && drill.description.toLowerCase().includes(q)) ||
-          drill.type.some(t => t.toLowerCase().includes(q)) ||
-          (drill.contact_level && drill.contact_level.toLowerCase().includes(q)) ||
-          drill.position_focus.some(pf => pf.toLowerCase().includes(q)) ||
-          drill.skater_level.some(sl => sl.toLowerCase().includes(q)) ||
-          (drill.drill_type && drill.drill_type.toLowerCase().includes(q)) ||
-          (drill.equipment && drill.equipment.toLowerCase().includes(q)) ||
-          (drill.game_type && drill.game_type.toLowerCase().includes(q));
-        if (!matches) return false;
+        const { plainTerms, hashtags } = parseSearchTokens(filters.search);
+
+        const searchableTextFields = [
+          drill.exercise,
+          drill.description,
+          ...(drill.type || []),
+          drill.contact_level,
+          ...(drill.position_focus || []),
+          ...(drill.skater_level || []),
+          drill.drill_type,
+          drill.equipment,
+          drill.game_type,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .map(value => value.toLowerCase());
+
+        const hasPlainTermMatch =
+          plainTerms.length === 0 ||
+          plainTerms.some(term => searchableTextFields.some(value => value.includes(term)));
+        if (!hasPlainTermMatch) return false;
+
+        const searchableTags = [
+          ...(drill.type || []),
+          drill.contact_level,
+          ...(drill.position_focus || []),
+          ...(drill.skater_level || []),
+          drill.drill_type,
+          drill.equipment,
+          drill.game_type,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .map(value => value.toLowerCase());
+
+        const hasHashtagMatch =
+          hashtags.length === 0 || hashtags.some(tag => searchableTags.some(value => value.includes(tag)));
+        if (!hasHashtagMatch) return false;
       }
 
       // Contact level filter

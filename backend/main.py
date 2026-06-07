@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import text
+from sqlalchemy import text, or_, func
 from typing import List, Optional, Dict, Any
 from collections import Counter
 from collections import defaultdict, deque
@@ -12,6 +12,7 @@ import json
 import os
 import logging
 import math
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
@@ -50,6 +51,86 @@ logging.basicConfig(
 app = FastAPI(title="Co-Trainer API", version="1.0.0")
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_search_tokens(search: str) -> tuple[List[str], List[str]]:
+    normalized_tokens = [
+        re.sub(r"^[^\w#]+|[^\w]+$", "", token)
+        for token in search.lower().strip().split()
+    ]
+    normalized_tokens = [token for token in normalized_tokens if token]
+
+    plain_terms = list(dict.fromkeys([token for token in normalized_tokens if not token.startswith("#")]))
+    hashtags = list(
+        dict.fromkeys(
+            [token[1:] for token in normalized_tokens if token.startswith("#") and len(token) > 1]
+        )
+    )
+
+    return plain_terms, hashtags
+
+
+def _string_values(values: List[Optional[Any]]) -> List[str]:
+    return [str(value).lower() for value in values if value is not None and str(value).strip()]
+
+
+def _drill_matches_tokenized_search(drill: Drill, plain_terms: List[str], hashtags: List[str]) -> bool:
+    searchable_text_values = _string_values([
+        drill.exercise,
+        drill.description,
+        *(drill.type or []),
+        drill.contact_level,
+        *(drill.position_focus or []),
+        *(drill.skater_level or []),
+        drill.drill_type,
+        drill.equipment,
+        drill.game_type,
+    ])
+    searchable_tag_values = _string_values([
+        *(drill.type or []),
+        drill.contact_level,
+        *(drill.position_focus or []),
+        *(drill.skater_level or []),
+        drill.drill_type,
+        drill.equipment,
+        drill.game_type,
+    ])
+
+    has_plain_term_match = (
+        len(plain_terms) == 0
+        or any(any(term in value for value in searchable_text_values) for term in plain_terms)
+    )
+    has_hashtag_match = (
+        len(hashtags) == 0
+        or any(any(tag in value for value in searchable_tag_values) for tag in hashtags)
+    )
+
+    return has_plain_term_match and has_hashtag_match
+
+
+def _apply_plan_search_filter(query, search: str):
+    plain_terms, hashtags = _parse_search_tokens(search)
+    searchable_fields = [
+        func.lower(PracticePlanDB.name),
+        func.lower(func.coalesce(PracticePlanDB.notes, "")),
+        func.lower(PracticePlanDB.practice_type),
+    ]
+
+    if plain_terms:
+        plain_conditions = [
+            or_(*[field.like(f"%{term}%") for field in searchable_fields])
+            for term in plain_terms
+        ]
+        query = query.filter(or_(*plain_conditions))
+
+    if hashtags:
+        hashtag_conditions = [
+            or_(*[field.like(f"%{tag}%") for field in searchable_fields])
+            for tag in hashtags
+        ]
+        query = query.filter(or_(*hashtag_conditions))
+
+    return query
 
 # Get the directory where main.py is located
 BASE_DIR = Path(__file__).resolve().parent
@@ -662,11 +743,10 @@ async def get_drills(
     # Text search (cap length to prevent DoS)
     if search:
         search = search[:200]
-        search_lower = search.lower()
+        plain_terms, hashtags = _parse_search_tokens(search)
         filtered_drills = [
             d for d in filtered_drills
-            if search_lower in d.exercise.lower() or
-            (d.description and search_lower in d.description.lower())
+            if _drill_matches_tokenized_search(d, plain_terms, hashtags)
         ]
     
     # Contact level filter (single select with legacy list compatibility)
@@ -1265,10 +1345,10 @@ async def list_plans(
     if is_template is not None:
         query = query.filter(PracticePlanDB.is_template == is_template)
     
-    # Apply search filter
+    # Apply search filter (read-only tokenized matching)
     if search:
-        search_pattern = f"%{search}%"
-        query = query.filter(PracticePlanDB.name.ilike(search_pattern))
+        search = search[:200]
+        query = _apply_plan_search_filter(query, search)
     
     # Get total count before pagination
     total = query.count()

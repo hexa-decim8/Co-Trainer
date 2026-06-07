@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, closestCenter, pointerWithin, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -124,8 +124,8 @@ export default function PlannerPage() {
   const [exportText, setExportText] = useState('');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
-  const [loadedPlanId, setLoadedPlanId] = useState<number | null>(null);
   const [selectedPlannerDrill, setSelectedPlannerDrill] = useState<{ sectionId: string; drillId: string } | null>(null);
+  const loadedPlanSignatureRef = useRef<string | null>(null);
 
   const { data: editingPlan } = useQuery({
     queryKey: ['planner-edit-plan', editPlanId],
@@ -133,6 +133,7 @@ export default function PlannerPage() {
     enabled: isEditMode,
     staleTime: QUERY_STALE_TIMES.PLANS_LIST,
     gcTime: QUERY_GC_TIMES.PLANS_LIST,
+    refetchOnMount: 'always',
   });
 
   // Stream drills from backend
@@ -728,12 +729,26 @@ export default function PlannerPage() {
   };
 
   useEffect(() => {
-    if (!editingPlan || !editPlanId || loadedPlanId === editPlanId) {
+    if (!editingPlan || !editPlanId) {
       return;
     }
 
+    const planSignature = `${editingPlan.id}:${editingPlan.updated_at ?? ''}`;
+    if (loadedPlanSignatureRef.current === planSignature) {
+      return;
+    }
+    loadedPlanSignatureRef.current = planSignature;
+
+    const latestDrillsById = new Map(allDrills.map((drill) => [drill.id, drill]));
+
     const drillLookup = new Map<string, Drill>();
     editingPlan.timeline.forEach((item) => {
+      const latestDrill = latestDrillsById.get(item.drill_id);
+      if (latestDrill) {
+        drillLookup.set(item.drill_id, latestDrill);
+        return;
+      }
+
       if (item.drill) {
         drillLookup.set(item.drill_id, item.drill);
       }
@@ -744,13 +759,20 @@ export default function PlannerPage() {
       name: 'Main Practice',
       duration: editingPlan.total_duration,
       drills: editingPlan.timeline
-        .filter((item) => item.drill)
-        .map((item, index) => ({
-          id: `drill-${Date.now()}-${index}`,
-          drill: item.drill as Drill,
-          duration: item.duration_minutes,
-          startTime: item.start_time_minutes,
-        })),
+        .map((item, index) => {
+          const drill = drillLookup.get(item.drill_id);
+          if (!drill) {
+            return null;
+          }
+
+          return {
+            id: `drill-${Date.now()}-${index}`,
+            drill,
+            duration: item.duration_minutes,
+            startTime: item.start_time_minutes,
+          };
+        })
+        .filter(Boolean) as TimelineDrill[],
       isMainPractice: true,
       color: MAIN_PRACTICE_COLOR,
     };
@@ -801,8 +823,44 @@ export default function PlannerPage() {
     setPlanName(editingPlan.name);
     setPracticeType(editingPlan.practice_type);
     setPlanDate(editingPlan.date ? editingPlan.date.split('T')[0] : '');
-    setLoadedPlanId(editPlanId);
-  }, [editingPlan, editPlanId, loadedPlanId]);
+  }, [editingPlan, editPlanId, allDrills]);
+
+  useEffect(() => {
+    if (!isEditMode || allDrills.length === 0) {
+      return;
+    }
+
+    const latestDrillsById = new Map(allDrills.map((drill) => [drill.id, drill]));
+
+    setSections((previousSections) => {
+      let changed = false;
+
+      const nextSections = previousSections.map((section) => {
+        let sectionChanged = false;
+        const nextItems = section.drills.map((item) => {
+          if (!isTimelineDrill(item)) {
+            return item;
+          }
+
+          const latestDrill = latestDrillsById.get(item.drill.id);
+          if (!latestDrill || latestDrill === item.drill) {
+            return item;
+          }
+
+          changed = true;
+          sectionChanged = true;
+          return {
+            ...item,
+            drill: latestDrill,
+          };
+        });
+
+        return sectionChanged ? { ...section, drills: nextItems } : section;
+      });
+
+      return changed ? nextSections : previousSections;
+    });
+  }, [allDrills, isEditMode]);
 
   // Keep selection synced as drills move, reorder, or are removed.
   useEffect(() => {
@@ -1029,7 +1087,7 @@ export default function PlannerPage() {
             {/* Save buttons */}
             <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg planner-actions-compact">
               {!showSaveDialog ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {saveError && (
                     <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                       <p className="text-sm text-red-600 dark:text-red-400">{saveError.message}</p>

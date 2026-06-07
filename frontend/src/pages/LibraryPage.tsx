@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, Trash2, Copy, Search, User, Globe, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, Trash2, Copy, Search, User, Globe, Lock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { plansApi } from '../api';
 import { getPracticeTypeLabel, getPracticeTypeColor } from '../utils/practiceTypes';
 import type { PracticePlanSummary } from '../types';
@@ -16,6 +16,9 @@ export default function LibraryPage() {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [clonePlanId, setClonePlanId] = useState<number | null>(null);
   const [cloneName, setCloneName] = useState('');
+  const [deleteConfirmPlanId, setDeleteConfirmPlanId] = useState<number | null>(null);
+  const [deletePlanName, setDeletePlanName] = useState('');
+  const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const pageSize = LIBRARY_PAGE_SIZE;
 
@@ -51,15 +54,31 @@ export default function LibraryPage() {
   const totalPages = data?.total_pages || 1;
   const total = data?.total || 0;
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this plan?')) {
-      try {
-        await plansApi.delete(id);
-        refetch();
-      } catch (error) {
-        setToast({ type: 'error', message: 'Failed to delete plan' });
-      }
+  const handleDelete = (id: number, planName: string) => {
+    setDeleteConfirmPlanId(id);
+    setDeletePlanName(planName);
+  };
+
+  const confirmDeletePlan = async () => {
+    if (!deleteConfirmPlanId) return;
+    
+    setIsDeleteLoading(true);
+    try {
+      await plansApi.delete(deleteConfirmPlanId);
+      setDeleteConfirmPlanId(null);
+      setDeletePlanName('');
+      refetch();
+      setToast({ type: 'success', message: 'Plan deleted successfully' });
+    } catch (error) {
+      setToast({ type: 'error', message: 'Failed to delete plan' });
+    } finally {
+      setIsDeleteLoading(false);
     }
+  };
+
+  const cancelDeletePlan = () => {
+    setDeleteConfirmPlanId(null);
+    setDeletePlanName('');
   };
 
   const handleToggleVisibility = async (id: number, currentVisibility: boolean) => {
@@ -119,12 +138,15 @@ export default function LibraryPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search plans..."
+            placeholder="Search terms and #tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
+        <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          Use multiple terms and hashtags, for example: template #scrimmage
+        </p>
       </div>
 
       {/* Filter tabs */}
@@ -275,7 +297,7 @@ export default function LibraryPage() {
                       )
                     ) : (
                       <button
-                        onClick={() => handleDelete(plan.id)}
+                        onClick={() => handleDelete(plan.id, plan.name)}
                         className="px-3 py-2 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -356,6 +378,38 @@ export default function LibraryPage() {
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Clone Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmPlanId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Delete Practice Plan?</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-2">
+              Are you sure you want to delete <span className="font-semibold text-gray-900 dark:text-white">"{deletePlanName}"</span>?
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={cancelDeletePlan}
+                disabled={isDeleteLoading}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeletePlan}
+                disabled={isDeleteLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              >
+                {isDeleteLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete Plan
               </button>
             </div>
           </div>

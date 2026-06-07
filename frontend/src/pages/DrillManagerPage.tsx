@@ -99,6 +99,7 @@ export default function DrillManagerPage() {
       refetchDrills();
       queryClient.invalidateQueries({ queryKey: ['filter-options'] });
       queryClient.invalidateQueries({ queryKey: ['available-tags'] });
+      queryClient.invalidateQueries({ queryKey: ['planner-edit-plan'] });
     },
     [refetchDrills, queryClient]
   );
@@ -110,6 +111,7 @@ export default function DrillManagerPage() {
         await drillsApi.delete(drill.id);
         refetchDrills();
         queryClient.invalidateQueries({ queryKey: ['filter-options'] });
+        queryClient.invalidateQueries({ queryKey: ['planner-edit-plan'] });
         setArchiveConfirm(null);
       } catch (err) {
         console.error('Failed to archive drill:', err);
