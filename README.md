@@ -42,6 +42,14 @@ Lifecycle behavior:
 - Save practices as dated plans or reusable templates
 - Mobile-optimized view with stopwatch and progress tracking
 
+## Native iPhone App Directory
+
+All iPhone-specific files are kept under `mobile/ios`.
+
+- Put Swift files, Xcode project/workspace files, Info.plist, and entitlements in `mobile/ios`.
+- Do not add iPhone-specific files to `frontend/` or `backend/`.
+- Start from `mobile/ios/README.md` for iOS structure and setup notes.
+
 ## Notion Database Schema
 
 Your Notion database requires the following properties:
