@@ -15,10 +15,12 @@ struct LoginView: View {
                     .bold()
 
                 TextField("Email", text: $email)
+                    #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
                     .keyboardType(.emailAddress)
+                    #endif
+                    .textFieldStyle(.roundedBorder)
 
                 SecureField("Password", text: $password)
                     .textFieldStyle(.roundedBorder)

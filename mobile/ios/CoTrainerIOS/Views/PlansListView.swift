@@ -22,13 +22,13 @@ struct PlansListView: View {
                 PlanDetailView(sessionViewModel: sessionViewModel, planID: planID)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigation) {
                     Button("Logout") {
                         sessionViewModel.logout()
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button("Refresh") {
                         Task {
                             try? await sessionViewModel.refreshPlans()

@@ -1,21 +1,18 @@
 import SwiftUI
 
-@main
-struct CoTrainerIOSApp: App {
+struct CoTrainerIOSRootView: View {
     @StateObject private var sessionViewModel = SessionViewModel()
 
-    var body: some Scene {
-        WindowGroup {
-            Group {
-                if sessionViewModel.isAuthenticated {
-                    PlansListView(sessionViewModel: sessionViewModel)
-                } else {
-                    LoginView(sessionViewModel: sessionViewModel)
-                }
+    var body: some View {
+        Group {
+            if sessionViewModel.isAuthenticated {
+                PlansListView(sessionViewModel: sessionViewModel)
+            } else {
+                LoginView(sessionViewModel: sessionViewModel)
             }
-            .task {
-                await sessionViewModel.restoreSessionIfPossible()
-            }
+        }
+        .task {
+            await sessionViewModel.restoreSessionIfPossible()
         }
     }
 }
