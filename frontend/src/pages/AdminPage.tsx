@@ -1,6 +1,6 @@
 import { ChangeEvent, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi, UserCheck, Upload, Image as ImageIcon } from 'lucide-react';
+import { Users, Shield, Trash2, Key, X, RefreshCw, Save, Check, AlertCircle, Wifi, UserCheck, Upload, Image as ImageIcon, Pencil, UserPlus } from 'lucide-react';
 import api, { brandingApi, getApiErrorDetail } from '../api';
 import { useBranding } from '../contexts/BrandingContext';
 
@@ -20,9 +20,17 @@ export default function AdminPage() {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [newRole, setNewRole] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newDerbyName, setNewDerbyName] = useState('');
+  const [createUserEmail, setCreateUserEmail] = useState('');
+  const [createUserPassword, setCreateUserPassword] = useState('');
+  const [createUserConfirmPassword, setCreateUserConfirmPassword] = useState('');
+  const [createUserRole, setCreateUserRole] = useState('user');
+  const [createUserDerbyName, setCreateUserDerbyName] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [databaseId, setDatabaseId] = useState('');
   const [plannerDatabaseId, setPlannerDatabaseId] = useState('');
@@ -119,6 +127,43 @@ export default function AdminPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+
+  // Update user display name mutation
+  const updateUserNameMutation = useMutation({
+    mutationFn: async ({ userId, derbyName }: { userId: number; derbyName: string }) => {
+      const response = await api.put(`/admin/users/${userId}/name`, {
+        derby_name: derbyName,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setShowNameModal(false);
+      setSelectedUser(null);
+      setNewDerbyName('');
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async ({ email, password, role, derbyName }: { email: string; password: string; role: string; derbyName: string }) => {
+      const response = await api.post('/admin/users', {
+        email,
+        password,
+        role,
+        derby_name: derbyName.trim() || null,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setShowCreateUserModal(false);
+      setCreateUserEmail('');
+      setCreateUserPassword('');
+      setCreateUserConfirmPassword('');
+      setCreateUserRole('user');
+      setCreateUserDerbyName('');
     },
   });
 
@@ -229,6 +274,13 @@ export default function AdminPage() {
     setShowDeleteModal(true);
   };
 
+  const openNameModal = (user: User) => {
+    setSelectedUser(user);
+    setNewDerbyName(user.derby_name || '');
+    setShowNameModal(true);
+    updateUserNameMutation.reset();
+  };
+
   const handleRoleUpdate = () => {
     if (selectedUser && newRole) {
       updateRoleMutation.mutate({ userId: selectedUser.id, role: newRole });
@@ -247,8 +299,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleUserNameUpdate = () => {
+    if (selectedUser) {
+      updateUserNameMutation.mutate({
+        userId: selectedUser.id,
+        derbyName: newDerbyName,
+      });
+    }
+  };
+
   const handleApproveUser = (userId: number) => {
     approveUserMutation.mutate(userId);
+  };
+
+  const handleCreateUser = () => {
+    if (!createUserEmail || !createUserPassword || createUserPassword !== createUserConfirmPassword) {
+      return;
+    }
+
+    createUserMutation.mutate({
+      email: createUserEmail,
+      password: createUserPassword,
+      role: createUserRole,
+      derbyName: createUserDerbyName,
+    });
   };
 
   const handleNotionSave = async () => {
@@ -651,7 +725,19 @@ export default function AdminPage() {
       </div>
 
       {/* User Management Section */}
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">User Management</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">User Management</h2>
+        <button
+          onClick={() => {
+            setShowCreateUserModal(true);
+            createUserMutation.reset();
+          }}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+        >
+          <UserPlus className="w-4 h-4" />
+          Add User
+        </button>
+      </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
@@ -724,6 +810,13 @@ export default function AdminPage() {
                       </button>
                     )}
                     <button
+                      onClick={() => openNameModal(user)}
+                      className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-3"
+                      title="Edit display name"
+                    >
+                      <Pencil className="w-4 h-4 inline" />
+                    </button>
+                    <button
                       onClick={() => openRoleModal(user)}
                       className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
                       title="Change role"
@@ -751,6 +844,181 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
+
+      {/* Create User Modal */}
+      {showCreateUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add User</h2>
+              <button
+                onClick={() => {
+                  setShowCreateUserModal(false);
+                  createUserMutation.reset();
+                }}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Users created by an administrator are approved automatically.
+            </p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={createUserEmail}
+                  onChange={(e) => setCreateUserEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
+                  placeholder="teammate@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={createUserDerbyName}
+                  onChange={(e) => setCreateUserDerbyName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
+                  placeholder="Optional"
+                  maxLength={100}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                <select
+                  value={createUserRole}
+                  onChange={(e) => setCreateUserRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="user">User</option>
+                  <option value="coach">Coach</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={createUserPassword}
+                  onChange={(e) => setCreateUserPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
+                  placeholder="Minimum 8 characters"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={createUserConfirmPassword}
+                  onChange={(e) => setCreateUserConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
+                  placeholder="Re-enter password"
+                />
+              </div>
+              {createUserPassword && createUserConfirmPassword && createUserPassword !== createUserConfirmPassword && (
+                <p className="text-sm text-red-600 dark:text-red-400">Passwords do not match</p>
+              )}
+            </div>
+            {createUserMutation.isError && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+                {getApiErrorDetail(createUserMutation.error, 'Failed to create user')}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowCreateUserModal(false);
+                  createUserMutation.reset();
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateUser}
+                disabled={
+                  createUserMutation.isPending
+                  || !createUserEmail
+                  || !createUserPassword
+                  || createUserPassword !== createUserConfirmPassword
+                }
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Name Modal */}
+      {showNameModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Display Name</h2>
+              <button
+                onClick={() => {
+                  setShowNameModal(false);
+                  setSelectedUser(null);
+                  setNewDerbyName('');
+                  updateUserNameMutation.reset();
+                }}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Update display name for {selectedUser.email}
+            </p>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Name</label>
+              <input
+                type="text"
+                value={newDerbyName}
+                onChange={(e) => setNewDerbyName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500"
+                placeholder="Leave blank to clear display name"
+                maxLength={100}
+              />
+            </div>
+            {updateUserNameMutation.isError && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+                {getApiErrorDetail(updateUserNameMutation.error, 'Failed to update display name')}
+              </div>
+            )}
+            {updateUserNameMutation.isSuccess && (
+              <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
+                Display name updated successfully
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowNameModal(false);
+                  setSelectedUser(null);
+                  setNewDerbyName('');
+                  updateUserNameMutation.reset();
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUserNameUpdate}
+                disabled={updateUserNameMutation.isPending}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {updateUserNameMutation.isPending ? 'Updating...' : 'Update Name'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Role Update Modal */}
       {showRoleModal && selectedUser && (

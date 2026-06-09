@@ -299,6 +299,57 @@ class UserUpdate(BaseModel):
     derby_name: Optional[str] = None
     dark_mode: Optional[bool] = None
 
+    @validator('derby_name')
+    def normalize_derby_name(cls, v):
+        if v is None:
+            return None
+        normalized = v.strip()
+        if not normalized:
+            return None
+        if len(normalized) > 100:
+            raise ValueError('Derby name must be 100 characters or less')
+        return normalized
+
+
+class AdminUserNameUpdate(BaseModel):
+    """Model for admin updating a user's derby/display name."""
+    derby_name: Optional[str] = None
+
+    @validator('derby_name')
+    def normalize_derby_name(cls, v):
+        if v is None:
+            return None
+        normalized = v.strip()
+        if not normalized:
+            return None
+        if len(normalized) > 100:
+            raise ValueError('Derby name must be 100 characters or less')
+        return normalized
+
+
+class AdminUserCreate(UserCreate):
+    """Model for admin creating users directly."""
+    derby_name: Optional[str] = None
+    role: str = "user"
+
+    @validator('derby_name')
+    def normalize_derby_name(cls, v):
+        if v is None:
+            return None
+        normalized = v.strip()
+        if not normalized:
+            return None
+        if len(normalized) > 100:
+            raise ValueError('Derby name must be 100 characters or less')
+        return normalized
+
+    @validator('role')
+    def validate_role(cls, v):
+        normalized = v.strip().lower()
+        if normalized not in {'user', 'coach', 'admin'}:
+            raise ValueError("Role must be 'user', 'coach', or 'admin'")
+        return normalized
+
 
 class PasswordChange(BaseModel):
     """Model for changing password."""

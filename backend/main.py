@@ -24,7 +24,7 @@ from models import (
     Drill, DrillFilters, FilterOptions, PracticePlan, 
     PracticePlanSummary, PracticePlanWithDrills, PracticeType,
     UserCreate, UserResponse, Token, RegisterResponse, RegistrationPendingResponse, UserUpdate, PasswordChange,
-    UserRoleUpdate, AdminPasswordReset, UserListResponse,
+    UserRoleUpdate, AdminPasswordReset, UserListResponse, AdminUserNameUpdate, AdminUserCreate,
     PaginatedPlansResponse, PlanCloneRequest, PlanVisibilityUpdate,
     PlanRenameRequest, DrillCreate, DrillUpdate,
     ProgressionChartCreate, ProgressionChartUpdate,
@@ -684,6 +684,42 @@ async def change_password(
 # Admin Endpoints
 # ============================================================================
 
+@app.post("/api/admin/users", response_model=UserListResponse)
+async def create_user(
+    user_data: AdminUserCreate,
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Create a user directly from admin panel (admin only)."""
+    existing_user = db.query(UserDB).filter(UserDB.email == user_data.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    db_user = UserDB(
+        email=user_data.email,
+        hashed_password=get_password_hash(user_data.password),
+        derby_name=user_data.derby_name,
+        role=user_data.role,
+        is_approved=True,
+    )
+
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    return UserListResponse(
+        id=db_user.id,
+        email=db_user.email,
+        derby_name=db_user.derby_name,
+        role=db_user.role,
+        is_approved=db_user.is_approved,
+        dark_mode=db_user.dark_mode,
+        created_at=db_user.created_at,
+    )
+
 @app.get("/api/admin/users", response_model=List[UserListResponse])
 async def list_users(
     _admin_user: UserDB = Depends(require_admin),
@@ -722,6 +758,36 @@ async def approve_user(
     db.commit()
 
     return {"success": True, "message": "User approved successfully"}
+
+
+@app.put("/api/admin/users/{user_id}/name", response_model=UserListResponse)
+async def update_user_name(
+    user_id: int,
+    name_data: AdminUserNameUpdate,
+    _admin_user: UserDB = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a user's derby/display name (admin only)."""
+    target_user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    target_user.derby_name = name_data.derby_name  # type: ignore
+    db.commit()
+    db.refresh(target_user)
+
+    return UserListResponse(
+        id=target_user.id,
+        email=target_user.email,
+        derby_name=target_user.derby_name,
+        role=target_user.role,
+        is_approved=target_user.is_approved,
+        dark_mode=target_user.dark_mode,
+        created_at=target_user.created_at,
+    )
 
 
 @app.put("/api/admin/users/{user_id}/role")
