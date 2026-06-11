@@ -154,6 +154,20 @@ export default function PlannerDrillDetailsPanel({
           </div>
         )}
 
+        {drill.skills_used && drill.skills_used.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+              <Zap className="w-3 h-3 mr-1" />
+              Skills Used
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {drill.skills_used.map((skill) => (
+                <Pill key={skill}>{skill}</Pill>
+              ))}
+            </div>
+          </div>
+        )}
+
         {drill.type && drill.type.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">

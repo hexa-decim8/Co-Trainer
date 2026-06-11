@@ -184,6 +184,12 @@ function TimelineDrillItem({
                     {drill.drill.drill_type}
                   </span>
                 )}
+                {drill.drill.skills_used && drill.drill.skills_used.length > 0 && (
+                  <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-md bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300" title={drill.drill.skills_used.join(', ')}>
+                    <Zap className="w-3 h-3 mr-1" />
+                    {drill.drill.skills_used.length === 1 ? drill.drill.skills_used[0] : `${drill.drill.skills_used[0]} +${drill.drill.skills_used.length - 1}`}
+                  </span>
+                )}
               </div>
             </div>
 

@@ -88,6 +88,8 @@ export default function DrillManagerPage() {
     handleFilterToggle('skater_level', level), [handleFilterToggle]);
   const handleTypeClick = useCallback((type: string) =>
     handleFilterToggle('type', type), [handleFilterToggle]);
+  const handleSkillsUsedClick = useCallback((skill: string) =>
+    handleFilterToggle('skills_used', skill), [handleFilterToggle]);
 
   const handleSave = useCallback(
     async (data: DrillCreate | DrillUpdate, drillId?: string) => {
@@ -246,6 +248,7 @@ export default function DrillManagerPage() {
                   onPositionFocusClick={handlePositionFocusClick}
                   onSkaterLevelClick={handleSkaterLevelClick}
                   onTypeClick={handleTypeClick}
+                  onSkillsUsedClick={handleSkillsUsedClick}
                   onEdit={() => {
                     setEditingDrill(drill);
                     setModalOpen(true);
@@ -319,6 +322,7 @@ function DrillManagerCard({
   onPositionFocusClick,
   onSkaterLevelClick,
   onTypeClick,
+  onSkillsUsedClick,
   onEdit,
   onArchive,
 }: {
@@ -332,6 +336,7 @@ function DrillManagerCard({
   onPositionFocusClick: (position: string) => void;
   onSkaterLevelClick: (level: string) => void;
   onTypeClick: (type: string) => void;
+  onSkillsUsedClick: (skill: string) => void;
   onEdit: () => void;
   onArchive: () => void;
 }) {
@@ -447,6 +452,19 @@ function DrillManagerCard({
               +{drill.type.length - 2}
             </span>
           )}
+          {drill.skills_used && drill.skills_used.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSkillsUsedClick(drill.skills_used[0]);
+              }}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 cursor-help"
+              title={drill.skills_used.join(', ')}
+            >
+              {drill.skills_used.length === 1 ? drill.skills_used[0] : `${drill.skills_used[0]}${drill.skills_used.length > 1 ? ` +${drill.skills_used.length - 1}` : ''}`}
+            </button>
+          )}
         </div>
 
         {/* Expanded content */}
@@ -473,6 +491,26 @@ function DrillManagerCard({
               stopPropagation
               compact
             />
+            {drill.skills_used && drill.skills_used.length > 0 && (
+              <div>
+                <p><span className="font-medium">Skills Used:</span></p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {drill.skills_used.map((skill) => (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSkillsUsedClick(skill);
+                      }}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 ${(activeFilters.skills_used as string[] | undefined)?.includes(skill) ? 'ring-2 ring-primary-500 ring-offset-1' : ''}`}
+                    >
+                      {skill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {drill.depends_on.length > 0 && (
               <p><span className="font-medium">Depends On:</span> {drill.depends_on.join(', ')}</p>
             )}
