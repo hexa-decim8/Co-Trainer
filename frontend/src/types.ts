@@ -21,6 +21,7 @@ export interface Drill {
   game_type: string | null;
   players: string | null;
   position_focus: string[];
+  skills_used: string[];
   skater_level: string[];
   skaters_needed: number | null;
   teamwork: string | null;
@@ -41,6 +42,7 @@ export interface DrillFilters {
   equipment?: string[];
   game_type?: string[];
   position_focus?: string[];
+  skills_used?: string[];
   skater_level?: string[];
   teamwork?: string[];
   type?: string[];
@@ -55,6 +57,7 @@ export interface FilterOptions {
   equipment: string[];
   game_types: string[];
   position_focus: string[];
+  skills_used: string[];
   skater_levels: string[];
   teamworks: string[];
   types: string[];
@@ -254,6 +257,7 @@ export interface DrillCreate {
   game_type?: string | null;
   players?: string | null;
   position_focus?: string[];
+  skills_used?: string[];
   skater_level?: string[];
   skaters_needed?: number | null;
   teamwork?: string | null;
@@ -266,6 +270,7 @@ export type DrillUpdate = Partial<DrillCreate>;
 export interface AvailableTags {
   contact_level?: string[];
   position_focus?: string[];
+  skills_used?: string[];
   skater_level?: string[];
   type?: string[];
   depends_on?: string[];

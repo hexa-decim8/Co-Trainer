@@ -82,6 +82,7 @@ def _drill_matches_tokenized_search(drill: Drill, plain_terms: List[str], hashta
         *(drill.type or []),
         drill.contact_level,
         *(drill.position_focus or []),
+        *(drill.skills_used or []),
         *(drill.skater_level or []),
         drill.drill_type,
         drill.equipment,
@@ -91,6 +92,7 @@ def _drill_matches_tokenized_search(drill: Drill, plain_terms: List[str], hashta
         *(drill.type or []),
         drill.contact_level,
         *(drill.position_focus or []),
+        *(drill.skills_used or []),
         *(drill.skater_level or []),
         drill.drill_type,
         drill.equipment,
@@ -341,34 +343,6 @@ async def database_status(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection error"
-        )
-
-
-@app.get("/api/admin/persistence/status")
-async def persistence_status(
-    _admin_user: UserDB = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Admin diagnostics to verify persistence state across container updates."""
-    try:
-        db.execute(text("SELECT 1"))
-        db_identity = urlparse(INTERNAL_DB_URL)
-
-        return {
-            "status": "connected",
-            "database_type": "PostgreSQL",
-            "database_host": db_identity.hostname,
-            "database_name": db_identity.path.lstrip("/") or "unknown",
-            "pgdata_path": os.getenv("PGDATA", "/var/lib/postgresql/data"),
-            "users_count": db.query(UserDB).count(),
-            "plans_count": db.query(PracticePlanDB).count(),
-            "timestamp_utc": datetime.utcnow().isoformat() + "Z",
-        }
-    except Exception as e:
-        logger.error(f"Persistence diagnostics failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Persistence diagnostics unavailable",
         )
 
 
@@ -923,6 +897,7 @@ async def get_drills(
     equipment: Optional[List[str]] = Query(None),
     game_type: Optional[List[str]] = Query(None),
     position_focus: Optional[List[str]] = Query(None),
+    skills_used: Optional[List[str]] = Query(None),
     skater_level: Optional[List[str]] = Query(None),
     type_filter: Optional[List[str]] = Query(None, alias="type"),
     has_video: Optional[bool] = Query(None),
@@ -938,7 +913,7 @@ async def get_drills(
     logger.info(f"API: Drill card retrieval requested by user {current_user.email}")
     logger.info(f"API: Filters - search={search}, contact_level={contact_level}, difficulty={difficulty}, "
                 f"drill_type={drill_type}, equipment={equipment}, game_type={game_type}, "
-                f"position_focus={position_focus}, skater_level={skater_level}, type={type_filter}, "
+                f"position_focus={position_focus}, skills_used={skills_used}, skater_level={skater_level}, type={type_filter}, "
                 f"force_sync={force_sync}")
     
     drills = await notion_service.get_all_drills(db=db, force_sync=force_sync)
@@ -987,6 +962,13 @@ async def get_drills(
         filtered_drills = [
             d for d in filtered_drills
             if any(pf in d.position_focus for pf in position_focus)
+        ]
+
+    # Skills used filter (multi-select, match if ANY value in filter appears in drill)
+    if skills_used:
+        filtered_drills = [
+            d for d in filtered_drills
+            if any(skill in d.skills_used for skill in skills_used)
         ]
     
     # Skater level filter (multi-relation, match if ANY value in filter appears in drill)
@@ -1122,6 +1104,7 @@ async def get_filter_options(
     equipment_list = set()
     game_types = set()
     position_focus_list = set()
+    skills_used_list = set()
     skater_levels = set()
     teamwork_list = set()
     types = set()
@@ -1136,6 +1119,7 @@ async def get_filter_options(
         # Multi-relation fields
         skater_levels.update(drill.skater_level)
         position_focus_list.update(drill.position_focus)
+        skills_used_list.update(drill.skills_used)
         types.update(drill.type)
         
         # Single-select fields
@@ -1157,6 +1141,7 @@ async def get_filter_options(
         equipment=sorted(equipment_list),
         game_types=sorted(game_types),
         position_focus=sorted(position_focus_list),
+        skills_used=sorted(skills_used_list),
         skater_levels=sorted(skater_levels),
         teamworks=sorted(teamwork_list),
         types=sorted(types)

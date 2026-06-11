@@ -248,6 +248,7 @@ class NotionService:
             "game_type": ["Game Type"],
             "players": ["Players"],
             "position_focus": ["Position", "Position Focus"],
+            "skills_used": ["Skills Used", "Skills", "Skills/Focus"],
             "skater_level": ["Skater Level", "Level"],
             "skaters_needed": ["Skaters Needed", "Skaters"],
             "teamwork": ["Teamwork"],
@@ -282,6 +283,10 @@ class NotionService:
         position_focus_values = get_prop_value(property_map["position_focus"], "multi_select")
         if position_focus_values is None:
             position_focus_values = get_prop_value(property_map["position_focus"], "multi_relation") or []
+
+        skills_used_values = get_prop_value(property_map["skills_used"], "multi_select")
+        if skills_used_values is None:
+            skills_used_values = get_prop_value(property_map["skills_used"], "multi_relation") or []
 
         skater_level_values = get_prop_value(property_map["skater_level"], "multi_select")
         if skater_level_values is None:
@@ -345,6 +350,7 @@ class NotionService:
             game_type=get_prop_value(property_map["game_type"], "select"),
             players=get_prop_value(property_map["players"], "relation"),
             position_focus=position_focus_values,
+            skills_used=skills_used_values,
             skater_level=skater_level_values,
             skaters_needed=get_prop_value(property_map["skaters_needed"], "number"),
             teamwork=get_prop_value(property_map["teamwork"], "select"),
@@ -1105,6 +1111,7 @@ class NotionService:
             "game_type": ["Game Type"],
             "players": ["Players"],
             "position_focus": ["Position", "Position Focus"],
+            "skills_used": ["Skills Used", "Skills", "Skills/Focus"],
             "skater_level": ["Skater Level", "Level"],
             "skaters_needed": ["Skaters Needed", "Skaters"],
             "teamwork": ["Teamwork"],
@@ -1114,7 +1121,7 @@ class NotionService:
         }
 
         # Fields that can resolve tag names into relation page IDs when schema says relation.
-        relation_tag_fields = {"position_focus", "skater_level", "type", "players"}
+        relation_tag_fields = {"position_focus", "skills_used", "skater_level", "type", "players"}
 
         schema = self._get_database_schema()
         schema_lower = {name.lower(): name for name in schema.keys()}
@@ -1312,6 +1319,7 @@ class NotionService:
         relation_fields = {
             "players": "Players",
             "position_focus": "Position",
+            "skills_used": "Skills Used",
             "skater_level": "Skater Level",
             "type": "Type",
         }
@@ -1378,6 +1386,7 @@ class NotionService:
         }
         multi_select_fields = {
             "position_focus": "Position",
+            "skills_used": "Skills Used",
             "skater_level": "Skater Level",
             "type": "Type",
             "depends_on": "Depends on",

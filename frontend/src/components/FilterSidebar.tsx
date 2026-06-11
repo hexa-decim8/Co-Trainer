@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { Search, ChevronDown, ChevronUp, Filter as FilterIcon, Video } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Filter as FilterIcon, PanelLeftClose, Video } from 'lucide-react';
 import type { Drill, DrillFilters, FilterOptions } from '../types';
 
 const PREVIEW_LIMIT = 6;
@@ -10,6 +10,7 @@ interface FilterSidebarProps {
   onFilterChange: (filters: DrillFilters) => void;
   resultCount: number;
   drills?: Drill[];
+  onClose?: () => void;
 }
 
 export default function FilterSidebar({
@@ -18,6 +19,7 @@ export default function FilterSidebar({
   onFilterChange,
   resultCount,
   drills = [],
+  onClose,
 }: FilterSidebarProps) {
   const [searchText, setSearchText] = useState(activeFilters.search || '');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['type', 'contact_level', 'difficulty']));
@@ -151,14 +153,26 @@ export default function FilterSidebar({
             <FilterIcon className="w-6 h-6" />
             <h2 className="text-xl font-display font-bold tracking-wide">FILTERS</h2>
           </div>
-          {activeFilterCount > 0 && (
-            <button
-              onClick={clearAllFilters}
-              className="text-sm font-semibold px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-            >
-              Clear All
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {activeFilterCount > 0 && (
+              <button
+                onClick={clearAllFilters}
+                className="text-sm font-semibold px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              >
+                Clear All
+              </button>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded hover:bg-white/20 text-white/90 hover:text-white transition-colors"
+                title="Hide sidebar"
+                aria-label="Hide sidebar"
+              >
+                <PanelLeftClose className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
         
         {/* Search */}

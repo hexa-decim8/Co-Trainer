@@ -35,6 +35,7 @@ class Drill(BaseModel):
     game_type: Optional[str] = None
     players: Optional[str] = None  # single relation
     position_focus: List[str] = []  # multi-select
+    skills_used: List[str] = []  # multi-select
     skater_level: List[str] = []  # multi-select
     skaters_needed: Optional[int] = None
     teamwork: Optional[str] = None  # single select
@@ -55,7 +56,7 @@ class Drill(BaseModel):
             return v or None
         return None
 
-    @validator('depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    @validator('depends_on', 'position_focus', 'skills_used', 'skater_level', 'type', pre=True)
     def ensure_list(cls, v):
         """Convert string to list for fields that should be lists."""
         if isinstance(v, str):
@@ -72,6 +73,7 @@ class DrillFilters(BaseModel):
     equipment: Optional[List[str]] = None
     game_type: Optional[List[str]] = None
     position_focus: Optional[List[str]] = None
+    skills_used: Optional[List[str]] = None
     skater_level: Optional[List[str]] = None
     teamwork: Optional[List[str]] = None
     type: Optional[List[str]] = None
@@ -86,6 +88,7 @@ class FilterOptions(BaseModel):
     equipment: List[str]
     game_types: List[str]
     position_focus: List[str]
+    skills_used: List[str]
     skater_levels: List[str]
     teamworks: List[str]
     types: List[str]
@@ -506,6 +509,7 @@ class DrillCreate(BaseModel):
     game_type: Optional[str] = None
     players: Optional[str] = None
     position_focus: List[str] = []
+    skills_used: List[str] = []
     skater_level: List[str] = []
     skaters_needed: Optional[int] = None
     teamwork: Optional[str] = None
@@ -522,7 +526,7 @@ class DrillCreate(BaseModel):
     _contact = validator('contact_level', pre=True, allow_reuse=True)(_normalize_contact_level)
     _video = validator('video_link', allow_reuse=True)(_validate_video_link)
 
-    @validator('depends_on', 'position_focus', 'skater_level', 'type', pre=True)
+    @validator('depends_on', 'position_focus', 'skills_used', 'skater_level', 'type', pre=True)
     def ensure_list(cls, v):
         if isinstance(v, str):
             return [v] if v else []
@@ -542,6 +546,7 @@ class DrillUpdate(BaseModel):
     game_type: Optional[str] = None
     players: Optional[str] = None
     position_focus: Optional[List[str]] = None
+    skills_used: Optional[List[str]] = None
     skater_level: Optional[List[str]] = None
     skaters_needed: Optional[int] = None
     type: Optional[List[str]] = None

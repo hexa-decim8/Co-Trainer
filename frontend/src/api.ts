@@ -84,6 +84,9 @@ export const drillsApi = {
     if (filters?.position_focus?.length) {
       filters.position_focus.forEach(v => params.append('position_focus', v));
     }
+    if (filters?.skills_used?.length) {
+      filters.skills_used.forEach(v => params.append('skills_used', v));
+    }
     if (filters?.skater_level?.length) {
       filters.skater_level.forEach(v => params.append('skater_level', v));
     }

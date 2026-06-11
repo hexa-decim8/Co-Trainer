@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, closestCenter, pointerWithin, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Save, Plus, Clock, Shield, FileText, Copy, Download, PanelLeftClose, ChevronRight, ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
+import { Save, Plus, Clock, Shield, FileText, Copy, Download, ChevronRight, ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import FilterSidebar from '../components/FilterSidebar';
 import DrillCard from '../components/DrillCard';
 import TimelinePlanner from '../components/TimelinePlanner';
@@ -909,6 +909,7 @@ export default function PlannerPage() {
                     onFilterChange={setActiveFilters}
                     resultCount={drills.length}
                     drills={allDrills}
+                    onClose={() => setDrillPanelOpen(false)}
                   />
                 )}
               </div>
@@ -930,15 +931,6 @@ export default function PlannerPage() {
                       aria-label={drillLibraryOpen ? 'Collapse drill library' : 'Expand drill library'}
                     >
                       {drillLibraryOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                    </button>
-                    <div className="w-px h-5 bg-white/20 mx-1" />
-                    <button
-                      onClick={() => setDrillPanelOpen(false)}
-                      className="p-1 rounded hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-                      title="Hide sidebar"
-                      aria-label="Hide sidebar"
-                    >
-                      <PanelLeftClose className="w-5 h-5" />
                     </button>
                   </div>
                 </div>

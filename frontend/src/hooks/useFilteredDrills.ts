@@ -20,6 +20,7 @@ export function useFilteredDrills(drills: Drill[], filters: DrillFilters): Drill
           ...(drill.type || []),
           drill.contact_level,
           ...(drill.position_focus || []),
+          ...(drill.skills_used || []),
           ...(drill.skater_level || []),
           drill.drill_type,
           drill.equipment,
@@ -37,6 +38,7 @@ export function useFilteredDrills(drills: Drill[], filters: DrillFilters): Drill
           ...(drill.type || []),
           drill.contact_level,
           ...(drill.position_focus || []),
+          ...(drill.skills_used || []),
           ...(drill.skater_level || []),
           drill.drill_type,
           drill.equipment,
@@ -78,6 +80,11 @@ export function useFilteredDrills(drills: Drill[], filters: DrillFilters): Drill
       // Position focus filter (multi-select: match if ANY)
       if (filters.position_focus?.length) {
         if (!filters.position_focus.some(pf => drill.position_focus?.includes(pf))) return false;
+      }
+
+      // Skills used filter (multi-select: match if ANY)
+      if (filters.skills_used?.length) {
+        if (!filters.skills_used.some(skill => drill.skills_used?.includes(skill))) return false;
       }
 
       // Skater level filter (multi-select: match if ANY)
