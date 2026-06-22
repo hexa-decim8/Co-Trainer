@@ -41,7 +41,7 @@ const customCollisionDetection: typeof closestCenter = (args) => {
 };
 
 export default function PlannerPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const editPlanIdParam = searchParams.get('planId');
   const editPlanId = editPlanIdParam && !Number.isNaN(Number(editPlanIdParam))
     ? Number(editPlanIdParam)
@@ -626,11 +626,23 @@ export default function PlannerPage() {
         sections_v2: sectionsForSave,  // New section structure - PRESERVES DATA!
       };
 
+      let createdPlanId: number | null = null;
+
       if (isEditMode && editPlanId) {
         await plansApi.update(editPlanId, planData);
         queryClient.invalidateQueries({ queryKey: ['planner-edit-plan', editPlanId] });
       } else {
-        await plansApi.create(planData);
+        const createdPlan = await plansApi.create(planData);
+        createdPlanId = createdPlan.id;
+
+        // Keep the newly created plan open in edit mode for subsequent saves.
+        setSearchParams((currentParams) => {
+          const nextParams = new URLSearchParams(currentParams);
+          nextParams.set('planId', String(createdPlan.id));
+          return nextParams;
+        });
+
+        queryClient.invalidateQueries({ queryKey: ['planner-edit-plan', createdPlan.id] });
       }
 
       setSaveSuccess(
@@ -642,7 +654,7 @@ export default function PlannerPage() {
       );
       setTimeout(() => setSaveSuccess(null), 3000);
       setShowSaveDialog(false);
-      if (!isEditMode) {
+      if (!isEditMode && createdPlanId === null) {
         setPlanName('');
         setPlanDate('');
       }
