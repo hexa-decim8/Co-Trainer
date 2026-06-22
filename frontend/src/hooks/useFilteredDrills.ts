@@ -14,24 +14,11 @@ export function useFilteredDrills(drills: Drill[], filters: DrillFilters): Drill
       if (filters.search) {
         const { plainTerms, hashtags } = parseSearchTokens(filters.search);
 
-        const searchableTextFields = [
-          drill.exercise,
-          drill.description,
-          ...(drill.type || []),
-          drill.contact_level,
-          ...(drill.position_focus || []),
-          ...(drill.skills_used || []),
-          ...(drill.skater_level || []),
-          drill.drill_type,
-          drill.equipment,
-          drill.game_type,
-        ]
-          .filter((value): value is string => Boolean(value))
-          .map(value => value.toLowerCase());
+        const drillName = drill.exercise?.toLowerCase() ?? '';
 
         const hasPlainTermMatch =
           plainTerms.length === 0 ||
-          plainTerms.some(term => searchableTextFields.some(value => value.includes(term)));
+          plainTerms.some(term => drillName.includes(term));
         if (!hasPlainTermMatch) return false;
 
         const searchableTags = [
