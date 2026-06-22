@@ -143,7 +143,7 @@ export default function DrillManagerPage() {
             activeFilters={activeFilters}
             onFilterChange={setActiveFilters}
             resultCount={drills.length}
-            drills={allDrills}
+            drills={drills}
           />
         )}
       </div>
