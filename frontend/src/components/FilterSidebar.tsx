@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { Search, ChevronDown, ChevronUp, Filter as FilterIcon, PanelLeftClose, Video } from 'lucide-react';
 import type { Drill, DrillFilters, FilterOptions } from '../types';
+import { parseSearchTokens } from '../utils/searchQuery';
 
 const PREVIEW_LIMIT = 6;
 
@@ -28,9 +29,48 @@ export default function FilterSidebar({
 
   const previewMatches = useMemo(() => {
     if (!searchText.trim() || drills.length === 0) return [];
-    const q = searchText.toLowerCase();
+    const { plainTerms, hashtags } = parseSearchTokens(searchText);
+
     return drills
-      .filter(d => d.exercise?.toLowerCase().includes(q))
+      .filter(d => {
+        const searchableTextFields = [
+          d.exercise,
+          d.description,
+          ...(d.type || []),
+          d.contact_level,
+          ...(d.position_focus || []),
+          ...(d.skills_used || []),
+          ...(d.skater_level || []),
+          d.drill_type,
+          d.equipment,
+          d.game_type,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .map(value => value.toLowerCase());
+
+        const hasPlainTermMatch =
+          plainTerms.length === 0 ||
+          plainTerms.some(term => searchableTextFields.some(value => value.includes(term)));
+        if (!hasPlainTermMatch) return false;
+
+        const searchableTags = [
+          ...(d.type || []),
+          d.contact_level,
+          ...(d.position_focus || []),
+          ...(d.skills_used || []),
+          ...(d.skater_level || []),
+          d.drill_type,
+          d.equipment,
+          d.game_type,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .map(value => value.toLowerCase());
+
+        const hasHashtagMatch =
+          hashtags.length === 0 || hashtags.some(tag => searchableTags.some(value => value.includes(tag)));
+
+        return hasHashtagMatch;
+      })
       .slice(0, PREVIEW_LIMIT);
   }, [searchText, drills]);
 

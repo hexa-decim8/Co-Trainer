@@ -948,7 +948,7 @@ export default function PlannerPage() {
                 </div>
                 {drillLibraryOpen && (
                   <div className="flex-1 overflow-y-auto p-3 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-                    {isLoading || isStreaming ? (
+                    {(isLoading || isStreaming) && allDrills.length === 0 ? (
                       <div className="flex items-center justify-center h-64">
                         <div className="text-center">
                           {progress > 0 ? (
@@ -990,38 +990,54 @@ export default function PlannerPage() {
                           )}
                         </div>
                       </div>
-                    ) : drills.length === 0 && allDrills.length === 0 ? (
-                      <div className="flex items-center justify-center h-64">
-                        <div className="text-center max-w-md">
-                          <div className="text-6xl mb-4">🔍</div>
-                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
-                          <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
-                        </div>
-                      </div>
-                    ) : drills.length === 0 ? (
-                      <div className="flex items-center justify-center h-64">
-                        <div className="text-center max-w-md">
-                          <div className="text-6xl mb-4">🔍</div>
-                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
-                          <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see more drills</p>
-                        </div>
-                      </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-4">
-                        {drills.map((drill) => (
-                          <DrillCard
-                            key={drill.id}
-                            drill={drill}
-                            activeFilters={activeFilters}
-                            onContactLevelClick={handleContactLevelClick}
-                            onDrillTypeClick={handleDrillTypeClick}
-                            onEquipmentClick={handleEquipmentClick}
-                            onPositionFocusClick={handlePositionFocusClick}
-                            onSkaterLevelClick={handleSkaterLevelClick}
-                            onTypeClick={handleTypeClick}
-                          />
-                        ))}
-                      </div>
+                      <>
+                        {(isLoading || isStreaming) && (
+                          <div className="mb-3 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-medium text-primary-800 dark:border-primary-800/70 dark:bg-primary-900/20 dark:text-primary-200">
+                            {shouldSync
+                              ? 'Syncing drills from Notion. Matching results will continue to appear as data arrives.'
+                              : 'Refreshing drill library. Search results update live while sync continues.'}
+                          </div>
+                        )}
+
+                        {drills.length === 0 && allDrills.length === 0 ? (
+                          <div className="flex items-center justify-center h-64">
+                            <div className="text-center max-w-md">
+                              <div className="text-6xl mb-4">🔍</div>
+                              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                              <p className="text-gray-600 dark:text-gray-400">Configure your Notion integration in Settings to load drills</p>
+                            </div>
+                          </div>
+                        ) : drills.length === 0 ? (
+                          <div className="flex items-center justify-center h-64">
+                            <div className="text-center max-w-md">
+                              <div className="text-6xl mb-4">🔍</div>
+                              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Drills Found</h3>
+                              <p className="text-gray-600 dark:text-gray-400">
+                                {(isLoading || isStreaming)
+                                  ? 'No current matches yet. Keep typing or wait as more drills sync in.'
+                                  : 'Try adjusting your filters to see more drills'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-4">
+                            {drills.map((drill) => (
+                              <DrillCard
+                                key={drill.id}
+                                drill={drill}
+                                activeFilters={activeFilters}
+                                onContactLevelClick={handleContactLevelClick}
+                                onDrillTypeClick={handleDrillTypeClick}
+                                onEquipmentClick={handleEquipmentClick}
+                                onPositionFocusClick={handlePositionFocusClick}
+                                onSkaterLevelClick={handleSkaterLevelClick}
+                                onTypeClick={handleTypeClick}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
